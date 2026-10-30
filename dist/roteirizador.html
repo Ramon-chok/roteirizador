@@ -159,6 +159,11 @@ body.tool-lasso #map .leaflet-container, body.tool-lasso #map, body.tool-rect #m
 .rzhint { margin: 0; font-size: 12px; color: var(--muted); }
 .rzgo { justify-content: center; width: 100%; min-height: 36px; white-space: normal; }
 .rzsec { border-top: 1px solid var(--line); padding-top: 10px; }
+.rzb { border-top: 1px solid var(--line); padding-top: 12px; }
+.nmbtn { display: block; width: 100%; padding: 0; border: 0; background: transparent; font-weight: 600; font-size: 13px; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nmbtn:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.arvbtn svg { transition: transform .12s; }
+.arvbtn[aria-expanded="true"] svg { transform: rotate(180deg); }
 .rzsec > summary { cursor: pointer; font-family: var(--f-cond); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 500; }
 .rzsec > summary:hover { color: var(--ink); }
 .rzsec[open] > summary { margin-bottom: 10px; }
@@ -339,7 +344,7 @@ table.t input[type=checkbox] { accent-color: var(--accent); }
 .steps { display: flex; gap: 6px; font-size: 12px; color: var(--muted); }
 .steps span.on { color: var(--accent); font-weight: 600; }
 
-#toast { position: fixed; z-index: 4000; left: 50%; top: calc(134px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 7px; font-size: 13px; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
+#toast { position: fixed; z-index: 4000; left: 50%; top: calc(134px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); pointer-events: none; background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 7px; font-size: 13px; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 2000; background: var(--bg); }
 
 /* ---------- Página inicial ---------- */
@@ -515,14 +520,14 @@ body:not(.screen-home) .acct .an { display: none; }
     <section id="mapView">
       <div id="map" aria-label="Mapa"></div>
       <div class="float" id="toolbar" role="toolbar" aria-label="Ferramentas do mapa"></div>
-      <button class="btn float drawer-toggle" id="btnLayers" hidden>Roteirizar</button>
-      <aside class="float drawer left" id="layersPanel" aria-label="Roteirizar">
-        <header><h2>Roteirizar</h2><button class="iconbtn" aria-label="Recolher painel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button></header>
+      <button class="btn float drawer-toggle" id="btnLayers" hidden>Visualizar</button>
+      <aside class="float drawer left" id="layersPanel" aria-label="Visualizar">
+        <header><h2>Visualizar</h2><button class="iconbtn" aria-label="Recolher painel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button></header>
         <div class="body"></div>
       </aside>
-      <button class="btn float drawer-toggle" id="btnSel" hidden>Seleção e rota <span class="count"></span></button>
-      <aside class="float drawer right" id="selPanel" hidden aria-label="Seleção e rota">
-        <header><h2>Seleção e rota</h2><button class="iconbtn" aria-label="Recolher painel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button></header>
+      <button class="btn float drawer-toggle" id="btnSel" hidden>Editar <span class="count"></span></button>
+      <aside class="float drawer right" id="selPanel" hidden aria-label="Editar e roteirizar">
+        <header><h2>Editar e roteirizar</h2><button class="iconbtn" aria-label="Recolher painel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button></header>
         <div class="body"></div>
       </aside>
       <div class="float" id="legend" hidden></div>
@@ -976,6 +981,7 @@ const ICON = {
   folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
   filePlus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11.5v6M9 14.5h6"/></svg>',
   upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01" stroke-width="2.6"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M18 7h2M4 17h2M11 17h9"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="8.5" cy="17" r="2.5"/></svg>'
 };
@@ -1202,7 +1208,7 @@ const st = {
   cli: null, col: null, amb: null, itens: null, cur: null,
   screen: 'home', homeFocus: null,
   view: 'mapa', colorBy: 'setor',
-  hidden: new Set(), hiddenSet: new Set(), qf: { w: [], d: [] }, rzSec: { setores: true, exib: false }, visao: 'base', corAtual: null, baseF: { cidades: new Set(), soldes: new Set(), q: '', cq: '' }, baseCor: 'cidade', bzRes: [], rotaAntes: null,
+  hidden: new Set(), hiddenSet: new Set(), qf: { w: [], d: [] }, rzSec: { setores: true, exib: false }, visao: 'base', corAtual: null, arv: new Map(), baseF: { cidades: new Set(), soldes: new Set(), q: '', cq: '' }, baseCor: 'cidade', bzRes: [], rotaAntes: null,
   showLines: true, showBases: true, showSeq: true, showOut: true, showUnassigned: true, verSemSetor: true, colorAntes: null, selForm: {}, showSea: true, placing: null,
   sel: new Set(), tool: 'select', routes: new Map(), visRoutes: [],
   panelL: true, panelR: false, mk: new Map(), ruler: { pts: [], active: false },
@@ -1324,7 +1330,7 @@ async function openAmb(id, fit = true) {
   if (st.geo) { await st.geo.flush(); st.geo.detach(); }
   st.pathCache.clear(); st.roadFail.clear();
   st.cur = id || null; saveUI();
-  st.sel.clear(); st.hidden.clear(); st.hiddenSet.clear(); st.qf = { w: [], d: [] }; st.verSemSetor = true; st.visao = st.cur ? 'setores' : 'base'; st.showLines = false; st.rotaAntes = null; if (st.colorAntes) { st.colorBy = st.colorAntes; st.colorAntes = null; }
+  st.sel.clear(); st.hidden.clear(); st.hiddenSet.clear(); st.qf = { w: [], d: [] }; st.verSemSetor = true; st.visao = st.cur ? 'setores' : 'base'; st.showLines = false; st.rotaAntes = null; st.arv.clear(); if (st.colorAntes) { st.colorBy = st.colorAntes; st.colorAntes = null; }
   if (st.cur) { st.itens = new BucketStore('itens/' + st.cur + '/b'); st.geo = new BucketStore('geo/' + st.cur + '/b'); await Promise.all([st.itens.load(), st.geo.load()]); }
   else { st.itens = null; st.geo = null; }
   rebuild(); renderAll();
@@ -2069,15 +2075,13 @@ function setorBloco(id) {
   for (const it of st.itens.values()) if (it.s === id) { n++; if (!itemKeys(it).length) sem++; }
   const rs = [...st.routes.values()].filter(r => r.s === id), sm = sumRoutes(rs), ro = st.ro ? ' disabled' : '';
   const cols = [...st.col.values()].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')).map(c => `<option value="${esc(c.codigo)}"${c.codigo === x.colab ? ' selected' : ''}>${esc(c.nome)} (${esc(c.codigo)})</option>`).join('');
-  return `<div class="stack rzsetor">
+  return `<section class="stack rzsetor">
     <div class="row" style="justify-content:space-between"><b><span class="sw" style="background:${esc(x.cor)};margin-right:6px;vertical-align:-1px"></span>${esc(x.nome)}</b>${rs.length ? ocPill(sm.ocMed) : ''}</div>
     <div class="muted" style="font-size:12.5px">${n} clientes · ${rs.length} rotas · ${fkm(sm.km)} km no ciclo</div>
     <label class="field"><span class="lbl">Colaborador e base de saída</span><select data-rzcol="${esc(id)}"${ro}><option value="">— Sem colaborador —</option>${cols}</select></label>
     ${sem ? `<div class="banner info" style="font-size:12.5px"><span>${sem} cliente(s) ainda sem dia. Selecione no mapa e escolha o dia, ou deixe o sistema dividir.</span><span class="row"><button class="btn sm" type="button" data-act="selsemdia" data-sid="${esc(id)}">Selecionar</button><button class="btn sm primary" type="button" data-act="distsemdia" data-sid="${esc(id)}"${ro}>Dividir nos dias</button></span></div>` : ''}
-    ${rs.length ? `<div class="tsec"><div class="grid" style="padding:8px">${setorGrade(id)}</div></div>` : ''}
-    <div class="row"><button class="btn sm" type="button" data-act="selsetor" data-sid="${esc(id)}">Selecionar todos</button>${n > sem ? `<button class="btn sm" type="button" data-act="redist" data-sid="${esc(id)}"${ro}>Refazer os dias</button>` : ''}</div>
-    <label class="chk"><input type="checkbox" data-opt="verSemSetor" ${st.verSemSetor ? 'checked' : ''}> Mostrar também clientes sem setor</label>
-  </div>`;
+    <div class="row"><button class="btn sm" type="button" data-act="selsetor" data-sid="${esc(id)}">Selecionar todos</button>${n > sem ? `<button class="btn sm" type="button" data-act="redist" data-sid="${esc(id)}"${ro}>Refazer os dias</button>` : ''}<button class="btn sm danger" type="button" data-act="delsetor" data-sid="${esc(id)}"${ro}>Excluir setor</button></div>
+  </section>`;
 }
 function visaoHtml() {
   const a = amb(), b = (v, t, tip) => `<button type="button" data-visao="${v}" aria-pressed="${st.visao === v}" title="${tip}"${a || v === 'base' ? '' : ' disabled'}>${t}</button>`;
@@ -2108,7 +2112,6 @@ function painelBase() {
   const cids = [...por].sort((x, y) => x[0].localeCompare(y[0], 'pt-BR'));
   const qc = norm(F.cq);
   return `${visaoHtml()}<section class="rz">
-    ${a ? '' : `<p class="rzhint">${nf0.format(st.cli.size)} clientes na base. Selecione com as ferramentas do topo e clique com o botão direito para criar o primeiro setor. O estudo é criado sozinho.</p>`}
     <div class="rzn"><span class="muted"><b class="num">${nf0.format(st.mk.size)}</b> de ${nf0.format(st.cli.size)} clientes no mapa</span><button class="btn sm ghost" type="button" data-act="bzlimpa">Limpar filtros</button></div>
     <div class="stack"><span class="lbl">Cidades${F.cidades.size ? ` · ${F.cidades.size} marcada${F.cidades.size === 1 ? '' : 's'}` : ''}</span>
       ${cids.length > 8 ? `<input type="search" id="bzCidQ" placeholder="Buscar cidade" aria-label="Buscar cidade" value="${esc(F.cq)}">` : ''}
@@ -2120,24 +2123,26 @@ function painelBase() {
       ${F.soldes.size ? '<div class="row"><button class="btn sm ghost" type="button" data-act="bzlimpasold">Desmarcar os específicos</button></div>' : ''}
     </div>
     <div class="stack"><span class="lbl">Cor dos clientes</span><div class="seg rzseg"><button type="button" data-bzcor="cidade" aria-pressed="${st.baseCor === 'cidade'}">Por cidade</button><button type="button" data-bzcor="setor" aria-pressed="${st.baseCor === 'setor'}">Por setor</button></div></div>
-    ${a ? '' : `<button class="btn rzgo" type="button" data-act="estudoBase"${st.ro ? ' disabled' : ''}>Começar estudo com toda a base</button>`}
   </section>`;
 }
 /* ----- Partes comuns de Setores e Rotas ----- */
 function arvoreHtml(porRota) {
   const bySet = new Map(); for (const r of st.routes.values()) { if (!bySet.has(r.s)) bySet.set(r.s, []); bySet.get(r.s).push(r); }
   const cnt = new Map(); for (const it of st.itens.values()) if (it.s) cnt.set(it.s, (cnt.get(it.s) || 0) + 1);
+  const visto = porRota ? '' : setorVisto();
   return sortedSetores().map(([id, s]) => {
     const rs = bySet.get(id) || []; const sm = sumRoutes(rs); const c = colabOfSetor(id);
     const on = !st.hiddenSet.has(id);
-    const nome = porRota && c ? `${esc(c.nome)}<div class="sub">${esc(s.nome)} · ${rs.length} rotas</div>` : `${esc(s.nome)}<div class="sub">${c ? esc(c.nome) : '<span style="color:var(--warn)">sem colaborador</span>'} · ${cnt.get(id) || 0} clientes</div>`;
+    const aberta = st.arv.has(id) ? st.arv.get(id) : visto === id || (porRota && on);
+    const sub = porRota && c ? `${esc(s.nome)} · ${rs.length} rotas` : `${c ? esc(c.nome) : '<span style="color:var(--warn)">sem colaborador</span>'} · ${cnt.get(id) || 0} clientes`;
+    const titulo = porRota && c ? esc(c.nome) : esc(s.nome);
     return `<div class="tsec"><div class="th">
       <input type="checkbox" data-setvis="${esc(id)}" ${on ? 'checked' : ''} aria-label="Mostrar ${esc(s.nome)}">
       <span class="sw" style="background:${esc(s.cor)}"></span>
-      <div class="nm">${nome}</div>
+      <div class="nm">${porRota ? titulo : `<button class="nmbtn" type="button" data-solo="${esc(id)}" title="Abrir este setor">${titulo}</button>`}<div class="sub">${sub}</div></div>
       <div class="meta"><span class="num">${fkm(sm.km)} km</span><br>${rs.length ? ocPill(sm.ocMed) : ''}</div>
-      ${porRota ? '' : `<button class="iconbtn" data-solo="${esc(id)}" title="Abrir este setor">${ICON.solo}</button>`}
-    </div><div class="grid">${setorGrade(id)}</div></div>`;
+      <button class="iconbtn arvbtn" type="button" data-arv="${esc(id)}" aria-expanded="${aberta}" aria-label="Semanas e dias de ${esc(s.nome)}" title="Semanas e dias"${rs.length ? '' : ' hidden'}>${ICON.chevron}</button>
+    </div>${aberta && rs.length ? `<div class="grid">${setorGrade(id)}</div>` : ''}</div>`;
   }).join('');
 }
 function filtrosRotaHtml() {
@@ -2170,7 +2175,6 @@ function exibicaoHtml() {
         <label class="chk"><input type="checkbox" data-opt="showUnassigned" ${st.showUnassigned ? 'checked' : ''}> Sem setor ou sem dia (${nUn + nSemDia})</label>
         <label class="chk"><input type="checkbox" data-opt="showOut" ${st.showOut ? 'checked' : ''}> Clientes da base fora do estudo (${nOut})</label>
         <label class="chk"><input type="checkbox" data-opt="showSea" ${st.showSea ? 'checked' : ''}> Endereços não encontrados, no mar (${seaList().length})</label>
-        <label class="chk"><input type="checkbox" data-opt="autoRoad" ${st.autoRoad ? 'checked' : ''}> Refazer o traçado sozinho quando eu editar uma rota</label>
       </div>
     </details>`;
 }
@@ -2178,14 +2182,12 @@ function exibicaoHtml() {
 function painelRotas() {
   const vis = st.visRoutes || [], sets = sortedSetores();
   return `${visaoHtml()}<section class="rz">
-      <div class="stack"><span class="lbl">1 · Quem ver</span>
+      <div class="stack"><span class="lbl">Quem ver</span>
         ${filtrosRotaHtml()}
         <div class="rzn"><span class="muted"><b class="num">${vis.length}</b> de ${st.routes.size} rotas no mapa</span><span class="row"><button class="btn sm ghost" type="button" data-act="rotastodas">Todas</button><button class="btn sm ghost" type="button" data-act="rotasnenhuma">Nenhuma</button></span></div>
-        ${st.routes.size ? (vis.length ? '' : '<p class="rzhint">Marque um colaborador, ou clique em um dia, para ver o roteiro.</p>') : '<p class="rzhint">Este estudo ainda não tem rotas. Monte-as na visão Setores.</p>'}
+        ${st.routes.size ? (vis.length ? '' : '<p class="rzhint">Marque um colaborador para ver os roteiros dele.</p>') : '<p class="rzhint">Este estudo ainda não tem rotas. Monte-as na visão Setores.</p>'}
         ${sets.length ? `<div class="tree">${arvoreHtml(true)}</div>` : ''}
       </div>
-      <div class="stack"><span class="lbl">2 · Modo de roteirização</span>${modoHtml()}</div>
-      ${roteirizarHtml(vis)}
     </section>${exibicaoHtml()}`;
 }
 function renderLayersPanel() {
@@ -2195,26 +2197,22 @@ function renderLayersPanel() {
   if (!a && !(st.cli && st.cli.size)) { body.innerHTML = `<div class="empty"><h3>Nenhum cliente ainda</h3><p>Importe uma base de clientes para selecioná-los no mapa e criar setores.</p><button class="btn primary" data-go="importar">Importar clientes</button></div>`; return; }
   if (!a || st.visao === 'base') { const t = $('#bzCids'), y = t ? t.scrollTop : 0; body.innerHTML = painelBase(); const n = $('#bzCids'); if (n) n.scrollTop = y; return; }
   if (st.visao === 'rotas') { body.innerHTML = painelRotas(); return; }
-  let nUn = 0, nSemDia = 0; for (const it of st.itens.values()) { if (!it.s || !setorOf(it.s)) nUn++; else if (!itemKeys(it).length) nSemDia++; }
+  let nUn = 0; for (const it of st.itens.values()) if (!it.s || !setorOf(it.s)) nUn++;
   let nOut = 0; for (const c of st.cli.values()) if (!st.itens.has(c.sold)) nOut++;
   const tree = arvoreHtml(false);
   const vis = st.visRoutes || [], sets = sortedSetores(), onSets = sets.filter(([id]) => !st.hiddenSet.has(id));
   const setVal = setorVisto(), aberto = sets.some(([id]) => id === setVal);
   body.innerHTML = `${visaoHtml()}
     <section class="rz">
-      <div class="stack"><span class="lbl">1 · O que ver no mapa</span>
+      <div class="stack"><span class="lbl">O que ver no mapa</span>
         <label class="rzl"><span class="muted">Setor</span><select id="rzSet"><option value=""${setVal === '' ? ' selected' : ''}>Todos</option><option value="__nenhum"${setVal === '__nenhum' ? ' selected' : ''}>Nenhum</option><option value="__sem"${setVal === '__sem' ? ' selected' : ''}>Só clientes sem setor (${nUn + nOut})</option>${setVal === '__parte' ? `<option value="__parte" selected>${onSets.length} setores marcados</option>` : ''}${sets.map(([id, x]) => `<option value="${esc(id)}"${setVal === id ? ' selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
         ${filtrosRotaHtml()}
         <div class="rzn"><span class="muted"><b class="num">${vis.length}</b> de ${st.routes.size} rotas · <b class="num">${nf0.format(st.mk.size)}</b> clientes</span><button class="btn sm ghost" data-act="showall">Limpar filtros</button></div>
-        ${aberto ? '' : '<p class="rzhint">Selecione clientes com as ferramentas do topo e clique com o botão direito para criar um setor, ou use o painel à direita para escolher os dias e roteirizar.</p>'}
+        ${aberto ? `<label class="chk"><input type="checkbox" data-opt="verSemSetor" ${st.verSemSetor ? 'checked' : ''}> Mostrar também clientes sem setor</label>` : ''}
       </div>
-      ${aberto ? setorBloco(setVal) : ''}
-      ${!st.routes.size && sets.length && !nSemDia ? '' : !st.routes.size && sets.length && setVal === '' ? `<div class="banner info" style="font-size:12.5px"><span>Os clientes dos setores ainda não têm dia e semana.</span><button class="btn sm primary" data-act="distribuir"${st.ro ? ' disabled' : ''}>Dividir nos dias</button></div>` : ''}
-      <div class="stack"><span class="lbl">2 · Modo de roteirização</span>${modoHtml()}</div>
-      ${roteirizarHtml(vis)}
     </section>
-    <details class="rzsec" data-sec="setores"${st.rzSec.setores ? ' open' : ''}><summary>Setores e roteiros · ${sets.length}</summary>
-      ${tree ? `<div class="tree">${tree}</div>` : '<p class="muted" style="margin:0">Nenhum setor ainda. Selecione clientes no mapa e clique com o botão direito para criar um, ou use a setorização automática em “Estudos”.</p>'}
+    <details class="rzsec" data-sec="setores"${st.rzSec.setores ? ' open' : ''}><summary>Setores · ${sets.length}</summary>
+      ${tree ? `<div class="tree">${tree}</div>` : '<p class="muted" style="margin:0">Nenhum setor ainda.</p>'}
     </details>
     ${exibicaoHtml()}`;
 }
@@ -2235,9 +2233,7 @@ function setVisao(v) {
 function passaFiltro(r) { const { w, d } = st.qf; return (!w.length || w.includes(r.w)) && (!d.length || d.includes(r.d)); }
 function abrirDetalheRotas() { if (st.visao === 'rotas' && innerWidth > 640) { st.panelR = true; applyPanels(); } }
 function rotasLista(vis) {
-  const t = sumRoutes(vis);
-  return `<section class="stack"><div class="row" style="justify-content:space-between"><span class="lbl">${vis.length} rotas marcadas</span>${ocPill(t.ocMed)}</div>
-    <div class="mgrid"><span>Visitas</span><span class="v">${nf0.format(t.n)}</span><span>KM total</span><span class="v">${fkm(t.km)}</span><span>Deslocamento</span><span class="v">${fhm(t.tDesl)}</span><span>Total</span><span class="v">${fhm(t.total)}</span></div>
+  return `<section class="stack rzb"><span class="lbl">${vis.length} rotas marcadas</span>
     <div class="rlist">${vis.map(r => { const c = colabOfSetor(r.s); return `<button type="button" class="rit rkrow" data-rkver="${esc(r.k)}" title="Abrir esta rota"><span class="sw" style="background:${esc(routeColor(r))}"></span><span class="nm">${esc(c ? c.nome : (setorOf(r.s) || {}).nome)} · S${r.w} · ${DIA_C[r.d]}<span class="muted" style="display:block;font-size:11.5px">${r.m.n} visitas · ${fkm(r.m.km)} km · ${fhm(r.m.total)}</span></span>${ocPill(r.m.ocup)}</button>`; }).join('')}</div></section>`;
 }
 /* Consultas que "Roteirizar" fará, para mostrar o tempo antes de começar. Semanas com a mesma lista de visitas contam uma vez, como em traceRoute */
@@ -2251,17 +2247,31 @@ function estimaRoteirizar(list, o) {
   return { seg: n * 1.1, rotas: rotas.length };
 }
 const fdur = seg => (seg < 60 ? `${Math.max(5, Math.round(seg / 5) * 5)} s` : `${Math.round(seg / 60)} min`);
+/* Painel direito sem seleção: o que dá para fazer com o que está no mapa */
+function edicaoHtml(vis) {
+  const a = amb(), ro = st.ro ? ' disabled' : '';
+  if (!st.cli) return '';
+  let nOut = 0; if (a) for (const c of st.cli.values()) if (!st.itens.has(c.sold)) nOut++;
+  const clientes = `<section class="stack rzb"><span class="lbl">Clientes</span><div class="row"><button class="btn sm" type="button" data-act="newcli"${ro}>Novo cliente</button>${a && nOut ? `<button class="btn sm" type="button" data-act="incl"${ro}>Incluir da base (${nf0.format(nOut)})</button>` : ''}</div></section>`;
+  const dica = txt => `<p class="rzhint">${txt}</p>`;
+  if (!a) return st.cli.size ? `<section class="stack">${dica(`${nf0.format(st.cli.size)} clientes na base. Selecione com as ferramentas do topo e clique com o botão direito para criar o primeiro setor. O estudo é criado sozinho.`)}<button class="btn" type="button" data-act="estudoBase"${ro}>Começar estudo com toda a base</button></section>${clientes}` : clientes;
+  if (st.visao === 'base') return `<section class="stack">${dica('Selecione clientes no mapa para definir setor, dias e semanas, ou clique com o botão direito para criar um setor.')}</section>${clientes}`;
+  const sets = sortedSetores(), visto = setorVisto(), aberto = st.visao === 'setores' && sets.some(([id]) => id === visto);
+  let semDia = 0; for (const it of st.itens.values()) if (it.s && setorOf(it.s) && !itemKeys(it).length) semDia++;
+  const partes = [];
+  if (aberto) partes.push(setorBloco(visto));
+  else partes.push(`<section class="stack">${dica(sets.length ? 'Selecione clientes no mapa para definir setor, dias e semanas.' : 'Selecione clientes no mapa e clique com o botão direito para criar um setor.')}${!st.routes.size && semDia ? `<div class="banner info" style="font-size:12.5px"><span>Os clientes dos setores ainda não têm dia e semana.</span><button class="btn sm primary" type="button" data-act="distribuir"${ro}>Dividir nos dias</button></div>` : ''}</section>`);
+  partes.push(`<section class="stack rzb"><span class="lbl">Modo de roteirização</span>${modoHtml()}${roteirizarHtml(vis)}<label class="chk"><input type="checkbox" data-opt="autoRoad" ${st.autoRoad ? 'checked' : ''}> Refazer o traçado ao editar uma rota</label></section>`);
+  if (vis.length === 1) partes.push(`<section class="stack rzb">${st.rotaAntes ? '<div class="row"><button class="btn sm" type="button" data-rkvolta>← Todas as rotas marcadas</button></div>' : ''}${routeDetail(vis[0])}</section>`);
+  else if (st.visao === 'rotas' && vis.length > 1) partes.push(rotasLista(vis));
+  partes.push(clientes);
+  return partes.join('');
+}
 function renderSelPanel() {
   const p = $('#selPanel'); applyPanels(); if (p.hidden) return;
-  const body = p.querySelector('.body'); const a = amb();
-  let html = '';
-  const vis = st.visRoutes || [];
+  const body = p.querySelector('.body');
   if (!st.sel.size) st.selForm = {};
-  if (st.sel.size) html += selSection();
-  if (vis.length === 1) html += `${st.rotaAntes ? '<div class="row"><button class="btn sm" type="button" data-rkvolta>← Todas as rotas marcadas</button></div>' : ''}${routeDetail(vis[0])}`;
-  else if (st.visao === 'rotas' && vis.length > 1) html += rotasLista(vis);
-  if (!html) html = `<div class="empty" style="padding:18px 6px"><h3>Nada selecionado</h3><p>Use o laço, o retângulo ou clique nos clientes. Com uma única rota visível, o detalhe e a sequência aparecem aqui.</p></div>`;
-  body.innerHTML = html;
+  body.innerHTML = st.sel.size ? selSection() : edicaoHtml(st.visRoutes || []);
   bindRouteList(body);
 }
 function routeDetail(r) {
@@ -2283,7 +2293,7 @@ function routeDetail(r) {
     </div>
     ${m.real ? `<div class="muted" style="font-size:12.5px">Calculada como: <b style="color:var(--ink)">${esc(rotaTxt(m.o))}</b>${m.o !== rotaKey(rotaOpt()) ? ' <span class="pill warn" title="O formato escolhido no painel é outro. Roteirize de novo para aplicar">outro formato</span>' : ''}${m.toll && !rotaAviso(m) ? ' <span class="pill idle">com pedágio</span>' : ''}</div>` : ''}
     ${rotaAviso(m) ? `<div class="banner" style="font-size:12.5px">Sem alternativa no mapa: ${esc(rotaAviso(m))}.</div>` : ''}
-    <div class="row"><button class="btn sm primary" data-rop="ropt" data-rk="${esc(r.k)}" title="Melhor ordem pelas ruas reais (${rotaTxt(rotaKey(rotaOpt()))}) e traçado do percurso"${roadOk() ? '' : ' disabled'}>Roteirizar pelas ruas</button><button class="btn sm" data-rop="rtrace" data-rk="${esc(r.k)}" title="Mantém a ordem e traça o caminho pelas ruas"${roadOk() ? '' : ' disabled'}>Só traçar</button></div>
+    <div class="row"><button class="btn sm" data-rop="rtrace" data-rk="${esc(r.k)}" title="Mantém a ordem e traça o caminho pelas ruas"${roadOk() ? '' : ' disabled'}>Só traçar</button></div>
     <div class="row"><button class="btn sm" data-rop="opt" data-rk="${esc(r.k)}" title="Sem consultar o servidor: usa linha reta">Otimizar em linha reta</button><button class="btn sm" data-rop="rev" data-rk="${esc(r.k)}">Inverter sentido</button><button class="btn sm" data-rop="selall" data-rk="${esc(r.k)}">Selecionar clientes</button></div>
     <p class="muted" style="margin:0;font-size:12px">Arraste para mudar a ordem. A sequência vale para o dia nas semanas em que o cliente é visitado.</p>
     <div class="rlist" data-rk="${esc(r.k)}">
@@ -2326,7 +2336,7 @@ function selSection() {
     <div class="stack"><span class="lbl">3 · Modo de roteirização</span>${modoHtml()}</div>
     <button class="btn primary rzgo" data-sop="go"${ro}>Roteirizar ${sel.length} cliente${sel.length === 1 ? '' : 's'}</button>
     <div class="row"><button class="btn sm" data-sop="salvar"${ro} title="Grava o setor, os dias e as semanas sem consultar o servidor de rotas">Só salvar, sem calcular</button>${a && nFora ? `<button class="btn sm" data-sop="include"${ro}>Só incluir no estudo (${nFora})</button>` : ''}</div>
-    ${a && nFora < sel.length && !st.ro ? `<div class="row"><button class="btn sm" data-sop="unassign">Tirar do roteiro</button><button class="btn sm danger" data-sop="remove">Remover do estudo</button></div>` : ''}
+    ${st.ro ? '' : `<div class="row">${sel.length === 1 ? '<button class="btn sm" data-sop="editar">Editar cadastro</button>' : ''}${a && nFora < sel.length ? '<button class="btn sm" data-sop="unassign">Tirar do roteiro</button><button class="btn sm danger" data-sop="remove">Remover do estudo</button>' : ''}<button class="btn sm danger" data-sop="delbase" title="Apaga o cadastro do cliente">Excluir da base</button></div>`}
     <div class="rlist">${list}${sel.length > 80 ? `<div class="muted" style="font-size:12px">+ ${sel.length - 80} outros</div>` : ''}</div>
   </section>`;
 }
@@ -2535,7 +2545,6 @@ function reorderRoute(rk, order) {
 }
 function routeOp(op, rk) {
   const r = st.routes.get(rk); if (!r) return;
-  if (op === 'ropt') { roadJob([rk], true, 'Rota roteirizada pelas ruas'); return; }
   if (op === 'rtrace') { roadJob([rk], false, 'Percurso traçado pelas ruas'); return; }
   if (op === 'selall') { st.sel = new Set(r.stops); afterSel(); return; }
   pushUndo(op === 'opt' ? 'Otimizar sequência' : 'Inverter sentido');
@@ -2557,6 +2566,13 @@ function selOp(op) {
   const sel = [...st.sel];
   const inS = sel.filter(s => st.itens && st.itens.has(s));
   if (op === 'clear') { st.sel.clear(); afterSel(); return; }
+  if (op === 'editar') { cliForm(st.cli.get(sel[0]), false); return; }
+  if (op === 'delbase') {
+    const touched = new Set();
+    for (const x of sel) { if (st.itens && st.itens.has(x)) { sdKeys(st.itens.get(x)).forEach(k => touched.add(k)); st.itens.del(x); } st.cli.del(x); }
+    if (st.itens) resequence(touched);
+    st.sel.clear(); rebuild(); renderAll(); renderToolbar(); toast(`${sel.length} cliente(s) excluídos da base`); return;
+  }
   if (op === 'include') { pushUndo('Incluir no estudo'); let n = 0; for (const s of sel) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); return; }
   if (!inS.length) return;
   if (op === 'unassign') {
@@ -2578,6 +2594,11 @@ function distribuirSetor(sid, todos) {
   for (const [sold, v] of res) { const it = clone(st.itens.get(sold)); sdKeys(it).forEach(k => touched.add(k)); it.d = v.d; it.w = v.w; it.q = v.q; st.itens.put(sold, it); sdKeys(it).forEach(k => touched.add(k)); }
   resequence(touched); rebuild(); renderAll(); renderToolbar();
   toast(`${res.size} cliente(s) divididos nos dias. Use Roteirizar para calcular pelas ruas`, 5000);
+}
+function excluirSetor(sid) {
+  pushUndo('Excluir setor'); touchAmb(a => { delete a.setores[sid]; });
+  for (const [s, it] of st.itens.map) if (it.s === sid) st.itens.put(s, { s: '', d: [], w: [], q: {} });
+  rebuild(); renderAll(); toast('Setor excluído — clientes ficaram sem setor');
 }
 function touchAmb(mut) { const a = clone(amb()); a.setores = a.setores || {}; mut(a); a.alterado = Date.now(); st.amb.put(a.id, a); }
 function cleanPend(a) {
@@ -3735,13 +3756,9 @@ function bindEvents() {
     else if (b.dataset.act === 'bzmarca') { st.bzRes.forEach(x => st.baseF.soldes.add(x)); renderMap(); setTimeout(fitVisible, 30); }
     else if (b.dataset.act === 'rotastodas') { st.hidden.clear(); st.hiddenSet.clear(); applyQF(); abrirDetalheRotas(); renderMap(); setTimeout(fitVisible, 30); }
     else if (b.dataset.act === 'rotasnenhuma') { st.hidden.clear(); sortedSetores().forEach(([id]) => st.hiddenSet.add(id)); renderMap(); }
-    else if (b.dataset.act === 'estudoBase') garantirEstudo().then(() => { rebuild(); renderAll(); toast('Estudo criado com toda a base'); });
-    else if (b.dataset.act === 'selsemdia' || b.dataset.act === 'selsetor') { st.sel = new Set([...st.itens.map].filter(([, it]) => it.s === b.dataset.sid && (b.dataset.act === 'selsetor' || !itemKeys(it).length)).map(([x]) => x)); afterSel(); }
-    else if (b.dataset.act === 'distsemdia') distribuirSetor(b.dataset.sid, false);
-    else if (b.dataset.act === 'redist') armButton(b, () => distribuirSetor(b.dataset.sid, true), 'Confirmar');
+    else if (b.dataset.arv) { const id = b.dataset.arv; st.arv.set(id, b.getAttribute('aria-expanded') !== 'true'); renderLayersPanel(); }
     else if (b.dataset.qw !== undefined) toggleQF('w', +b.dataset.qw);
     else if (b.dataset.qd !== undefined) toggleQF('d', +b.dataset.qd);
-    else if (b.dataset.rzcrit) setRotaParam('criterio', b.dataset.rzcrit);
     else if (b.dataset.rk) {
       if (e.shiftKey || e.altKey) { soloRoute(b.dataset.rk); return; }
       const sid = b.dataset.rk.split('|')[0];
@@ -3752,8 +3769,6 @@ function bindEvents() {
     else if (b.dataset.act === 'showall') { st.qf = { w: [], d: [] }; verSetor(''); }
     else if (b.dataset.act === 'hideall') { sortedSetores().forEach(([id]) => st.hiddenSet.add(id)); renderMap(); }
     else if (b.dataset.act === 'fit') fitVisible();
-    else if (b.dataset.act === 'roadvis') roadJob((st.visRoutes || []).map(r => r.k), true, `Rotas roteirizadas (${rotaTxt(rotaKey(rotaOpt()))})`);
-    else if (b.dataset.act === 'distribuir') runAutoRoute();
   });
   $('#seaChip').addEventListener('click', e => { const b = e.target.closest('[data-sea]'); if (!b) return; if (b.dataset.sea === 'go') goSea(); else adjustForm(); });
   $('#geoBar').addEventListener('click', e => {
@@ -3772,8 +3787,6 @@ function bindEvents() {
     if (t.dataset.bzcid !== undefined) { const c = st.baseF.cidades; if (t.checked) c.add(t.dataset.bzcid); else c.delete(t.dataset.bzcid); renderMap(); setTimeout(fitVisible, 30); }
     if (t.dataset.bzsold) { const c = st.baseF.soldes; if (t.checked) c.add(t.dataset.bzsold); else c.delete(t.dataset.bzsold); renderMap(); setTimeout(fitVisible, 30); }
     if (t.dataset.opt) { st[t.dataset.opt] = t.checked; renderMap(); }
-    if (t.dataset.rzopt) setRotaParam(t.dataset.rzopt, t.checked);
-    if (t.dataset.rzcol !== undefined) { touchAmb(a => { a.setores[t.dataset.rzcol].colab = t.value; }); rebuild(); renderMap(); }
     if (t.id === 'rzSet') { verSetor(t.value); if (t.value !== '__nenhum') setTimeout(fitVisible, 30); }
   });
   $('#layersPanel').addEventListener('input', e => {
@@ -3789,9 +3802,19 @@ function bindEvents() {
     if (b.dataset.fd !== undefined) { selChip('dias', b.dataset.fd); return; }
     if (b.dataset.fw !== undefined) { selChip('sem', b.dataset.fw); return; }
     if (b.dataset.rzcrit) { setRotaParam('criterio', b.dataset.rzcrit); return; }
+    const act = b.dataset.act, sid = b.dataset.sid;
+    if (act === 'estudoBase') garantirEstudo().then(() => { rebuild(); renderAll(); toast('Estudo criado com toda a base'); });
+    else if (act === 'selsemdia' || act === 'selsetor') { st.sel = new Set([...st.itens.map].filter(([, it]) => it.s === sid && (act === 'selsetor' || !itemKeys(it).length)).map(([x]) => x)); afterSel(); }
+    else if (act === 'distsemdia') distribuirSetor(sid, false);
+    else if (act === 'redist') armButton(b, () => distribuirSetor(sid, true), 'Confirmar');
+    else if (act === 'delsetor') armButton(b, () => { excluirSetor(sid); verSetor(''); setTimeout(fitVisible, 30); }, 'Confirmar exclusão');
+    else if (act === 'roadvis') roadJob((st.visRoutes || []).map(r => r.k), true, `Rotas roteirizadas (${rotaTxt(rotaKey(rotaOpt()))})`);
+    else if (act === 'distribuir') runAutoRoute();
+    else if (act === 'newcli' || act === 'incl') pageAct(act, b);
     if (b.dataset.rop) routeOp(b.dataset.rop, b.dataset.rk);
     if (b.dataset.sop) {
       if (b.dataset.sop === 'remove') armButton(b, () => selOp('remove'), 'Confirmar remoção');
+      else if (b.dataset.sop === 'delbase') armButton(b, () => selOp('delbase'), 'Confirmar exclusão');
       else if (b.dataset.sop === 'go') aplicarSelecao(true);
       else if (b.dataset.sop === 'salvar') aplicarSelecao(false);
       else selOp(b.dataset.sop);
@@ -3802,6 +3825,8 @@ function bindEvents() {
     if (t.id === 'sSet') { st.selForm.setor = t.value; renderSelPanel(); }
     else if (t.id === 'sCol') st.selForm.colab = t.value;
     else if (t.dataset.rzopt) setRotaParam(t.dataset.rzopt, t.checked);
+    else if (t.dataset.opt) { st[t.dataset.opt] = t.checked; renderMap(); }
+    else if (t.dataset.rzcol !== undefined) { touchAmb(a => { a.setores[t.dataset.rzcol].colab = t.value; }); rebuild(); renderMap(); }
   });
   $('#selPanel').addEventListener('input', e => { if (e.target.id === 'sNome') st.selForm.nome = e.target.value; });
   document.addEventListener('pointerdown', e => { if (!e.target.closest('#ctx')) fecharCtx(); }, true);
@@ -3827,7 +3852,7 @@ function bindEvents() {
     else if (ds.rmode) { st.pg.roteiros.mode = ds.rmode; renderPage(); }
     else if (ds.cpage) { st.pg.clientes.page += +ds.cpage; renderPage(); $('#pageView').scrollTop = 0; }
     else if (ds.d && t.closest('#pDias')) { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); const ds2 = $$('#pDias button[aria-pressed="true"]').map(x => +x.dataset.d); if (!ds2.length) { t.setAttribute('aria-pressed', 'true'); toast('Mantenha ao menos um dia'); return; } touchAmb(a => { a.params = { ...P(), dias: ds2 }; }); rebuild(); renderPage(); }
-    else if (ds.sdel) armButton(t, () => { pushUndo('Excluir setor'); touchAmb(a => { delete a.setores[ds.sdel]; }); for (const [s, it] of st.itens.map) if (it.s === ds.sdel) st.itens.put(s, { s: '', d: [], w: [], q: {} }); rebuild(); renderAll(); toast('Setor excluído — clientes ficaram sem setor'); }, 'Confirmar');
+    else if (ds.sdel) armButton(t, () => excluirSetor(ds.sdel), 'Confirmar');
     else if (ds.delcli) armButton(t, () => { st.cli.del(ds.delcli); if (st.itens) st.itens.del(ds.delcli); closeModal(); rebuild(); renderAll(); toast('Cliente excluído da base'); }, 'Confirmar exclusão');
     else if (ds.delcol) armButton(t, () => { st.col.del(ds.delcol); closeModal(); rebuild(); renderAll(); toast('Colaborador excluído'); }, 'Confirmar exclusão');
     else if (ds.act) pageAct(ds.act, t);
@@ -3897,7 +3922,7 @@ function verSetor(v) {
   else if (v === '__nenhum') { sets.forEach(id => st.hiddenSet.add(id)); st.verSemSetor = false; }
   else if (v === '__sem') { sets.forEach(id => st.hiddenSet.add(id)); st.verSemSetor = true; st.showUnassigned = true; st.showOut = true; }
   else { sets.forEach(id => { if (id !== v) st.hiddenSet.add(id); }); st.verSemSetor = false; st.showUnassigned = true; }
-  if (sets.includes(v)) { if (!st.colorAntes) st.colorAntes = st.colorBy; st.colorBy = 'dia'; }
+  if (sets.includes(v)) { if (!st.colorAntes) st.colorAntes = st.colorBy; st.colorBy = 'dia'; if (innerWidth > 640) { st.panelR = true; applyPanels(); } }
   else if (st.colorAntes) { st.colorBy = st.colorAntes; st.colorAntes = null; }
   applyQF();
 }
@@ -4611,7 +4636,9 @@ async function boot() {
   catch (e2) { toast('Não foi possível carregar os dados salvos: ' + (e2.message || e2.code || e2)); }
   const ids = [...st.amb.values()].sort((a, b) => (b.alterado || 0) - (a.alterado || 0)).map(a => a.id);
   const first = ids.includes(st.lastAmb) ? st.lastAmb : ids[0];
-  if (innerWidth < 900) { st.panelL = false; applyPanels(); }
+  if (innerWidth < 900) st.panelL = false;
+  if (innerWidth >= 1100) st.panelR = true;
+  applyPanels();
   await openAmb(first || null, false);
   setScreen('home');
   $('#loading').hidden = true;

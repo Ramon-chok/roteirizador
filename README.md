@@ -34,7 +34,9 @@ Alternativa sem extensão (precisa do Node.js instalado): no terminal do VS Code
 
 ## Visões do mapa
 
-O painel esquerdo do mapa tem três visões:
+No mapa, o painel da esquerda (**Visualizar**) serve para escolher o que ver e o da direita (**Editar e roteirizar**) para alterar: setor, dias, semanas, modo de roteirização, cliente novo, inclusão e exclusão.
+
+O painel da esquerda tem três visões:
 
 - **Setores** (abre assim ao entrar em um estudo): todos os setores carregados e coloridos, sem linhas de rota. Abrir um setor ou filtrar semana e dia mostra as linhas.
 - **Rotas**: começa sem ninguém marcado. Marque colaboradores ou clique em um dia para ver só aqueles roteiros; o painel direito lista as rotas marcadas com KM, tempo e ocupação, e cada uma abre com a sequência de visitas.
@@ -46,14 +48,14 @@ As ferramentas de seleção (clique, retângulo e laço) ficam na barra de ferra
 
 1. Importe só a base de clientes. No mapa, eles aparecem na visão Base, sem precisar criar um estudo antes. Se a listagem tiver a coluna **Setor** (e, se quiser, **SOLD vendedor**), os setores já são carregados no estudo ao importar.
 2. Selecione clientes com clique, retângulo ou laço e clique com o **botão direito → Criar setor com a seleção**. Se não houver estudo aberto, ele é criado com toda a base. Clientes de um setor existente podem ser levados para outro pelo mesmo menu.
-3. Abra o setor no seletor **Setor** do painel Roteirizar (ou pelo botão direito em um cliente dele). O mapa mostra só ele, colorido por dia.
+3. Abra o setor no seletor **Setor** do painel Visualizar, clicando no nome dele na lista, ou pelo botão direito em um cliente dele. O mapa mostra só ele, colorido por dia, e o painel da direita mostra as ações do setor.
 4. Selecione os clientes de cada rota. No painel à direita escolha o setor, os dias, as semanas e o modo, e clique em **Roteirizar**. Ou use **Dividir nos dias** para o sistema distribuir o setor inteiro.
 
 O seletor **Setor** também oferece **Todos**, **Nenhum** e **Só clientes sem setor**. Para comparar mais ou menos setores, duplique o estudo em **Estudos → Duplicar como cenário** e use **Comparar cenários**.
 
 ## Roteirizar no mapa
 
-Para rotas que já existem, o painel **Roteirizar** segue a ordem da tarefa: **1)** escolha o que ver (setor, semanas e dias, podendo marcar mais de um); **2)** escolha o modo; **3)** clique em **Roteirizar**.
+Para rotas que já existem: escolha no painel **Visualizar** o que ver (setor, semanas e dias, podendo marcar mais de um) e, em **Editar e roteirizar**, escolha o modo e clique em **Roteirizar**.
 
 | Formato | Servidor | O que faz |
 |---|---|---|
