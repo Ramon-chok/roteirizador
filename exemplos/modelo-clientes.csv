@@ -1,0 +1,3 @@
+﻿SOLD;Nome;Endereço;Bairro;Cidade;UF;CEP;Visitas por mês;Atendimento (min);Latitude;Longitude;Setor;SOLD vendedor
+700101;Mercado Exemplo;Rua Vergueiro, 1000;Vila Mariana;São Paulo;SP;04101-000;4;20;;;Setor 01;V101
+700102;Padaria Exemplo;Av. Jabaquara, 500;Saúde;São Paulo;SP;04046-000;2;15;;;Setor 02;V102

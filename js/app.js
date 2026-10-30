@@ -1,0 +1,3397 @@
+(function () {
+'use strict';
+const E = window.Engine;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isNum = v => typeof v === 'number' && isFinite(v);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const uid = p => (p || 'a') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const clone = o => (typeof structuredClone === 'function' ? structuredClone(o) : JSON.parse(JSON.stringify(o)));
+
+const DIA_C = ['', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const DIA_L = ['', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+const COR_DIA = ['', '#2F6FB3', '#C2512B', '#3E8E5C', '#8A4FB0', '#B0892F', '#1F8A8A', '#C23C6E'];
+const COR_SEM = ['', '#2F6FB3', '#C2512B', '#3E8E5C', '#8A4FB0'];
+const DEF_P = { semanas: 4, dias: [1, 2, 3, 4, 5], vel: 25, fator: 1.35, jornada: 480, tPadrao: 20, criterio: 'tempo' };
+const NB = 32;
+
+const nf1 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const nf0 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+const fkm = v => nf1.format(v || 0);
+const fhm = min => { const m = Math.round(min || 0); return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
+const fpct = v => nf0.format((v || 0) * 100) + '%';
+function ocPill(o) {
+  if (o > 1) return `<span class="pill bad" title="Excede a jornada">${fpct(o)}</span>`;
+  if (o >= 0.9) return `<span class="pill warn" title="Próximo do limite da jornada">${fpct(o)}</span>`;
+  if (o < 0.5) return `<span class="pill idle" title="Rota com folga">${fpct(o)}</span>`;
+  return `<span class="pill ok">${fpct(o)}</span>`;
+}
+function freqTxt(f) { return ({ 1: 'Mensal', 2: 'Quinzenal', 4: 'Semanal', 8: '2x semana', 12: '3x semana' })[f] || (f ? f + 'x/mês' : '—'); }
+
+const ICON = {
+  pan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10m0-4.5v-1a1.5 1.5 0 0 1 3 0V10m0-3.5a1.5 1.5 0 0 1 3 0V11m0-2.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L5 15.5a1.6 1.6 0 0 1 2.4-2.1L8 14"/></svg>',
+  select: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 3l14 7-6 1.8L10.5 18z"/></svg>',
+  rect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 2.5"><rect x="4" y="5" width="16" height="14" rx="1"/></svg>',
+  lasso: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 16.5C3.8 15 3 12.6 3.6 10.5 4.7 6.6 9.5 4 14 4.6c4.7.6 7.2 3.6 6.2 6.9-.9 3-5 5-9.2 4.9" stroke-dasharray="3 2.5"/><circle cx="8.5" cy="17.5" r="2"/><path d="M8 19.5c-.2 1.3-1 2-2 2.3"/></svg>',
+  ruler: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 16.5 16.5 3 21 7.5 7.5 21z"/><path d="M7 12.5l2 2M10 9.5l1.5 1.5M13 6.5l2 2M5.5 14l1 1M8.5 11l1 1"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+  fit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.5"/></svg>',
+  full: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>',
+  unfull: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+  solo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 11h3v9h5v-6h4v6h5v-9h3z"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  filePlus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11.5v6M9 14.5h6"/></svg>',
+  upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01" stroke-width="2.6"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M18 7h2M4 17h2M11 17h9"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="8.5" cy="17" r="2.5"/></svg>'
+};
+
+/* ================= Persistência ================= */
+const LocalBackend = {
+  kind: 'local',
+  async list(coll) {
+    const out = [], pre = 'rt1:' + coll + '/';
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(pre) && !k.slice(pre.length).includes('/')) out.push({ id: k.slice(pre.length), data: JSON.parse(localStorage.getItem(k)) });
+      }
+    } catch (e) { MemOnly = true; }
+    return out;
+  },
+  async set(coll, id, data) {
+    try { localStorage.setItem('rt1:' + coll + '/' + id, JSON.stringify(data)); }
+    catch (e) { MemOnly = true; throw { code: 'quota_exceeded', message: 'O armazenamento deste navegador está cheio ou bloqueado.' }; }
+  },
+  async del(coll, id) { try { localStorage.removeItem('rt1:' + coll + '/' + id); } catch (e) { /* ignora */ } }
+};
+let MemOnly = false;
+function CloudBackend(db) {
+  return {
+    kind: 'cloud',
+    async list(coll) { const s = await db.collection(coll).get(); return s.docs.map(d => ({ id: d.id, data: d.data() })); },
+    async set(coll, id, data) { await db.collection(coll).doc(id).set(data); },
+    async del(coll, id) { await db.collection(coll).doc(id).delete(); }
+  };
+}
+async function withRetry(fn) {
+  for (let a = 0; ; a++) {
+    try { return await fn(); } catch (e) {
+      const c = e && e.code;
+      if ((c === 'unavailable' || c === 'resource_exhausted') && a < 5) { await sleep(400 * 2 ** a + Math.random() * 300); continue; }
+      throw e;
+    }
+  }
+}
+function bucketOf(key) { let h = 2166136261; for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); } return 'b' + String((h >>> 0) % NB).padStart(2, '0'); }
+
+const Save = {
+  stores: new Set(), err: null,
+  update() {
+    const el = $('#save'); if (!el) return;
+    let pending = false; for (const s of this.stores) if (s.dirty.size || s.busy || s.t) pending = true;
+    el.classList.toggle('pending', pending && !this.err); el.classList.toggle('err', !!this.err);
+    const where = st.backend && st.backend.kind === 'cloud' ? 'na nuvem' : MemOnly ? 'só nesta sessão' : 'neste navegador';
+    if (this.err) el.innerHTML = `<span class="dot"></span><span class="txt">Falha ao salvar: ${esc(this.err.message || this.err.code || 'erro')}</span> <button type="button" id="retrySave">Tentar de novo</button>`;
+    else el.innerHTML = `<span class="dot"></span><span class="txt">${pending ? 'Salvando…' : (st.ro ? 'Somente leitura' : 'Salvo ' + where)}</span>`;
+    el.title = el.textContent.trim();
+    const b = $('#retrySave'); if (b) b.onclick = () => { this.err = null; for (const s of this.stores) { s.markAll(); s.flush(); } };
+  }
+};
+
+class BucketStore {
+  constructor(coll) { this.coll = coll; this.map = new Map(); this.dirty = new Set(); this.t = null; this.busy = false; this.again = false; Save.stores.add(this); }
+  async load() { this.map.clear(); const docs = await withRetry(() => st.backend.list(this.coll)); for (const d of docs) { const it = (d.data && d.data.items) || {}; for (const k in it) this.map.set(k, it[k]); } }
+  get(k) { return this.map.get(k); }
+  has(k) { return this.map.has(k); }
+  values() { return this.map.values(); }
+  get size() { return this.map.size; }
+  put(k, v) { if (st.ro) return; this.map.set(k, v); this.dirty.add(bucketOf(k)); this.sched(); }
+  del(k) { if (st.ro) return; if (this.map.delete(k)) { this.dirty.add(bucketOf(k)); this.sched(); } }
+  replaceAll(m) { for (const k of this.map.keys()) this.dirty.add(bucketOf(k)); this.map = m; for (const k of m.keys()) this.dirty.add(bucketOf(k)); this.sched(); }
+  markAll() { for (let i = 0; i < NB; i++) this.dirty.add('b' + String(i).padStart(2, '0')); }
+  sched() { clearTimeout(this.t); this.t = setTimeout(() => { this.t = null; this.flush(); }, 650); Save.update(); }
+  async flush() {
+    if (st.ro) return;
+    if (this.busy) { this.again = true; return; }
+    this.busy = true; Save.update();
+    let bs = [];
+    try {
+      while (this.dirty.size) {
+        bs = [...this.dirty]; this.dirty.clear();
+        const groups = new Map(bs.map(b => [b, {}]));
+        for (const [k, v] of this.map) { const b = bucketOf(k); const g = groups.get(b); if (g) g[k] = v; }
+        for (const [b, items] of groups) {
+          if (Object.keys(items).length) await withRetry(() => st.backend.set(this.coll, b, { items }));
+          else await withRetry(() => st.backend.del(this.coll, b));
+          bs = bs.filter(x => x !== b);
+        }
+      }
+      Save.err = null;
+    } catch (e) {
+      bs.forEach(b => this.dirty.add(b));
+      Save.err = e || { message: 'erro' };
+      if (e && e.code === 'invalid_argument') { st.ro = true; Save.err = { message: 'sem permissão de edição' }; }
+    } finally {
+      this.busy = false;
+      if (this.again) { this.again = false; if (this.dirty.size && !Save.err) this.flush(); }
+      Save.update();
+    }
+  }
+  async destroy() { this.map.clear(); this.dirty.clear(); for (let i = 0; i < NB; i++) { try { await withRetry(() => st.backend.del(this.coll, 'b' + String(i).padStart(2, '0'))); } catch (e) { /* ignora */ } } Save.stores.delete(this); }
+  detach() { Save.stores.delete(this); }
+}
+
+/* ================= Estado ================= */
+const st = {
+  backend: null, base: null, empresa: null, usuario: null, ro: false,
+  cli: null, col: null, amb: null, itens: null, cur: null,
+  screen: 'home', homeFocus: null,
+  view: 'mapa', colorBy: 'setor',
+  hidden: new Set(), hiddenSet: new Set(), qf: { w: [], d: [] }, rzSec: { setores: true, exib: false }, visao: 'base', corAtual: null, baseF: { cidades: new Set(), soldes: new Set(), q: '', cq: '' }, baseCor: 'cidade', bzRes: [], rotaAntes: null,
+  showLines: true, showBases: true, showSeq: true, showOut: true, showUnassigned: true, verSemSetor: true, colorAntes: null, selForm: {}, showSea: true, placing: null,
+  sel: new Set(), tool: 'select', routes: new Map(), visRoutes: [],
+  panelL: true, panelR: false, mk: new Map(), ruler: { pts: [], active: false },
+  undo: [], baseKind: 'auto', tileOk: 0, tileErr: 0, autoResequence: true,
+  pg: { clientes: { q: '', page: 0, cidade: '', semCoord: false, noEstudo: '', chk: new Set() }, colaboradores: { q: '', chk: new Set() }, roteiros: { mode: 'grade', setor: '', chk: new Set() } },
+  cmp: null, g: 'idle', gMsg: '', geo: null, pathCache: new Map(), road: 'idle', vh: 'idle', roadMsg: '', autoRoad: true, bgBusy: false, roadFail: new Set()
+};
+const uiKey = () => 'rt1:' + st.empresa.id + '_ui';
+function loadUI() { try { const v = JSON.parse(localStorage.getItem(uiKey()) || '{}'); Object.assign(st, { colorBy: v.colorBy || 'setor', baseKind: v.baseKind || 'auto' }); if (v.view) st.view = v.view; st.lastAmb = v.amb; } catch (e) { /* ignora */ } }
+function saveUI() { try { localStorage.setItem(uiKey(), JSON.stringify({ colorBy: st.colorAntes || st.colorBy, baseKind: st.baseKind, view: st.view, amb: st.cur })); } catch (e) { /* ignora */ } }
+
+const amb = () => (st.cur ? st.amb.get(st.cur) : null);
+const P = (a = amb()) => ({ ...DEF_P, ...((a && a.params) || {}) });
+const setorOf = (id, a = amb()) => (a && a.setores ? a.setores[id] : null);
+function colabOfSetor(id, a = amb()) { const s = setorOf(id, a); return s && s.colab ? st.col.get(s.colab) : null; }
+function baseOf(id, a = amb()) { const c = colabOfSetor(id, a); return c && isNum(c.lat) && isNum(c.lng) ? { lat: c.lat, lng: c.lng } : null; }
+function cliPt(sold) { const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) return null; return { sold, lat: c.lat, lng: c.lng, t: isNum(c.t) ? c.t : P().tPadrao, f: c.f || 4 }; }
+function sortedSetores(a = amb()) { if (!a) return []; return Object.entries(a.setores || {}).sort((x, y) => String(x[1].nome).localeCompare(String(y[1].nome), 'pt-BR', { numeric: true })); }
+function itemKeys(it, a = amb()) { if (!it || !it.s || !setorOf(it.s, a)) return []; const W = P(a).semanas, out = []; for (const w of it.w || []) if (w <= W) for (const d of it.d || []) out.push(`${it.s}|${w}|${d}`); return out; }
+
+/* Rotas derivadas (setor × semana × dia) */
+function buildRoutes(a, items, geo) {
+  const routes = new Map(); if (!a || !items) return routes;
+  const p = P(a);
+  for (const [sold, it] of items) {
+    for (const k of itemKeys(it, a)) {
+      let r = routes.get(k);
+      if (!r) { const [s, w, d] = k.split('|'); r = { k, s, w: +w, d: +d, stops: [] }; routes.set(k, r); }
+      r.stops.push(sold);
+    }
+  }
+  for (const r of routes.values()) {
+    const qv = s => { const q = items.get(s).q; const v = q && q[r.d]; return isNum(v) ? v : 9999; };
+    r.stops.sort((x, y) => qv(x) - qv(y));
+    const pts = r.stops.map(cliPt).filter(Boolean);
+    const col = colabOfSetor(r.s, a);
+    r.m = E.routeMetrics(baseOf(r.s, a), pts, { ...p, jornada: (col && col.jornada) || p.jornada });
+    r.missing = r.stops.length - pts.length;
+    r.sig = routeSig(r.stops, baseOf(r.s, a));
+    const real = geo && geo.get(r.k);
+    r.stale = !!(real && real.sig !== r.sig);
+    if (real && real.sig === r.sig) {
+      const tDesl = real.min, total = tDesl + r.m.tAtend;
+      r.m = { ...r.m, kmIda: real.kmIda, kmEntre: real.kmEntre, kmVolta: real.kmVolta, km: real.km, tDesl, total, ocup: r.m.jornada ? total / r.m.jornada : 0, real: true, src: real.src || 'osrm', o: real.o || 'rapida', toll: real.toll, terra: real.terra };
+    }
+  }
+  return routes;
+}
+function rebuild() { st.routes = buildRoutes(amb(), st.itens && st.itens.map, st.geo && st.geo.map); }
+function routeLabel(r) { const s = setorOf(r.s); return `${s ? s.nome : '?'} · S${r.w} · ${DIA_L[r.d]}`; }
+function sortedRoutes(list) {
+  const so = new Map(sortedSetores().map(([id], i) => [id, i]));
+  return list.sort((a, b) => (so.get(a.s) ?? 999) - (so.get(b.s) ?? 999) || a.w - b.w || a.d - b.d);
+}
+function routeVisible(k) { const s = k.split('|')[0]; return !st.hiddenSet.has(s) && !st.hidden.has(k); }
+function itemVisible(it) {
+  if (!it.s || !setorOf(it.s)) return st.showUnassigned && st.verSemSetor;
+  if (st.hiddenSet.has(it.s)) return false;
+  const ks = itemKeys(it);
+  if (!ks.length) return st.showUnassigned;
+  return ks.some(k => !st.hidden.has(k));
+}
+
+/* Undo */
+function pushUndo(label) {
+  if (!st.itens) return;
+  st.undo.push({ label, amb: st.cur, itens: new Map(st.itens.map), meta: clone(amb()) });
+  if (st.undo.length > 20) st.undo.shift();
+}
+function doUndo() {
+  const u = st.undo.pop(); if (!u) { toast('Nada para desfazer'); return; }
+  if (u.amb !== st.cur) { toast('Desfazer disponível apenas no estudo onde a alteração foi feita'); return; }
+  st.itens.replaceAll(u.itens); st.amb.put(u.meta.id, u.meta);
+  rebuild(); renderAll(); toast('Desfeito: ' + u.label);
+}
+
+/* ================= UI geral ================= */
+let toastT;
+function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
+let tokCache = null;
+function tokens() { if (tokCache) return tokCache; const cs = getComputedStyle(document.documentElement); const g = n => cs.getPropertyValue(n).trim(); tokCache = { surface: g('--surface'), muted: g('--muted'), sel: g('--sel'), ink: g('--ink'), line: g('--line'), bg: g('--map-bg') }; return tokCache; }
+function isDark() { const t = document.documentElement.getAttribute('data-theme'); if (t) return t === 'dark'; return matchMedia('(prefers-color-scheme: dark)').matches; }
+function onTheme() { tokCache = null; setBase(); renderMap(); }
+
+function armButton(btn, fn, txt = 'Confirmar') {
+  if (btn.classList.contains('armed')) { btn.classList.remove('armed'); fn(); return; }
+  const old = btn.innerHTML; btn.classList.add('armed'); btn.textContent = txt;
+  setTimeout(() => { if (btn.isConnected && btn.classList.contains('armed')) { btn.classList.remove('armed'); btn.innerHTML = old; } }, 4000);
+}
+
+function setScreen(s) {
+  st.screen = s;
+  document.body.classList.toggle('screen-home', s === 'home');
+  $('#homeView').hidden = s !== 'home';
+  if (s === 'home') { $('#mapView').hidden = true; $('#pageView').hidden = true; renderHome(); }
+}
+function renderView() { if (st.screen === 'home') renderHome(); else if (st.view === 'mapa') renderMap(); else renderPage(); }
+function enterPlanner(v = 'mapa') { setView(v); if (v === 'mapa') setTimeout(fitVisible, 140); }
+async function enterStudy(id) { if (id === '__cur') id = st.cur; if (id && id !== st.cur) await openAmb(id, false); enterPlanner('mapa'); }
+function setView(v) {
+  if (st.screen !== 'planner') setScreen('planner');
+  st.view = v; saveUI(); document.body.classList.toggle('view-map', v === 'mapa');
+  $$('#tabs .tab').forEach(b => { const on = b.dataset.view === v; b.setAttribute('aria-selected', String(on)); if (on) b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); });
+  $('#mapView').hidden = v !== 'mapa';
+  $('#pageView').hidden = v === 'mapa';
+  if (v === 'mapa') { setTimeout(() => { map.invalidateSize(); renderMap(); }, 0); }
+  else renderPage();
+}
+function renderAmbSel() {
+  const s = $('#ambSel');
+  const list = [...st.amb.values()].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+  s.innerHTML = list.length ? list.map(a => `<option value="${esc(a.id)}"${a.id === st.cur ? ' selected' : ''}>${esc(a.nome)}</option>`).join('') : '<option value="">Nenhum estudo</option>';
+}
+function renderAll() { renderAmbSel(); if (map) renderToolbar(); renderView(); Save.update(); autoRoadSync(); }
+
+async function openAmb(id, fit = true) {
+  if (st.cur) homeCache.delete(st.cur);
+  if (st.itens) { await st.itens.flush(); st.itens.detach(); }
+  if (st.geo) { await st.geo.flush(); st.geo.detach(); }
+  st.pathCache.clear(); st.roadFail.clear();
+  st.cur = id || null; saveUI();
+  st.sel.clear(); st.hidden.clear(); st.hiddenSet.clear(); st.qf = { w: [], d: [] }; st.verSemSetor = true; st.visao = st.cur ? 'setores' : 'base'; st.showLines = false; st.rotaAntes = null; if (st.colorAntes) { st.colorBy = st.colorAntes; st.colorAntes = null; }
+  if (st.cur) { st.itens = new BucketStore('itens/' + st.cur + '/b'); st.geo = new BucketStore('geo/' + st.cur + '/b'); await Promise.all([st.itens.load(), st.geo.load()]); }
+  else { st.itens = null; st.geo = null; }
+  rebuild(); renderAll();
+  if (fit && map) fitVisible();
+}
+
+/* ================= Google Maps ================= */
+const CFG = window.RT_CONFIG || {};
+const GMAPS_KEY = CFG.googleMapsKey || 'AIzaSyBdSARhzRlQNoO47wgN7izPQQLgy_5ZaUM';
+const G_LIGHT = [{ featureType: 'poi', stylers: [{ visibility: 'off' }] }, { featureType: 'transit.station', stylers: [{ visibility: 'off' }] }];
+const G_DARK = [
+  { elementType: 'geometry', stylers: [{ color: '#1d2421' }] }, { elementType: 'labels.text.fill', stylers: [{ color: '#8e9c95' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#121715' }] }, { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2f3a36' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#4a5650' }] }, { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1a1f' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] }, { featureType: 'transit', stylers: [{ visibility: 'off' }] }
+];
+const gReady = () => st.g === 'ready' && !!(window.google && google.maps && L.gridLayer && L.gridLayer.googleMutant);
+const inClaude = () => !!(window.claude && typeof window.claude.use === 'function');
+function loadGoogle() {
+  return new Promise((res, rej) => {
+    if (window.google && google.maps && google.maps.Map) { res(); return; }
+    let done = false; const fin = (fn, v) => { if (!done) { done = true; fn(v); } };
+    window.__rtGmapsReady = () => fin(res);
+    window.gm_authFailure = () => { st.g = 'fail'; st.gMsg = 'a chave foi recusada pelo Google (confira se a Maps JavaScript API está ativa no projeto e se a chave permite este endereço)'; onGoogleFail(); };
+    const sc = document.createElement('script');
+    sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GMAPS_KEY) + '&callback=__rtGmapsReady&language=pt-BR&region=BR';
+    sc.async = true;
+    sc.onerror = () => fin(rej, new Error(inClaude() ? 'a janela do Claude só permite scripts de alguns CDNs, e o Google Maps não está entre eles' : 'o script do Google não carregou (sem internet ou bloqueado)'));
+    document.head.append(sc);
+    setTimeout(() => fin(rej, new Error('o Google Maps demorou demais para responder')), 15000);
+  });
+}
+function onGoogleFail() {
+  if (st.baseKind.startsWith('g_')) { st.baseKind = 'auto'; $('#baseSel').value = 'auto'; saveUI(); }
+  setBase();
+  showNote(`Google Maps indisponível: ${esc(st.gMsg || 'erro desconhecido')}. Usando o mapa alternativo; ferramentas e cálculos continuam funcionando.`, 'warn');
+}
+function gErr(e) {
+  const c = (e && (e.code || e.status || e.message)) || 'erro';
+  if (/REQUEST_DENIED/i.test(c)) return 'pedido negado pelo Google — ative a API correspondente (Directions ou Geocoding) no Google Cloud para esta chave';
+  if (/OVER_QUERY_LIMIT|OVER_DAILY_LIMIT/i.test(c)) return 'limite de consultas do Google atingido; aguarde e tente de novo';
+  if (/ZERO_RESULTS|NOT_FOUND/i.test(c)) return 'o Google não encontrou caminho entre os pontos';
+  return String(c);
+}
+function routeSig(stops, b) { const s = stops.join(',') + '|' + (b ? b.lat.toFixed(5) + ',' + b.lng.toFixed(5) : '-'); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + ':' + stops.length; }
+async function googleLegs(nodes, optimize, semPedagio) {
+  const ds = new google.maps.DirectionsService(); const legs = [], path = []; let order = null;
+  for (let i = 0; i < nodes.length - 1; i += 26) {
+    const seg = nodes.slice(i, i + 27); if (seg.length < 2) break;
+    const res = await ds.route({ origin: seg[0], destination: seg[seg.length - 1], waypoints: seg.slice(1, -1).map(p => ({ location: { lat: p.lat, lng: p.lng }, stopover: true })), travelMode: google.maps.TravelMode.DRIVING, optimizeWaypoints: !!optimize, avoidTolls: !!semPedagio, region: 'br' });
+    const rt = res.routes[0]; legs.push(...rt.legs); rt.overview_path.forEach(pt => path.push([pt.lat(), pt.lng()]));
+    if (optimize) order = rt.waypoint_order;
+  }
+  return { legs, path, order };
+}
+function startGoogle() {
+  if (st.g !== 'idle') return; st.g = 'loading';
+  loadGoogle().then(() => {
+    if (st.g === 'fail') return;
+    const wait = (n = 0) => { if (L.gridLayer && L.gridLayer.googleMutant) { st.g = 'ready'; setBase(); renderAll(); toast('Google Maps conectado'); } else if (n < 40) setTimeout(() => wait(n + 1), 100); else { st.g = 'fail'; st.gMsg = 'o componente de integração não carregou'; onGoogleFail(); } };
+    wait();
+  }).catch(e => { st.g = 'fail'; st.gMsg = e.message; onGoogleFail(); });
+}
+
+/* ================= Percurso pelas ruas (OSRM / OpenStreetMap, gratuito) ================= */
+/* Formato da rota, guardado nos parâmetros do estudo. O OSRM público só calcula a mais rápida sem restrições (recusa "exclude=toll");
+   o resto vai para o Valhalla, que também é gratuito e usa o mesmo mapa. O Google evita pedágio, mas não calcula a mais curta nem evita terra. */
+function rotaOpt(a = amb()) { const p = P(a); return { curta: p.criterio !== 'tempo', pedagio: !!p.evitaPedagio, terra: !!p.evitaTerra }; }
+const rotaKey = o => [o.curta ? 'curta' : 'rapida', o.pedagio && 'pedagio', o.terra && 'terra'].filter(Boolean).join('+');
+function rotaTxt(key) { const k = key.split('+'); return [k[0] === 'curta' ? 'Mais curta' : 'Mais rápida', k.includes('pedagio') && 'sem pedágio', k.includes('terra') && 'sem terra'].filter(Boolean).join(' · '); }
+function motorRota(o = rotaOpt()) {
+  if (P().motor === 'google' && gReady() && !o.curta && !o.terra) return 'google';
+  return o.curta || o.pedagio || o.terra ? 'valhalla' : 'osrm';
+}
+function rotaAviso(m) { // o que o percurso calculado não conseguiu evitar
+  const k = (m.o || '').split('+'), out = [];
+  if (k.includes('pedagio') && m.toll) out.push('passa por pedágio');
+  if (k.includes('terra') && m.terra >= 0.1) out.push(`${fkm(m.terra)} km de terra`);
+  return out.join(' e ');
+}
+const VH_DEF = (CFG.valhallaUrl || 'https://valhalla1.openstreetmap.de').replace(/\/+$/, '');
+const VH_PUBLICO = VH_DEF.includes('openstreetmap.de');
+const VH_ROTA = 10, VH_BLOCO = 10, VH_MATRIZ_MAX = 60; // o servidor público aceita 10 pontos por rota e 100 pares (10 × 10) por matriz
+const VH_TERRA = new Set(['compacted', 'dirt', 'gravel', 'path', 'impassable']);
+const vhLoc = p => ({ lat: +p.lat, lon: +p.lng });
+const vhCusto = o => ({ costing: 'auto', units: 'kilometers', costing_options: { auto: { ...(o.curta ? { shortest: true } : {}), ...(o.pedagio ? { exclude_tolls: true } : {}), ...(o.terra ? { exclude_unpaved: true, use_tracks: 0 } : {}) } } });
+async function vhPost(path, body) {
+  await throttle(VH_PUBLICO);
+  let r;
+  try { r = await fetch(VH_DEF + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+  catch (e) { throw { code: 'net', message: inClaude() ? 'a janela do Claude bloqueia serviços externos' : 'sem conexão com o servidor de rotas' }; }
+  if (r.status === 429) throw { code: 'rate', message: 'muitas consultas seguidas ao servidor de rotas; aguarde um minuto' };
+  let j; try { j = await r.json(); } catch (e) { throw { code: 'bad', message: 'resposta inválida do servidor de rotas (' + r.status + ')' }; }
+  if (!r.ok) throw { code: j.error_code === 442 ? 'nopath' : 'vh', message: j.error_code === 442 ? 'não há caminho de carro entre dois pontos da rota' : (j.error || 'erro ' + r.status) };
+  return j;
+}
+/* Trecho de até VH_ROTA pontos. Sem caminho com as restrições, divide até achar o par sem saída e só nele abre mão delas */
+async function vhTrecho(nodes, o) {
+  try { return (await vhPost('/route', { locations: nodes.map(vhLoc), directions_type: 'none', ...vhCusto(o) })).trip.legs; }
+  catch (e) {
+    if (e.code !== 'nopath') throw e;
+    if (nodes.length > 2) { const mid = nodes.length >> 1; return [...await vhTrecho(nodes.slice(0, mid + 1), o), ...await vhTrecho(nodes.slice(mid), o)]; }
+    if (o.terra) return vhTrecho(nodes, { ...o, terra: false });
+    if (o.pedagio) return vhTrecho(nodes, { ...o, pedagio: false });
+    throw e;
+  }
+}
+/* Km de terra no percurso: o Valhalla passa por terra quando não há alternativa, sem avisar. null = não foi possível medir */
+async function vhKmTerra(path, o) {
+  try {
+    const j = await vhPost('/trace_attributes', { encoded_polyline: encodePoly(path, 1e6), shape_match: 'walk_or_snap', filters: { attributes: ['edge.surface', 'edge.length'], action: 'include' }, ...vhCusto(o) });
+    return j.edges.reduce((s, e) => s + (VH_TERRA.has(e.surface) ? e.length || 0 : 0), 0);
+  } catch (e) { if (['net', 'rate'].includes(e.code)) throw e; return null; }
+}
+async function vhRoute(nodes, o) {
+  const legs = [], path = []; let terra = o.terra ? 0 : undefined;
+  const n = Math.ceil((nodes.length - 1) / (VH_ROTA - 1));
+  if (job) { job.total += n - 1 + (o.terra ? n : 0); updJob(); }
+  for (let i = 0, parte = 0; i < nodes.length - 1; i += VH_ROTA - 1, parte++) {
+    if (job && job.cancel) throw { code: 'cancel', message: 'cancelado' };
+    const seg = await vhTrecho(nodes.slice(i, i + VH_ROTA), o);
+    const p = seg.flatMap(l => decodePoly(l.shape, 1e6));
+    legs.push(...seg); path.push(...p);
+    if (job && parte < n - 1) { job.done++; updJob(); }
+    if (o.terra) { const t = await vhKmTerra(p, o); terra = t === null || terra === null ? null : terra + t; if (job) { job.done++; updJob(); } }
+  }
+  return { legs: legs.map(l => ({ km: l.summary.length, min: l.summary.time / 60 })), poly: encodePoly(path), src: 'valhalla', toll: legs.some(l => l.summary.has_toll), terra: terra === null ? undefined : terra };
+}
+async function vhMatriz(nodes, o) {
+  const n = nodes.length, D = nodes.map(() => new Array(n).fill(1e9)), T = nodes.map(() => new Array(n).fill(1e9)), blocos = [];
+  for (let i = 0; i < n; i += VH_BLOCO) for (let j = 0; j < n; j += VH_BLOCO) blocos.push([i, j]);
+  if (job) { job.total += blocos.length - 1; updJob(); }
+  for (const [i, j] of blocos) {
+    if (job && job.cancel) return null;
+    const r = await vhPost('/sources_to_targets', { sources: nodes.slice(i, i + VH_BLOCO).map(vhLoc), targets: nodes.slice(j, j + VH_BLOCO).map(vhLoc), ...vhCusto(o) });
+    r.sources_to_targets.forEach((row, a) => row.forEach((c, b) => { if (c.distance !== null) D[i + a][j + b] = c.distance; if (c.time !== null) T[i + a][j + b] = c.time; }));
+    if (job && blocos.length > 1) { job.done++; updJob(); }
+  }
+  if (job && blocos.length > 1) job.done--; // a última consulta conta como o dia, no laço de roadJob
+  return { D, T };
+}
+const OSRM_DEF = (CFG.osrmUrl || 'https://router.project-osrm.org').replace(/\/+$/, '');
+function osrmUrl() { try { return (localStorage.getItem('rt1:osrm') || OSRM_DEF).replace(/\/+$/, ''); } catch (e) { return OSRM_DEF; } }
+let lastReq = 0;
+async function throttle(publico = osrmUrl() === OSRM_DEF) { const w = (publico ? 1050 : 120) - (Date.now() - lastReq); if (w > 0) await sleep(w); lastReq = Date.now(); }
+const coordStr = nodes => nodes.map(p => (+p.lng).toFixed(6) + ',' + (+p.lat).toFixed(6)).join(';');
+async function osrmGet(path) {
+  let r;
+  try { r = await fetch(osrmUrl() + path); }
+  catch (e) { throw { code: 'net', message: inClaude() ? 'a janela do Claude bloqueia serviços externos' : 'sem conexão com o servidor de rotas' }; }
+  if (r.status === 429) throw { code: 'rate', message: 'muitas consultas seguidas ao servidor de rotas; aguarde um minuto' };
+  let j; try { j = await r.json(); } catch (e) { throw { code: 'bad', message: 'resposta inválida do servidor de rotas (' + r.status + ')' }; }
+  if (j.code !== 'Ok') throw { code: j.code || 'erro', message: j.message || j.code || 'erro' };
+  return j;
+}
+async function probeRoads() {
+  st.road = 'testing'; st.vh = 'testing';
+  const vh = fetch(VH_DEF + '/status').then(r => { st.vh = r.ok ? 'ok' : 'fail'; }).catch(() => { st.vh = 'fail'; });
+  try { await throttle(); await osrmGet('/route/v1/driving/-46.6349,-23.5891;-46.6627,-23.6009?overview=false'); st.road = 'ok'; }
+  catch (e) { st.road = 'fail'; st.roadMsg = e.message; if (inClaude()) claudeNote(); }
+  await vh;
+  if (st.cli) renderAll();
+}
+const roadOk = () => { const m = motorRota(); return m === 'google' || (m === 'valhalla' ? st.vh === 'ok' : st.road === 'ok'); };
+function roadUnavailable() {
+  if (inClaude()) claudeNote();
+  toast(inClaude() ? 'Dentro do Claude o servidor de rotas é bloqueado. Abra o arquivo roteirizador-local.html no navegador.' : `Servidor de rotas indisponível: ${st.roadMsg || 'sem conexão'}`, 6000);
+}
+function claudeNote() {
+  showNote('Dentro da janela do Claude, mapas e serviços de rota externos são bloqueados por segurança — por isso aparece só a grade. Abra o arquivo <b>roteirizador-local.html</b> (enviado na conversa) com dois cliques no navegador: mapa gratuito do OpenStreetMap e rotas pelas ruas, sem chave. Use Exportar/Restaurar backup para levar os dados.', 'warn');
+}
+async function roadRoute(nodes) {
+  const o = rotaOpt(), m = motorRota(o);
+  if (m === 'valhalla') return vhRoute(nodes, o);
+  if (m === 'google') { const g = await googleLegs(nodes, false, o.pedagio); return { legs: g.legs.map(l => ({ km: l.distance.value / 1000, min: l.duration.value / 60 })), poly: encodePoly(g.path), src: 'google' }; }
+  await throttle();
+  const j = await osrmGet(`/route/v1/driving/${coordStr(nodes)}?overview=full&geometries=polyline&steps=false`);
+  const rt = j.routes[0];
+  return { legs: rt.legs.map(l => ({ km: l.distance / 1000, min: l.duration / 60 })), poly: rt.geometry, src: 'osrm' };
+}
+async function roadMatrix(nodes) {
+  await throttle();
+  const j = await osrmGet(`/table/v1/driving/${coordStr(nodes)}?annotations=distance,duration`);
+  const fix = M => M.map(row => row.map(v => (v === null || !isFinite(v) ? 1e9 : v)));
+  return { D: fix(j.distances || j.durations), T: fix(j.durations) };
+}
+function realFromLegs(legs, hasBase) {
+  const km = legs.map(l => l.km), mn = legs.map(l => l.min);
+  const tot = km.reduce((a, b) => a + b, 0);
+  const kmIda = hasBase ? km[0] : 0, kmVolta = hasBase && km.length > 1 ? km[km.length - 1] : 0;
+  return { km: tot, kmIda, kmVolta, kmEntre: tot - kmIda - kmVolta, min: mn.reduce((a, b) => a + b, 0), em: Date.now() };
+}
+function decodePoly(str, prec = 1e5) {
+  let i = 0, lat = 0, lng = 0; const out = [];
+  while (i < str.length) {
+    let b, sh = 0, r = 0; do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32); lat += (r & 1) ? ~(r >> 1) : (r >> 1);
+    sh = 0; r = 0; do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32); lng += (r & 1) ? ~(r >> 1) : (r >> 1);
+    out.push([lat / prec, lng / prec]);
+  }
+  return out;
+}
+function encodePoly(path, prec = 1e5) {
+  let pa = 0, pb = 0, s = '';
+  const enc = v => { v = v < 0 ? ~(v << 1) : (v << 1); let o = ''; while (v >= 32) { o += String.fromCharCode((32 | (v & 31)) + 63); v >>= 5; } return o + String.fromCharCode(v + 63); };
+  for (const [la, ln] of path) { const a = Math.round(la * prec), b = Math.round(ln * prec); s += enc(a - pa) + enc(b - pb); pa = a; pb = b; }
+  return s;
+}
+function pathOf(k, sig) {
+  const g = st.geo && st.geo.get(k); if (!g || g.sig !== sig || !g.p) return null;
+  let c = st.pathCache.get(k); if (!c || c.sig !== sig) { c = { sig, path: decodePoly(g.p) }; st.pathCache.set(k, c); }
+  return c.path;
+}
+async function traceRoute(k) {
+  const r = st.routes.get(k); if (!r) return false;
+  const pts = r.stops.map(cliPt).filter(Boolean); const b = baseOf(r.s);
+  const nodes = b ? [b, ...pts, b] : pts; if (nodes.length < 2) return false;
+  // Semanas com a mesma lista de visitas têm o mesmo percurso: no cálculo em lote, consulta o servidor uma vez só
+  const memo = job && job.memo, feito = memo && memo.get(r.sig);
+  if (feito) { st.geo.put(k, feito); return true; }
+  const g = await roadRoute(nodes);
+  const rec = { sig: r.sig, ...realFromLegs(g.legs, !!b), p: g.poly, src: g.src, o: rotaKey(rotaOpt()), ...(g.toll ? { toll: true } : {}), ...(g.terra !== undefined ? { terra: g.terra } : {}) };
+  st.geo.put(k, rec); if (memo) memo.set(r.sig, rec);
+  return true;
+}
+async function optimizeDayByRoad(s, d) {
+  const union = dayUnion(s, d).filter(x => cliPt(x)); if (union.length < 2) return false;
+  const b = baseOf(s); const pts = union.map(cliPt);
+  const nodes = b ? [b, ...pts] : pts;
+  const o = rotaOpt();
+  let order = null, M = null;
+  if (motorRota(o) === 'valhalla' && nodes.length <= VH_MATRIZ_MAX) { M = await vhMatriz(nodes, o); if (!M) return false; }
+  else if (st.road === 'ok' && nodes.length <= 100) M = await roadMatrix(nodes);
+  if (M) {
+    const t = E.sequenceMatrix(o.curta ? M.D : M.T, !!b);
+    order = b ? t.slice(1).map(i => i - 1) : t;
+  } else if (gReady() && b && pts.length <= 25) {
+    order = (await googleLegs([b, ...pts, b], true, o.pedagio)).order;
+  }
+  if (!order) { resequence(new Set([s + '|' + d])); return false; }
+  order.forEach((idx, pos) => { const it = clone(st.itens.get(union[idx])); it.q = { ...(it.q || {}), [d]: pos + 1 }; st.itens.put(union[idx], it); });
+  return true;
+}
+let job = null;
+async function roadJob(keys, optimize, label) {
+  if (!roadOk()) { roadUnavailable(); return; }
+  if (job) { toast('Já existe um cálculo em andamento'); return; }
+  keys = keys.filter(k => st.routes.has(k)); if (!keys.length) { toast('Nenhuma rota para calcular'); return; }
+  if (optimize) pushUndo(label);
+  job = { cancel: false, done: 0, total: 0, err: null, memo: new Map() }; st.showLines = true;
+  const days = optimize ? [...new Set(keys.map(k => { const r = st.routes.get(k); return r.s + '|' + r.d; }))] : [];
+  const trace = new Set(keys);
+  if (optimize) for (const r of st.routes.values()) if (days.includes(r.s + '|' + r.d)) trace.add(r.k);
+  job.total = days.length + trace.size;
+  showJob(label);
+  const kmAntes = sumRoutes([...trace].map(k => st.routes.get(k)).filter(Boolean)).km;
+  try {
+    for (const sd of days) { if (job.cancel) break; const [sid, d] = sd.split('|'); await optimizeDayByRoad(sid, +d); job.done++; updJob(); }
+    rebuild();
+    for (const k of trace) {
+      if (job.cancel) break;
+      try { await traceRoute(k); } catch (e) { if (e.code === 'cancel') break; job.err = e; if (['net', 'rate', 'bad'].includes(e.code)) break; }
+      job.done++; updJob();
+    }
+  } catch (e) { job.err = e; }
+  const j = job; job = null; closeModal();
+  rebuild(); renderAll();
+  const kmDepois = sumRoutes([...trace].map(k => st.routes.get(k)).filter(Boolean)).km;
+  const semAlt = [...trace].filter(k => { const r = st.routes.get(k); return r && rotaAviso(r.m); }).length;
+  toast(j.err ? `Cálculo interrompido: ${j.err.message || j.err.code}` : j.cancel ? 'Cálculo cancelado — o que já foi calculado ficou salvo' : `${label}: ${trace.size} rota(s) · ${fkm(kmAntes)} km estimados → ${fkm(kmDepois)} km pelas ruas${semAlt ? ` · ${semAlt} sem alternativa ao pedágio ou à terra` : ''}`, 7000);
+}
+function showJob(label) {
+  openModal(`<div class="dh"><h2>${esc(label)}</h2></div><div class="db">
+    <p class="muted" style="margin:0">Consultando o servidor de rotas sobre o mapa do OpenStreetMap: ruas, avenidas, rodovias e mão de direção. O serviço gratuito atende cerca de uma consulta por segundo.</p>
+    <div style="height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden"><i id="jobBar" style="display:block;height:100%;width:0;background:var(--accent);transition:width .3s"></i></div>
+    <div id="jobTxt" class="num muted">0 / ${job.total}</div></div>
+    <div class="df"><button class="btn" id="jobCancel">Cancelar</button></div>`, 'sm');
+  $('#jobCancel').onclick = () => { if (job) { job.cancel = true; $('#jobCancel').disabled = true; $('#jobCancel').textContent = 'Cancelando…'; } };
+}
+function updJob() { if (!job) return; const b = $('#jobBar'), t = $('#jobTxt'); if (b) b.style.width = (100 * job.done / Math.max(1, job.total)) + '%'; if (t) t.textContent = `${job.done} / ${job.total} consultas · cerca de ${Math.ceil((job.total - job.done) * (osrmUrl() === OSRM_DEF || motorRota() === 'valhalla' ? 1.1 : 0.3))} s restantes`; }
+let autoT;
+function autoRoadSync() {
+  clearTimeout(autoT);
+  autoT = setTimeout(async () => {
+    if (!st.autoRoad || !roadOk() || job || st.bgBusy || !st.geo) return;
+    const stale = [...st.routes.values()].filter(r => r.stale && !st.roadFail.has(r.k + r.sig)).map(r => r.k).slice(0, 12);
+    if (!stale.length) return;
+    st.bgBusy = true;
+    try { for (const k of stale) { const r = st.routes.get(k); try { await traceRoute(k); } catch (e) { st.roadFail.add(k + (r && r.sig)); if (['net', 'rate'].includes(e.code)) break; } } }
+    finally { st.bgBusy = false; rebuild(); renderView(); }
+  }, 900);
+}
+
+/* ================= Mapa ================= */
+let map, rPts, rLines, ptsLayer, linesLayer, seqLayer, basesLayer, toolLayer, baseLayer, seaLayer;
+// A CARTO passou a exigir chave de API (devolve uma imagem de aviso no lugar do mapa); por isso o padrão é Esri, gratuito e sem chave.
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+const BASES = {
+  claro: { url: ESRI + 'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', att: 'Mapa © Esri · OpenStreetMap contributors', nz: 16 },
+  escuro: { url: ESRI + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', att: 'Mapa © Esri · OpenStreetMap contributors', nz: 16 },
+  ruasesri: { url: ESRI + 'World_Street_Map/MapServer/tile/{z}/{y}/{x}', att: 'Mapa © Esri · OpenStreetMap contributors' },
+  ruas: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', att: '© OpenStreetMap' },
+  satelite: { url: ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', att: 'Imagens © Esri' }
+};
+const GridLayer = L.GridLayer.extend({
+  createTile(coords) {
+    const c = document.createElement('canvas'), s = this.getTileSize(); c.width = s.x; c.height = s.y;
+    const g = c.getContext('2d'), t = tokens();
+    g.strokeStyle = t.line; g.lineWidth = 1; g.strokeRect(0.5, 0.5, s.x, s.y);
+    g.setLineDash([2, 4]); g.beginPath(); g.moveTo(s.x / 2, 0); g.lineTo(s.x / 2, s.y); g.moveTo(0, s.y / 2); g.lineTo(s.x, s.y / 2); g.stroke();
+    return c;
+  }
+});
+function setBase() {
+  if (!map) return;
+  if (baseLayer) map.removeLayer(baseLayer);
+  let kind = st.baseKind;
+  if (kind === 'auto') kind = isDark() ? 'escuro' : 'claro';
+  if (kind.startsWith('g_') && !gReady()) { startGoogle(); kind = isDark() ? 'escuro' : 'claro'; }
+  st.tileOk = 0; st.tileErr = 0;
+  if (kind === 'grade') { baseLayer = new GridLayer({ attribution: '' }); }
+  else if (kind.startsWith('g_')) {
+    const type = { g_mapa: 'roadmap', g_sat: 'hybrid', g_ter: 'terrain' }[kind] || 'roadmap';
+    baseLayer = L.gridLayer.googleMutant({ type, styles: type === 'roadmap' ? (isDark() ? G_DARK : G_LIGHT) : undefined, maxZoom: 21 });
+  }
+  else {
+    const b = BASES[kind];
+    baseLayer = L.tileLayer(b.url, { attribution: b.att, maxZoom: 19, maxNativeZoom: b.nz || 19, crossOrigin: false });
+    baseLayer.on('tileload', () => { st.tileOk++; });
+    baseLayer.on('tileerror', () => {
+      st.tileErr++;
+      if (st.tileErr >= 4 && st.tileOk === 0) {
+        st.baseKind = 'grade'; $('#baseSel').value = 'grade'; setBase();
+        if (inClaude()) { claudeNote(); return; }
+        showNote(st.g === 'fail' ? `O Google Maps não carregou (${esc(st.gMsg)}) e o mapa alternativo também está bloqueado aqui. Usando a grade; distâncias, régua e ferramentas continuam corretas. Abra o arquivo HTML no navegador para ver o Google Maps.` : 'O mapa de ruas não carregou nesta janela (a rede está bloqueada aqui). Usando a grade; distâncias, régua e ferramentas continuam corretas. Abra o arquivo HTML no seu navegador para ver ruas e satélite.', 'warn');
+      }
+    });
+  }
+  baseLayer.addTo(map); baseLayer.bringToBack && baseLayer.bringToBack();
+}
+function showNote(html, cls = '') { const n = $('#mapNote'); n.className = 'float ' + cls; n.innerHTML = `<span>${html}</span><button class="iconbtn" aria-label="Fechar aviso">${ICON.close}</button>`; n.hidden = false; n.querySelector('button').onclick = () => { n.hidden = true; }; }
+
+function initMap() {
+  map = L.map('map', { zoomControl: false, preferCanvas: true, boxZoom: false, attributionControl: true, worldCopyJump: false }).setView([-23.62, -46.65], 12);
+  map.attributionControl.setPrefix('');
+  map.createPane('routes'); map.getPane('routes').style.zIndex = 390;
+  rLines = L.canvas({ pane: 'routes', padding: 0.4 });
+  rPts = L.canvas({ padding: 0.4, tolerance: 5 });
+  L.control.scale({ metric: true, imperial: false, position: 'bottomright', maxWidth: 170 }).addTo(map);
+  linesLayer = L.layerGroup().addTo(map); ptsLayer = L.layerGroup().addTo(map); seqLayer = L.layerGroup().addTo(map);
+  basesLayer = L.layerGroup().addTo(map); toolLayer = L.layerGroup().addTo(map); seaLayer = L.layerGroup().addTo(map);
+  setBase();
+  map.on('click', onMapClick);
+  map.on('contextmenu', e => abrirCtx(e, null));
+  map.on('movestart zoomstart', fecharCtx);
+  map.on('mousemove', onMapMove);
+  map.on('dblclick', e => { if (st.tool === 'ruler' && st.ruler.active) { st.ruler.active = false; drawRuler(); } });
+  map.on('zoomend', () => { if (st.showSeq) renderSeq(); });
+  initLasso();
+  renderToolbar();
+}
+function renderToolbar() {
+  const t = st.tool, full = document.body.classList.contains('immersive');
+  $('#toolbar').innerHTML = `
+    <button class="tb" data-tool="pan" aria-pressed="${t === 'pan'}" title="Mover o mapa (H)" aria-label="Mover">${ICON.pan}</button>
+    <button class="tb" data-tool="select" aria-pressed="${t === 'select'}" title="Selecionar clicando — Shift soma (V)" aria-label="Selecionar">${ICON.select}</button>
+    <button class="tb" data-tool="rect" aria-pressed="${t === 'rect'}" title="Seleção por retângulo — Shift soma, Alt remove (B)" aria-label="Retângulo">${ICON.rect}</button>
+    <button class="tb" data-tool="lasso" aria-pressed="${t === 'lasso'}" title="Laço livre — Shift soma, Alt remove (L)" aria-label="Laço">${ICON.lasso}</button>
+    <button class="tb" data-tool="ruler" aria-pressed="${t === 'ruler'}" title="Régua em km — clique nos pontos, duplo clique encerra (M)" aria-label="Régua">${ICON.ruler}</button>
+    <span class="sep"></span>
+    <button class="tb" data-act="zin" title="Aproximar (+)" aria-label="Aproximar">${ICON.plus}</button>
+    <button class="tb" data-act="zout" title="Afastar (−)" aria-label="Afastar">${ICON.minus}</button>
+    <button class="tb" data-act="fit" title="Enquadrar o que está visível (E)" aria-label="Enquadrar">${ICON.fit}</button>
+    <button class="tb" data-act="undo" title="Desfazer (Ctrl+Z)" aria-label="Desfazer"${st.undo.length ? '' : ' disabled'}>${ICON.undo}</button>
+    <button class="tb" data-act="full" title="Tela cheia (F)" aria-pressed="${full}" aria-label="Tela cheia">${full ? ICON.unfull : ICON.full}</button>`;
+}
+function setTool(t) {
+  st.tool = t;
+  document.body.classList.remove('tool-lasso', 'tool-rect', 'tool-ruler');
+  if (t === 'lasso' || t === 'rect' || t === 'ruler') document.body.classList.add('tool-' + t);
+  if (t === 'lasso' || t === 'rect') map.dragging.disable(); else map.dragging.enable();
+  if (t === 'ruler') map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
+  if (t !== 'ruler') { st.ruler = { pts: [], active: false }; drawRuler(); }
+  renderToolbar();
+}
+function toggleFull() {
+  const on = !document.body.classList.contains('immersive');
+  document.body.classList.toggle('immersive', on);
+  try { if (on && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) { /* opcional */ }
+  setTimeout(() => map.invalidateSize(), 60); renderToolbar();
+}
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('immersive')) { document.body.classList.remove('immersive'); setTimeout(() => map.invalidateSize(), 60); renderToolbar(); } });
+
+function colorFor(it) {
+  if (!it || !it.s || !setorOf(it.s)) return null;
+  switch (st.corAtual || st.colorBy) {
+    case 'dia': return COR_DIA[(it.d || [])[0]] || '#7d8a84';
+    case 'semana': { const W = P().semanas; const w = it.w || []; return w.length >= W ? '#6E7C76' : (COR_SEM[w[0]] || '#7d8a84'); }
+    case 'colab': { const c = colabOfSetor(it.s); return (c && c.cor) || '#7d8a84'; }
+    default: return setorOf(it.s).cor || '#7d8a84';
+  }
+}
+function routeColor(r) {
+  switch (st.corAtual || st.colorBy) {
+    case 'dia': return COR_DIA[r.d]; case 'semana': return COR_SEM[r.w] || '#6E7C76';
+    case 'colab': { const c = colabOfSetor(r.s); return (c && c.cor) || '#7d8a84'; }
+    default: return (setorOf(r.s) || {}).cor || '#7d8a84';
+  }
+}
+function tipHtml(sold) {
+  const c = st.cli.get(sold); if (!c) return '';
+  const it = st.itens && st.itens.get(sold);
+  let l2 = '<span class="t2">Fora do estudo</span>';
+  if (it) {
+    const s = setorOf(it.s);
+    l2 = s ? `<span class="t2">${esc(s.nome)} · ${(it.d || []).map(d => DIA_C[d]).join('/') || 'sem dia'} · ${(it.w || []).length >= P().semanas ? 'todas as semanas' : 'sem. ' + (it.w || []).join(',')}</span>` : '<span class="t2">Sem setor</span>';
+  }
+  return `<div class="tip"><b>${esc(c.nome || c.sold)}</b><br><span class="t2">SOLD ${esc(c.sold)} · ${freqTxt(c.f)} · ${c.t || P().tPadrao} min${c.cidade ? ' · ' + esc(c.cidade) : ''}</span><br>${l2}</div>`;
+}
+
+function renderMap() {
+  if (!map || !st.cli || st.screen !== 'planner' || st.view !== 'mapa') return;
+  const a = amb(), tok = tokens();
+  const want = new Map(), base = st.visao === 'base';
+  // Com um único colaborador marcado na visão por rota, cada dia ganha uma cor
+  st.corAtual = st.visao === 'rotas' && sortedSetores().filter(([id]) => !st.hiddenSet.has(id)).length === 1 ? 'dia' : st.colorBy;
+  if (base) {
+    const cores = coresCidades();
+    for (const c of baseFiltrados()) {
+      if (!hasXY(c)) continue;
+      const it = st.itens && st.itens.get(c.sold), sel = st.sel.has(c.sold);
+      const col = st.baseCor === 'cidade' ? cores.get(c.cidade || '') : colorFor(it) || tok.muted;
+      want.set(c.sold, { radius: sel ? 8 : 5.5, color: sel ? tok.sel : tok.surface, weight: sel ? 3 : 1.2, fillColor: col, fillOpacity: 0.95 });
+    }
+  }
+  if (!base && a && st.itens) for (const [sold, it] of st.itens.map) {
+    const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) continue;
+    if (!itemVisible(it)) continue;
+    const col = colorFor(it), sel = st.sel.has(sold);
+    want.set(sold, col ? { radius: sel ? 8 : 6, color: sel ? tok.sel : tok.surface, weight: sel ? 3 : 1.5, fillColor: col, fillOpacity: 0.95 }
+      : { radius: sel ? 8 : 5.5, color: sel ? tok.sel : tok.muted, weight: sel ? 3 : 1.8, fillColor: tok.surface, fillOpacity: 0.9 });
+  }
+  if (!base && st.showOut && st.verSemSetor) for (const c of st.cli.values()) {
+    if (st.itens && st.itens.has(c.sold)) continue; if (!isNum(c.lat) || !isNum(c.lng)) continue;
+    const sel = st.sel.has(c.sold);
+    want.set(c.sold, { radius: sel ? 7 : 4, color: sel ? tok.sel : tok.muted, weight: sel ? 2.5 : 1, fillColor: tok.muted, fillOpacity: 0.2 });
+  }
+  for (const [sold, m] of st.mk) if (!want.has(sold)) { ptsLayer.removeLayer(m); st.mk.delete(sold); }
+  for (const [sold, sty] of want) {
+    let m = st.mk.get(sold); const c = st.cli.get(sold);
+    if (!m) {
+      m = L.circleMarker([c.lat, c.lng], { renderer: rPts, ...sty }); m._sold = sold;
+      m.on('click', onMarkerClick);
+      m.on('contextmenu', e => { L.DomEvent.stopPropagation(e); abrirCtx(e, e.target._sold); });
+      m.bindTooltip(() => tipHtml(m._sold), { direction: 'top', offset: [0, -6] });
+      ptsLayer.addLayer(m); st.mk.set(sold, m);
+    } else { m.setLatLng([c.lat, c.lng]); m.setStyle(sty); m.setRadius(sty.radius); }
+  }
+  // linhas
+  linesLayer.clearLayers(); basesLayer.clearLayers();
+  const vis = base ? [] : sortedRoutes([...st.routes.values()].filter(r => routeVisible(r.k)));
+  st.visRoutes = vis;
+  if (st.showLines) for (const r of vis) {
+    const pts = r.stops.map(cliPt).filter(Boolean).map(p => [p.lat, p.lng]); if (!pts.length) continue;
+    const col = routeColor(r), b = baseOf(r.s);
+    const gp = pathOf(r.k, r.sig);
+    if (gp) { L.polyline(gp, { renderer: rLines, color: col, weight: vis.length > 12 ? 2.5 : 4, opacity: 0.85, interactive: false }).addTo(linesLayer); continue; }
+    L.polyline(pts, { renderer: rLines, color: col, weight: vis.length > 12 ? 2 : 3, opacity: 0.85, interactive: false }).addTo(linesLayer);
+    if (b) {
+      const o = { renderer: rLines, color: col, weight: 2, opacity: 0.6, dashArray: '4 6', interactive: false };
+      L.polyline([[b.lat, b.lng], pts[0]], o).addTo(linesLayer); L.polyline([pts[pts.length - 1], [b.lat, b.lng]], o).addTo(linesLayer);
+    }
+  }
+  if (st.showBases && a && !base) {
+    const seen = new Set();
+    for (const r of vis) { if (seen.has(r.s)) continue; seen.add(r.s); }
+    if (!vis.length) sortedSetores().forEach(([id]) => { if (!st.hiddenSet.has(id)) seen.add(id); });
+    for (const sid of seen) {
+      const b = baseOf(sid); if (!b) continue; const s = setorOf(sid), c = colabOfSetor(sid);
+      const col = st.colorBy === 'colab' ? (c.cor || s.cor) : s.cor;
+      L.marker([b.lat, b.lng], { icon: L.divIcon({ className: '', html: `<div class="basem" style="background:${esc(col)}">${ICON.home}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] }), keyboard: false })
+        .bindTooltip(`<div class="tip"><b>${esc(c.nome)}</b><br><span class="t2">Base · ${esc(c.endereco || '')} · ${esc(s.nome)}</span></div>`, { direction: 'top', offset: [0, -10] }).addTo(basesLayer);
+    }
+  }
+  renderSeq(); renderSea();
+  renderLegend(); renderSummary(); renderLayersPanel(); renderSelPanel(); renderPendNote();
+}
+/* Clientes sem coordenada ficam empilhados num ponto no mar; arrastar um pino até o local grava a coordenada */
+let seaSig = '';
+function renderSea() {
+  const list = st.showSea && st.verSemSetor ? seaList() : [];
+  const chip = $('#seaChip'), n = seaList().length;
+  chip.hidden = !n;
+  if (n) chip.innerHTML = `<span><b class="num">${n}</b> endereço(s) não encontrados${st.showSea ? '' : ' (camada oculta)'}</span><button class="btn sm" data-sea="go">Ver no mar</button><button class="btn sm" data-sea="list">Ajustar</button>`;
+  const sig = list.map(c => c.sold).join(',') + '|' + st.ro;
+  if (sig === seaSig) return; seaSig = sig; seaLayer.clearLayers();
+  if (!list.length) return;
+  const icon = L.divIcon({ className: '', html: '<div class="seapin"></div>', iconSize: [16, 16], iconAnchor: [8, 16] });
+  for (const c of list.slice(0, 400)) {
+    const sold = c.sold;
+    const m = L.marker([SEA.lat, SEA.lng], { icon, draggable: !st.ro, keyboard: false, autoPan: true });
+    m.bindTooltip(() => seaTip(sold), { direction: 'top', offset: [0, -14] });
+    m.on('dragend', e => { placeClient(sold, e.target.getLatLng(), 'mapa'); afterPlace(sold); });
+    seaLayer.addLayer(m);
+  }
+  L.marker([SEA.lat, SEA.lng], { icon: L.divIcon({ className: '', html: `<div class="seacount">${list.length} endereço(s) a ajustar<br><small>Arraste cada pino até o local certo</small></div>`, iconSize: [0, 0], iconAnchor: [-14, 30] }), interactive: false, keyboard: false }).addTo(seaLayer);
+}
+function seaTip(sold) {
+  const c = st.cli.get(sold); if (!c) return '';
+  const g = c.geoPend;
+  return `<div class="tip"><b>${esc(c.nome || c.sold)}</b><br><span class="t2">SOLD ${esc(c.sold)} · ${esc(addrTxt(c) || 'sem endereço')}</span><br><span class="t2">${esc(g ? g.msg : 'ainda sem coordenada')} · arraste até o local</span></div>`;
+}
+function goSea() { if (st.view !== 'mapa' || st.screen !== 'planner') setView('mapa'); st.showSea = true; renderMap(); setTimeout(() => map.setView([SEA.lat, SEA.lng], 11), 60); }
+/* Posicionar clicando no mapa */
+function startPlace(sold) {
+  const c = st.cli.get(sold); if (!c || st.ro) return;
+  closeModal(); if (['lasso', 'rect', 'ruler'].includes(st.tool)) setTool('select');
+  st.placing = sold; document.body.classList.add('tool-place'); setView('mapa');
+  setTimeout(() => {
+    const s = c.geoPend && c.geoPend.sug;
+    if (s) map.setView([s.lat, s.lng], 16);
+    else { const near = [...st.cli.values()].filter(x => hasXY(x) && c.cidade && norm(x.cidade) === norm(c.cidade)); if (near.length) map.fitBounds(L.latLngBounds(near.map(x => [x.lat, x.lng])).pad(0.05)); }
+    showNote(`Clique no mapa no local de <b>${esc(c.nome || c.sold)}</b> · ${esc(addrTxt(c) || 'sem endereço')}${s ? ' · o mapa abriu na sugestão encontrada' : ''} <button class="btn sm" id="plCancel">Cancelar</button>`, 'warn');
+    $('#plCancel').onclick = endPlace;
+  }, 160);
+}
+function endPlace() { st.placing = null; document.body.classList.remove('tool-place'); $('#mapNote').hidden = true; }
+function placeClient(sold, ll, how, nivel) {
+  const c = st.cli.get(sold); if (!c) return;
+  const n = { ...c, lat: +(+ll.lat).toFixed(6), lng: +(+ll.lng).toFixed(6), geo: how || 'manual', geoNivel: nivel || 'exato' }; delete n.geoPend;
+  st.cli.put(sold, n); rebuild(); renderAll();
+}
+function afterPlace(sold) {
+  const c = st.cli.get(sold), next = seaList()[0];
+  showNote(`<b>${esc(c ? c.nome || sold : sold)}</b> posicionado. ${next ? `<button class="btn sm" id="plNext">Próximo: ${esc(next.nome || next.sold)}</button>` : 'Não há outros endereços a ajustar.'} <button class="btn sm" id="plList">Lista</button>`);
+  const b = $('#plNext'); if (b) b.onclick = () => startPlace(next.sold);
+  $('#plList').onclick = () => { $('#mapNote').hidden = true; adjustForm(); };
+}
+function renderSeq() {
+  seqLayer.clearLayers();
+  const vis = st.visRoutes || [];
+  const total = vis.reduce((s, r) => s + r.stops.length, 0);
+  if (!st.showSeq || !st.showLines || !vis.length || vis.length > 10 || total > 320 || map.getZoom() < 12) return;
+  const done = new Set();
+  for (const r of vis) {
+    const col = routeColor(r);
+    r.stops.forEach((sold, i) => {
+      const key = sold + '|' + r.d; if (done.has(key)) return; done.add(key);
+      const p = cliPt(sold); if (!p) return;
+      L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: `<div class="seqm" style="background:${esc(col)}">${i + 1}</div>`, iconSize: [18, 18], iconAnchor: [-3, 20] }), interactive: false, keyboard: false }).addTo(seqLayer);
+    });
+  }
+}
+function renderLegend() {
+  const el = $('#legend'); const a = amb();
+  let rows = [];
+  if (st.visao === 'base' && st.baseCor === 'cidade') {
+    const cores = coresCidades(); rows = [...new Set(baseFiltrados().map(c => c.cidade || ''))].sort((x, y) => x.localeCompare(y, 'pt-BR')).slice(0, 14).map(c => [cores.get(c), c || 'Sem cidade']);
+    el.hidden = !rows.length;
+    el.innerHTML = rows.map(([c, t]) => `<div class="li"><span class="sw" style="background:${esc(c)}"></span>${esc(t)}</div>`).join('');
+    return;
+  }
+  if (!a) { el.hidden = true; return; }
+  if ((st.corAtual || st.colorBy) === 'setor') rows = sortedSetores().map(([id, s]) => [s.cor, s.nome]);
+  else if ((st.corAtual || st.colorBy) === 'dia') rows = P().dias.map(d => [COR_DIA[d], DIA_L[d]]);
+  else if (st.colorBy === 'semana') { const W = P().semanas; rows = [['#6E7C76', 'Todas as semanas']]; for (let w = 1; w <= W; w++) rows.push([COR_SEM[w], 'Semana ' + w]); }
+  else { const seen = new Map(); sortedSetores().forEach(([id]) => { const c = colabOfSetor(id); if (c && !seen.has(c.codigo)) seen.set(c.codigo, [c.cor || '#7d8a84', c.nome]); }); rows = [...seen.values()]; }
+  rows.push(['transparent', 'Sem setor/dia']);
+  el.hidden = false;
+  el.innerHTML = rows.map(([c, t]) => `<div class="li"><span class="sw" style="background:${esc(c)};${c === 'transparent' ? 'border:1.5px solid var(--muted)' : ''}"></span>${esc(t)}</div>`).join('');
+}
+function sumRoutes(list) { const o = { n: 0, km: 0, tDesl: 0, tAtend: 0, total: 0, oc: 0 }; for (const r of list) { o.n += r.m.n; o.km += r.m.km; o.tDesl += r.m.tDesl; o.tAtend += r.m.tAtend; o.total += r.m.total; o.oc += r.m.ocup; } o.ocMed = list.length ? o.oc / list.length : 0; return o; }
+function renderSummary() {
+  const el = $('#mapSummary'); const vis = st.visRoutes || [];
+  if (st.visao === 'base') {
+    const f = baseFiltrados();
+    el.innerHTML = `
+    <div class="kpi"><div class="k">Clientes no mapa</div><div class="v">${nf0.format(st.mk.size)}</div></div>
+    <div class="kpi"><div class="k">Cidades</div><div class="v">${nf0.format(new Set(f.map(c => c.cidade || '')).size)}</div></div>
+    <div class="kpi"><div class="k">Sem coordenada</div><div class="v">${nf0.format(f.filter(c => !hasXY(c)).length)}</div></div>`;
+    return;
+  }
+  if (!amb()) { el.innerHTML = '<div class="kpi"><div class="k">Sem estudo aberto</div><div class="v">—</div></div>'; return; }
+  const s = sumRoutes(vis);
+  const nCli = new Set(vis.flatMap(r => r.stops)).size;
+  el.innerHTML = `
+    <div class="kpi"><div class="k">Rotas visíveis</div><div class="v">${vis.length}</div></div>
+    <div class="kpi"><div class="k">Clientes</div><div class="v">${nCli}</div></div>
+    <div class="kpi"><div class="k">Visitas</div><div class="v">${s.n}</div></div>
+    <div class="kpi"><div class="k">KM ida e volta</div><div class="v">${fkm(s.km)}</div></div>
+    <div class="kpi"><div class="k">Deslocamento</div><div class="v">${fhm(s.tDesl)}</div></div>
+    <div class="kpi"><div class="k">Atendimento</div><div class="v">${fhm(s.tAtend)}</div></div>
+    <div class="kpi"><div class="k">Ocupação média</div><div class="v">${vis.length ? fpct(s.ocMed) : '—'}</div></div>`;
+}
+function renderPendNote() {
+  const a = amb(); if (!a || st.pendNoted === st.cur) return;
+  const pend = cleanPend(a);
+  const n1 = pend.cli.length, n2 = pend.col.length;
+  if ((n1 || n2) && $('#mapNote').hidden) {
+    st.pendNoted = st.cur;
+    showNote(`Este estudo cita ${n1 ? n1 + ' cliente(s)' : ''}${n1 && n2 ? ' e ' : ''}${n2 ? n2 + ' colaborador(es)' : ''} que não existem nas bases. <button class="btn sm" id="goPend">Resolver pendências</button>`, 'warn');
+    const b = $('#goPend'); if (b) b.onclick = () => { $('#mapNote').hidden = true; setView('estudos'); setTimeout(() => { const p = $('#pendCard'); if (p) p.scrollIntoView({ block: 'start' }); }, 50); };
+  }
+}
+
+function fitVisible() {
+  if (!map || st.screen !== 'planner' || st.view !== 'mapa') return;
+  const pts = [];
+  for (const m of st.mk.values()) pts.push(m.getLatLng());
+  basesLayer.eachLayer(l => pts.push(l.getLatLng()));
+  if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.08), { maxZoom: 16, paddingTopLeft: [st.panelL && innerWidth > 640 ? 330 : 10, 60], paddingBottomRight: [st.panelR && innerWidth > 640 ? 330 : 10, 60] });
+}
+
+/* Seleção */
+function onMarkerClick(e) {
+  L.DomEvent.stopPropagation(e);
+  const sold = e.target._sold;
+  if (st.placing) { const s = st.placing; endPlace(); placeClient(s, e.target.getLatLng(), 'mapa'); afterPlace(s); return; }
+  if (st.tool === 'ruler') { rulerAdd(e.target.getLatLng()); return; }
+  const oe = e.originalEvent || {};
+  if (oe.shiftKey || oe.ctrlKey || oe.metaKey) { if (st.sel.has(sold)) st.sel.delete(sold); else st.sel.add(sold); }
+  else if (st.sel.size === 1 && st.sel.has(sold)) st.sel.clear();
+  else { st.sel.clear(); st.sel.add(sold); }
+  afterSel();
+}
+function onMapClick(e) {
+  if (performance.now() - (st.lassoEnd || 0) < 350) return;
+  if (st.placing) { const s = st.placing; endPlace(); placeClient(s, e.latlng, 'mapa'); afterPlace(s); return; }
+  if (st.tool === 'ruler') { rulerAdd(e.latlng); return; }
+  const oe = e.originalEvent || {};
+  if (st.sel.size && !oe.shiftKey) { st.sel.clear(); afterSel(); }
+}
+function afterSel() { if (st.sel.size) { st.panelR = true; applyPanels(); } renderMap(); }
+
+function initLasso() {
+  const el = $('#map'); let drag = null, shape = null;
+  el.addEventListener('pointerdown', e => {
+    if (st.tool !== 'lasso' && st.tool !== 'rect') return;
+    if (e.button !== 0 || e.target.closest('.leaflet-control')) return;
+    const ll = map.mouseEventToLatLng(e);
+    drag = { start: ll, pts: [ll], px: [e.clientX, e.clientY], moved: false, add: e.shiftKey || e.ctrlKey || e.metaKey, sub: e.altKey };
+    try { el.setPointerCapture(e.pointerId); } catch (_) { /* ok */ }
+    e.preventDefault();
+  });
+  el.addEventListener('pointermove', e => {
+    if (!drag) return;
+    if (Math.hypot(e.clientX - drag.px[0], e.clientY - drag.px[1]) < 4 && !drag.moved) return;
+    drag.moved = true;
+    const ll = map.mouseEventToLatLng(e);
+    // Sem renderer próprio, o Leaflet criaria um canvas sobre o dos clientes, que passaria a capturar o mouse para sempre
+    const sty = { renderer: rLines, color: tokens().sel, weight: 1.5, dashArray: '5 5', fillOpacity: 0.08, interactive: false };
+    if (shape) toolLayer.removeLayer(shape);
+    if (st.tool === 'rect') { shape = L.rectangle(L.latLngBounds(drag.start, ll), sty); }
+    else { const last = drag.pts[drag.pts.length - 1]; const p1 = map.latLngToContainerPoint(last), p2 = map.latLngToContainerPoint(ll); if (p1.distanceTo(p2) > 3) drag.pts.push(ll); shape = L.polygon(drag.pts, sty); }
+    toolLayer.addLayer(shape);
+  });
+  const finish = e => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (shape) { toolLayer.removeLayer(shape); shape = null; }
+    if (!d.moved) return;
+    st.lassoEnd = performance.now();
+    const end = map.mouseEventToLatLng(e);
+    let inside;
+    if (st.tool === 'rect') { const b = L.latLngBounds(d.start, end); inside = ll => b.contains(ll); }
+    else { const poly = d.pts.map(p => [p.lng, p.lat]); inside = ll => pip(ll.lng, ll.lat, poly); }
+    const hit = []; for (const [sold, m] of st.mk) if (inside(m.getLatLng())) hit.push(sold);
+    if (d.sub) hit.forEach(s => st.sel.delete(s));
+    else { if (!d.add) st.sel.clear(); hit.forEach(s => st.sel.add(s)); }
+    afterSel();
+    if (hit.length) toast(`${hit.length} cliente(s) ${d.sub ? 'removidos da' : 'na'} seleção`);
+  };
+  el.addEventListener('pointerup', finish);
+  el.addEventListener('pointercancel', () => { drag = null; if (shape) { toolLayer.removeLayer(shape); shape = null; } });
+}
+function pip(x, y, poly) { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) ins = !ins; } return ins; }
+
+/* Régua */
+function rulerAdd(ll) {
+  if (!st.ruler.active) st.ruler = { pts: [], active: true };
+  const last = st.ruler.pts[st.ruler.pts.length - 1];
+  if (last && map.latLngToContainerPoint(last).distanceTo(map.latLngToContainerPoint(ll)) < 4) return;
+  st.ruler.pts.push(ll); drawRuler();
+}
+function onMapMove(e) { if (st.tool === 'ruler' && st.ruler.active && st.ruler.pts.length) drawRuler(e.latlng); }
+function drawRuler(cursor) {
+  toolLayer.clearLayers();
+  const pts = st.ruler.pts.slice(); const box = $('#rulerBox');
+  if (!pts.length) { box.hidden = st.tool !== 'ruler'; if (!box.hidden) box.innerHTML = '<span class="muted">Clique no mapa ou nos clientes para medir. Duplo clique encerra · Esc limpa.</span>'; return; }
+  const all = cursor ? pts.concat([cursor]) : pts;
+  const col = tokens().ink;
+  L.polyline(all, { renderer: rLines, color: col, weight: 2.5, dashArray: '6 5', interactive: false }).addTo(toolLayer);
+  let acc = 0;
+  all.forEach((p, i) => {
+    if (i > 0) acc += map.distance(all[i - 1], p) / 1000;
+    L.circleMarker(p, { renderer: rLines, radius: 4, color: col, fillColor: tokens().surface, fillOpacity: 1, weight: 2, interactive: false }).addTo(toolLayer);
+    if (i > 0) L.tooltip({ permanent: true, direction: 'right', className: 'rl', offset: [8, 0] }).setLatLng(p).setContent(fkm(acc) + ' km').addTo(toolLayer);
+  });
+  const f = P().fator;
+  box.hidden = false;
+  box.innerHTML = `<div><div class="lbl">Linha reta</div><div class="big">${fkm(acc)} km</div></div><div><div class="lbl">Estimado por via (×${nf1.format(f)})</div><div class="big">${fkm(acc * f)} km</div></div><div><div class="lbl">Tempo a ${P().vel} km/h</div><div class="big">${fhm((acc * f) / P().vel * 60)}</div></div><button class="btn sm" id="rulerClr">Limpar</button>`;
+  $('#rulerClr').onclick = () => { st.ruler = { pts: [], active: false }; drawRuler(); };
+}
+
+/* Painéis do mapa */
+function applyPanels() {
+  $('#layersPanel').hidden = !st.panelL; $('#btnLayers').hidden = st.panelL;
+  $('#selPanel').hidden = !st.panelR; $('#btnSel').hidden = st.panelR;
+  document.body.classList.toggle('panel-left', st.panelL); document.body.classList.toggle('panel-right', st.panelR);
+  const c = $('#btnSel .count'); if (c) c.textContent = st.sel.size || '';
+}
+function setorGrade(id) {
+  const W = P().semanas, D = P().dias, on = !st.hiddenSet.has(id);
+  let grid = '';
+  for (let w = 1; w <= W; w++) {
+    const chips = D.map(d => {
+      const r = st.routes.get(`${id}|${w}|${d}`);
+      if (!r) return `<span class="rchip" style="opacity:.45" title="Sem visitas">${DIA_C[d]}</span>`;
+      const v = on && !st.hidden.has(r.k);
+      return `<button class="rchip${v ? ' on' : ''}${r.m.ocup > 1 ? ' over' : ''}" style="--rc:${esc(routeColor(r))}" data-rk="${esc(r.k)}" title="Semana ${w} · ${DIA_L[d]}: ${r.m.n} visitas · ${fkm(r.m.km)} km · ${fhm(r.m.total)} (${fpct(r.m.ocup)}). Clique liga/desliga · Shift+clique abre só esta rota">${DIA_C[d]} <b>${r.stops.length}</b></button>`;
+    }).join('');
+    grid += `<div class="wkrow"><span class="wk">S${w}</span><div class="rchips" style="grid-template-columns:repeat(${D.length},minmax(0,1fr))">${chips}</div></div>`;
+  }
+  return grid;
+}
+function modoHtml() {
+  const o = rotaOpt(), ro = st.ro ? ' disabled' : '';
+  const dica = o.terra ? 'Foge das vias sem pavimento registradas no OpenStreetMap, mesmo com uma rota bem mais longa. Não considera acidentes nem segurança, pois o mapa não tem esses dados.' : o.curta ? 'Menos KM, mesmo que leve mais tempo.' : 'Menos tempo de viagem, mesmo que rode mais KM.';
+  return `<div class="seg rzseg"><button type="button" data-rzcrit="tempo" aria-pressed="${!o.curta}"${ro}>Mais rápida</button><button type="button" data-rzcrit="distancia" aria-pressed="${o.curta}"${ro}>Mais curta</button></div>
+        <label class="chk"><input type="checkbox" data-rzopt="evitaPedagio" ${o.pedagio ? 'checked' : ''}${ro}> Evitar pedágios</label>
+        <label class="chk"><input type="checkbox" data-rzopt="evitaTerra" ${o.terra ? 'checked' : ''}${ro}> Evitar estrada de terra e via precária</label>
+        <p class="rzhint">${dica}</p>`;
+}
+/* O que está à vista no mapa, para o seletor de setor: '' todos, __nenhum, __sem, id de um setor ou __parte */
+function setorVisto() {
+  const sets = sortedSetores(), on = sets.filter(([id]) => !st.hiddenSet.has(id));
+  if (on.length === sets.length && st.verSemSetor) return '';
+  if (!on.length) return st.verSemSetor ? '__sem' : '__nenhum';
+  return on.length === 1 ? on[0][0] : '__parte';
+}
+function setorBloco(id) {
+  const x = setorOf(id); let n = 0, sem = 0;
+  for (const it of st.itens.values()) if (it.s === id) { n++; if (!itemKeys(it).length) sem++; }
+  const rs = [...st.routes.values()].filter(r => r.s === id), sm = sumRoutes(rs), ro = st.ro ? ' disabled' : '';
+  const cols = [...st.col.values()].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')).map(c => `<option value="${esc(c.codigo)}"${c.codigo === x.colab ? ' selected' : ''}>${esc(c.nome)} (${esc(c.codigo)})</option>`).join('');
+  return `<div class="stack rzsetor">
+    <div class="row" style="justify-content:space-between"><b><span class="sw" style="background:${esc(x.cor)};margin-right:6px;vertical-align:-1px"></span>${esc(x.nome)}</b>${rs.length ? ocPill(sm.ocMed) : ''}</div>
+    <div class="muted" style="font-size:12.5px">${n} clientes · ${rs.length} rotas · ${fkm(sm.km)} km no ciclo</div>
+    <label class="field"><span class="lbl">Colaborador e base de saída</span><select data-rzcol="${esc(id)}"${ro}><option value="">— Sem colaborador —</option>${cols}</select></label>
+    ${sem ? `<div class="banner info" style="font-size:12.5px"><span>${sem} cliente(s) ainda sem dia. Selecione no mapa e escolha o dia, ou deixe o sistema dividir.</span><span class="row"><button class="btn sm" type="button" data-act="selsemdia" data-sid="${esc(id)}">Selecionar</button><button class="btn sm primary" type="button" data-act="distsemdia" data-sid="${esc(id)}"${ro}>Dividir nos dias</button></span></div>` : ''}
+    ${rs.length ? `<div class="tsec"><div class="grid" style="padding:8px">${setorGrade(id)}</div></div>` : ''}
+    <div class="row"><button class="btn sm" type="button" data-act="selsetor" data-sid="${esc(id)}">Selecionar todos</button>${n > sem ? `<button class="btn sm" type="button" data-act="redist" data-sid="${esc(id)}"${ro}>Refazer os dias</button>` : ''}</div>
+    <label class="chk"><input type="checkbox" data-opt="verSemSetor" ${st.verSemSetor ? 'checked' : ''}> Mostrar também clientes sem setor</label>
+  </div>`;
+}
+function visaoHtml() {
+  const a = amb(), b = (v, t, tip) => `<button type="button" data-visao="${v}" aria-pressed="${st.visao === v}" title="${tip}"${a || v === 'base' ? '' : ' disabled'}>${t}</button>`;
+  return `<div class="seg rzseg rzvisao" role="group" aria-label="Visão do mapa">${b('setores', 'Setores', 'Todos os setores do estudo')}${b('rotas', 'Rotas', 'Os roteiros de quem você marcar')}${b('base', 'Base', 'Todos os clientes da base, com filtros')}</div>`;
+}
+/* ----- Visão Base: todos os clientes, com filtro por cidade e clientes específicos ----- */
+function baseFiltrados() {
+  const { cidades, soldes } = st.baseF, todos = !cidades.size && !soldes.size;
+  return [...st.cli.values()].filter(c => todos || soldes.has(c.sold) || cidades.has(c.cidade || ''));
+}
+function coresCidades() {
+  const cs = [...new Set([...st.cli.values()].map(c => c.cidade || ''))].sort((x, y) => x.localeCompare(y, 'pt-BR'));
+  return new Map(cs.map((c, i) => [c, E.PALETA[i % E.PALETA.length]]));
+}
+function bzResHtml() {
+  const q = st.baseF.q.trim(); st.bzRes = [];
+  if (!q) return '';
+  const toks = q.split(/[\s,;]+/).filter(Boolean);
+  if (/[,;\n]/.test(q) || (toks.length > 1 && toks.every(t => st.cli.has(t)))) st.bzRes = toks.filter(t => st.cli.has(t)); // lista de códigos colada
+  else { const n = norm(q); st.bzRes = [...st.cli.values()].filter(c => norm(c.sold + ' ' + (c.nome || '') + ' ' + (c.endereco || '') + ' ' + (c.bairro || '')).includes(n)).map(c => c.sold); }
+  if (!st.bzRes.length) return '<p class="rzhint">Nenhum cliente encontrado.</p>';
+  return `<div class="bzlist">${st.bzRes.slice(0, 8).map(x => { const c = st.cli.get(x); return `<label class="chk"><input type="checkbox" data-bzsold="${esc(x)}" ${st.baseF.soldes.has(x) ? 'checked' : ''}><span class="bznm">${esc(c.nome || x)}</span><span class="muted num">${esc(x)}</span></label>`; }).join('')}</div>
+    ${st.bzRes.length > 1 ? `<button class="btn sm" type="button" data-act="bzmarca">Marcar ${nf0.format(st.bzRes.length)} encontrados</button>` : ''}`;
+}
+function painelBase() {
+  const a = amb(), F = st.baseF, cores = coresCidades(), por = new Map();
+  for (const c of st.cli.values()) por.set(c.cidade || '', (por.get(c.cidade || '') || 0) + 1);
+  const cids = [...por].sort((x, y) => x[0].localeCompare(y[0], 'pt-BR'));
+  const qc = norm(F.cq);
+  return `${visaoHtml()}<section class="rz">
+    ${a ? '' : `<p class="rzhint">${nf0.format(st.cli.size)} clientes na base. Selecione com as ferramentas do topo e clique com o botão direito para criar o primeiro setor. O estudo é criado sozinho.</p>`}
+    <div class="rzn"><span class="muted"><b class="num">${nf0.format(st.mk.size)}</b> de ${nf0.format(st.cli.size)} clientes no mapa</span><button class="btn sm ghost" type="button" data-act="bzlimpa">Limpar filtros</button></div>
+    <div class="stack"><span class="lbl">Cidades${F.cidades.size ? ` · ${F.cidades.size} marcada${F.cidades.size === 1 ? '' : 's'}` : ''}</span>
+      ${cids.length > 8 ? `<input type="search" id="bzCidQ" placeholder="Buscar cidade" aria-label="Buscar cidade" value="${esc(F.cq)}">` : ''}
+      <div class="bzlist" id="bzCids">${cids.map(([c, n]) => `<label class="chk" data-cid="${esc(norm(c))}"${qc && !norm(c).includes(qc) ? ' hidden' : ''}><input type="checkbox" data-bzcid="${esc(c)}" ${F.cidades.has(c) ? 'checked' : ''}><span class="sw" style="background:${esc(cores.get(c))}"></span><span class="bznm">${esc(c || 'Sem cidade')}</span><span class="muted num">${nf0.format(n)}</span></label>`).join('')}</div>
+    </div>
+    <div class="stack"><span class="lbl">Clientes específicos${F.soldes.size ? ` · ${nf0.format(F.soldes.size)} marcado${F.soldes.size === 1 ? '' : 's'}` : ''}</span>
+      <input type="search" id="bzQ" placeholder="Nome, SOLD, endereço ou lista de códigos" aria-label="Buscar clientes" value="${esc(F.q)}">
+      <div class="stack" id="bzRes" style="gap:6px">${bzResHtml()}</div>
+      ${F.soldes.size ? '<div class="row"><button class="btn sm ghost" type="button" data-act="bzlimpasold">Desmarcar os específicos</button></div>' : ''}
+    </div>
+    <div class="stack"><span class="lbl">Cor dos clientes</span><div class="seg rzseg"><button type="button" data-bzcor="cidade" aria-pressed="${st.baseCor === 'cidade'}">Por cidade</button><button type="button" data-bzcor="setor" aria-pressed="${st.baseCor === 'setor'}">Por setor</button></div></div>
+    ${a ? '' : `<button class="btn rzgo" type="button" data-act="estudoBase"${st.ro ? ' disabled' : ''}>Começar estudo com toda a base</button>`}
+  </section>`;
+}
+/* ----- Partes comuns de Setores e Rotas ----- */
+function arvoreHtml(porRota) {
+  const bySet = new Map(); for (const r of st.routes.values()) { if (!bySet.has(r.s)) bySet.set(r.s, []); bySet.get(r.s).push(r); }
+  const cnt = new Map(); for (const it of st.itens.values()) if (it.s) cnt.set(it.s, (cnt.get(it.s) || 0) + 1);
+  return sortedSetores().map(([id, s]) => {
+    const rs = bySet.get(id) || []; const sm = sumRoutes(rs); const c = colabOfSetor(id);
+    const on = !st.hiddenSet.has(id);
+    const nome = porRota && c ? `${esc(c.nome)}<div class="sub">${esc(s.nome)} · ${rs.length} rotas</div>` : `${esc(s.nome)}<div class="sub">${c ? esc(c.nome) : '<span style="color:var(--warn)">sem colaborador</span>'} · ${cnt.get(id) || 0} clientes</div>`;
+    return `<div class="tsec"><div class="th">
+      <input type="checkbox" data-setvis="${esc(id)}" ${on ? 'checked' : ''} aria-label="Mostrar ${esc(s.nome)}">
+      <span class="sw" style="background:${esc(s.cor)}"></span>
+      <div class="nm">${nome}</div>
+      <div class="meta"><span class="num">${fkm(sm.km)} km</span><br>${rs.length ? ocPill(sm.ocMed) : ''}</div>
+      ${porRota ? '' : `<button class="iconbtn" data-solo="${esc(id)}" title="Abrir este setor">${ICON.solo}</button>`}
+    </div><div class="grid">${setorGrade(id)}</div></div>`;
+  }).join('');
+}
+function filtrosRotaHtml() {
+  const W = P().semanas, D = P().dias;
+  return `<div class="rzl"><span class="muted">Semana</span><div class="daychips"><button data-qw="0" aria-pressed="${!st.qf.w.length}">Todas</button>${[...Array(W)].map((_, i) => `<button data-qw="${i + 1}" aria-pressed="${st.qf.w.includes(i + 1)}">${i + 1}</button>`).join('')}</div></div>
+        <div class="rzl"><span class="muted">Dia</span><div class="daychips"><button data-qd="0" aria-pressed="${!st.qf.d.length}">Todos</button>${D.map(d => `<button data-qd="${d}" aria-pressed="${st.qf.d.includes(d)}">${DIA_C[d]}</button>`).join('')}</div></div>`;
+}
+function roteirizarHtml(vis) {
+  const o = rotaOpt(), key = rotaKey(o), ok = roadOk(), est = estimaRoteirizar(vis, o);
+  const nFmt = vis.filter(r => r.m.real && r.m.o === key).length, nAviso = vis.filter(r => r.m.real && rotaAviso(r.m)).length;
+  return `<div class="stack">
+        <button class="btn primary rzgo" data-act="roadvis"${ok && vis.length && !st.ro ? '' : ' disabled'}>Roteirizar ${vis.length} rota${vis.length === 1 ? '' : 's'}</button>
+        ${vis.length ? `<div class="row" style="justify-content:space-between;font-size:12px"><span class="muted">${nFmt} de ${vis.length} já neste formato</span>${ok ? `<span class="muted">cerca de ${fdur(est.seg)}</span>` : ''}</div>` : ''}
+        ${ok ? '' : `<span class="pill ${st.road === 'testing' || st.vh === 'testing' || st.road === 'idle' ? 'idle">Verificando o servidor de rotas…' : 'bad">Servidor de rotas indisponível'}</span>`}
+        ${est.rotas > vis.length ? `<p class="rzhint">A ordem de visita vale para o dia: as outras semanas dos mesmos dias são recalculadas junto (${est.rotas} rotas no total).</p>` : ''}
+        ${nAviso ? `<div class="banner" style="font-size:12.5px">${nAviso} rota(s) sem alternativa ao pedágio ou à terra. Abra a rota para ver o trecho.</div>` : ''}
+      </div>`;
+}
+function exibicaoHtml() {
+  let nUn = 0, nSemDia = 0; for (const it of st.itens.values()) { if (!it.s || !setorOf(it.s)) nUn++; else if (!itemKeys(it).length) nSemDia++; }
+  let nOut = 0; for (const c of st.cli.values()) if (!st.itens.has(c.sold)) nOut++;
+  const segBtn = (v, l) => `<button type="button" data-colorby="${v}" aria-pressed="${st.colorBy === v}">${l}</button>`;
+  return `<details class="rzsec" data-sec="exib"${st.rzSec.exib ? ' open' : ''}><summary>Exibição do mapa</summary>
+      <div class="stack"><span class="lbl">Colorir por</span><div class="seg">${segBtn('setor', 'Setor')}${segBtn('dia', 'Dia')}${segBtn('semana', 'Semana')}${segBtn('colab', 'Colaborador')}</div>
+        <div class="row"><button class="btn sm" data-act="hideall">Ocultar tudo</button><button class="btn sm" data-act="fit">Enquadrar</button></div></div>
+      <div class="stack"><span class="lbl">Camadas</span>
+        <label class="chk"><input type="checkbox" data-opt="showLines" ${st.showLines ? 'checked' : ''}> Linhas das rotas (ida e volta tracejadas)</label>
+        <label class="chk"><input type="checkbox" data-opt="showSeq" ${st.showSeq ? 'checked' : ''}> Números da sequência</label>
+        <label class="chk"><input type="checkbox" data-opt="showBases" ${st.showBases ? 'checked' : ''}> Base dos colaboradores</label>
+        <label class="chk"><input type="checkbox" data-opt="showUnassigned" ${st.showUnassigned ? 'checked' : ''}> Sem setor ou sem dia (${nUn + nSemDia})</label>
+        <label class="chk"><input type="checkbox" data-opt="showOut" ${st.showOut ? 'checked' : ''}> Clientes da base fora do estudo (${nOut})</label>
+        <label class="chk"><input type="checkbox" data-opt="showSea" ${st.showSea ? 'checked' : ''}> Endereços não encontrados, no mar (${seaList().length})</label>
+        <label class="chk"><input type="checkbox" data-opt="autoRoad" ${st.autoRoad ? 'checked' : ''}> Refazer o traçado sozinho quando eu editar uma rota</label>
+      </div>
+    </details>`;
+}
+/* ----- Visão Rotas: os roteiros de quem for marcado ----- */
+function painelRotas() {
+  const vis = st.visRoutes || [], sets = sortedSetores();
+  return `${visaoHtml()}<section class="rz">
+      <div class="stack"><span class="lbl">1 · Quem ver</span>
+        ${filtrosRotaHtml()}
+        <div class="rzn"><span class="muted"><b class="num">${vis.length}</b> de ${st.routes.size} rotas no mapa</span><span class="row"><button class="btn sm ghost" type="button" data-act="rotastodas">Todas</button><button class="btn sm ghost" type="button" data-act="rotasnenhuma">Nenhuma</button></span></div>
+        ${st.routes.size ? (vis.length ? '' : '<p class="rzhint">Marque um colaborador, ou clique em um dia, para ver o roteiro.</p>') : '<p class="rzhint">Este estudo ainda não tem rotas. Monte-as na visão Setores.</p>'}
+        ${sets.length ? `<div class="tree">${arvoreHtml(true)}</div>` : ''}
+      </div>
+      <div class="stack"><span class="lbl">2 · Modo de roteirização</span>${modoHtml()}</div>
+      ${roteirizarHtml(vis)}
+    </section>${exibicaoHtml()}`;
+}
+function renderLayersPanel() {
+  const p = $('#layersPanel'); if (p.hidden) return;
+  const a = amb();
+  const body = p.querySelector('.body');
+  if (!a && !(st.cli && st.cli.size)) { body.innerHTML = `<div class="empty"><h3>Nenhum cliente ainda</h3><p>Importe uma base de clientes para selecioná-los no mapa e criar setores.</p><button class="btn primary" data-go="importar">Importar clientes</button></div>`; return; }
+  if (!a || st.visao === 'base') { const t = $('#bzCids'), y = t ? t.scrollTop : 0; body.innerHTML = painelBase(); const n = $('#bzCids'); if (n) n.scrollTop = y; return; }
+  if (st.visao === 'rotas') { body.innerHTML = painelRotas(); return; }
+  let nUn = 0, nSemDia = 0; for (const it of st.itens.values()) { if (!it.s || !setorOf(it.s)) nUn++; else if (!itemKeys(it).length) nSemDia++; }
+  let nOut = 0; for (const c of st.cli.values()) if (!st.itens.has(c.sold)) nOut++;
+  const tree = arvoreHtml(false);
+  const vis = st.visRoutes || [], sets = sortedSetores(), onSets = sets.filter(([id]) => !st.hiddenSet.has(id));
+  const setVal = setorVisto(), aberto = sets.some(([id]) => id === setVal);
+  body.innerHTML = `${visaoHtml()}
+    <section class="rz">
+      <div class="stack"><span class="lbl">1 · O que ver no mapa</span>
+        <label class="rzl"><span class="muted">Setor</span><select id="rzSet"><option value=""${setVal === '' ? ' selected' : ''}>Todos</option><option value="__nenhum"${setVal === '__nenhum' ? ' selected' : ''}>Nenhum</option><option value="__sem"${setVal === '__sem' ? ' selected' : ''}>Só clientes sem setor (${nUn + nOut})</option>${setVal === '__parte' ? `<option value="__parte" selected>${onSets.length} setores marcados</option>` : ''}${sets.map(([id, x]) => `<option value="${esc(id)}"${setVal === id ? ' selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+        ${filtrosRotaHtml()}
+        <div class="rzn"><span class="muted"><b class="num">${vis.length}</b> de ${st.routes.size} rotas · <b class="num">${nf0.format(st.mk.size)}</b> clientes</span><button class="btn sm ghost" data-act="showall">Limpar filtros</button></div>
+        ${aberto ? '' : '<p class="rzhint">Selecione clientes com as ferramentas do topo e clique com o botão direito para criar um setor, ou use o painel à direita para escolher os dias e roteirizar.</p>'}
+      </div>
+      ${aberto ? setorBloco(setVal) : ''}
+      ${!st.routes.size && sets.length && !nSemDia ? '' : !st.routes.size && sets.length && setVal === '' ? `<div class="banner info" style="font-size:12.5px"><span>Os clientes dos setores ainda não têm dia e semana.</span><button class="btn sm primary" data-act="distribuir"${st.ro ? ' disabled' : ''}>Dividir nos dias</button></div>` : ''}
+      <div class="stack"><span class="lbl">2 · Modo de roteirização</span>${modoHtml()}</div>
+      ${roteirizarHtml(vis)}
+    </section>
+    <details class="rzsec" data-sec="setores"${st.rzSec.setores ? ' open' : ''}><summary>Setores e roteiros · ${sets.length}</summary>
+      ${tree ? `<div class="tree">${tree}</div>` : '<p class="muted" style="margin:0">Nenhum setor ainda. Selecione clientes no mapa e clique com o botão direito para criar um, ou use a setorização automática em “Estudos”.</p>'}
+    </details>
+    ${exibicaoHtml()}`;
+}
+/* Muda a visão do mapa: Setores abre tudo sem linhas, Rotas começa sem ninguém marcado, Base mostra todos os clientes */
+function setVisao(v) {
+  if (v === st.visao) return;
+  if (v !== 'base' && !amb()) return;
+  st.rotaAntes = null;
+  if (st.colorAntes) { st.colorBy = st.colorAntes; st.colorAntes = null; }
+  if (v === 'setores') { st.qf = { w: [], d: [] }; verSetor(''); }
+  else if (v === 'rotas') {
+    st.visao = 'rotas'; st.qf = { w: [], d: [] }; st.hidden.clear();
+    sortedSetores().forEach(([id]) => st.hiddenSet.add(id));
+    st.verSemSetor = false; st.showUnassigned = false; st.showLines = true;
+    renderMap();
+  } else { st.visao = 'base'; st.verSemSetor = true; renderMap(); setTimeout(fitVisible, 30); }
+}
+function passaFiltro(r) { const { w, d } = st.qf; return (!w.length || w.includes(r.w)) && (!d.length || d.includes(r.d)); }
+function abrirDetalheRotas() { if (st.visao === 'rotas' && innerWidth > 640) { st.panelR = true; applyPanels(); } }
+function rotasLista(vis) {
+  const t = sumRoutes(vis);
+  return `<section class="stack"><div class="row" style="justify-content:space-between"><span class="lbl">${vis.length} rotas marcadas</span>${ocPill(t.ocMed)}</div>
+    <div class="mgrid"><span>Visitas</span><span class="v">${nf0.format(t.n)}</span><span>KM total</span><span class="v">${fkm(t.km)}</span><span>Deslocamento</span><span class="v">${fhm(t.tDesl)}</span><span>Total</span><span class="v">${fhm(t.total)}</span></div>
+    <div class="rlist">${vis.map(r => { const c = colabOfSetor(r.s); return `<button type="button" class="rit rkrow" data-rkver="${esc(r.k)}" title="Abrir esta rota"><span class="sw" style="background:${esc(routeColor(r))}"></span><span class="nm">${esc(c ? c.nome : (setorOf(r.s) || {}).nome)} · S${r.w} · ${DIA_C[r.d]}<span class="muted" style="display:block;font-size:11.5px">${r.m.n} visitas · ${fkm(r.m.km)} km · ${fhm(r.m.total)}</span></span>${ocPill(r.m.ocup)}</button>`; }).join('')}</div></section>`;
+}
+/* Consultas que "Roteirizar" fará, para mostrar o tempo antes de começar. Semanas com a mesma lista de visitas contam uma vez, como em traceRoute */
+function estimaRoteirizar(list, o) {
+  const vh = motorRota(o) === 'valhalla', dias = new Set(list.map(r => r.s + '|' + r.d));
+  const rotas = [...st.routes.values()].filter(r => dias.has(r.s + '|' + r.d));
+  let n = 0;
+  for (const sd of dias) { const [s, d] = sd.split('|'), nos = dayUnion(s, +d).length + (baseOf(s) ? 1 : 0); n += vh && nos <= VH_MATRIZ_MAX ? Math.ceil(nos / VH_BLOCO) ** 2 : 1; }
+  const sigs = new Map(); for (const r of rotas) sigs.set(r.sig, r.stops.length + (baseOf(r.s) ? 2 : 0));
+  for (const nos of sigs.values()) n += vh ? Math.ceil((nos - 1) / (VH_ROTA - 1)) * (o.terra ? 2 : 1) : 1;
+  return { seg: n * 1.1, rotas: rotas.length };
+}
+const fdur = seg => (seg < 60 ? `${Math.max(5, Math.round(seg / 5) * 5)} s` : `${Math.round(seg / 60)} min`);
+function renderSelPanel() {
+  const p = $('#selPanel'); applyPanels(); if (p.hidden) return;
+  const body = p.querySelector('.body'); const a = amb();
+  let html = '';
+  const vis = st.visRoutes || [];
+  if (!st.sel.size) st.selForm = {};
+  if (st.sel.size) html += selSection();
+  if (vis.length === 1) html += `${st.rotaAntes ? '<div class="row"><button class="btn sm" type="button" data-rkvolta>← Todas as rotas marcadas</button></div>' : ''}${routeDetail(vis[0])}`;
+  else if (st.visao === 'rotas' && vis.length > 1) html += rotasLista(vis);
+  if (!html) html = `<div class="empty" style="padding:18px 6px"><h3>Nada selecionado</h3><p>Use o laço, o retângulo ou clique nos clientes. Com uma única rota visível, o detalhe e a sequência aparecem aqui.</p></div>`;
+  body.innerHTML = html;
+  bindRouteList(body);
+}
+function routeDetail(r) {
+  const s = setorOf(r.s), c = colabOfSetor(r.s), m = r.m, b = baseOf(r.s);
+  const col = routeColor(r);
+  const items = r.stops.map((sold, i) => { const cl = st.cli.get(sold); return `<div class="rit" draggable="true" data-sold="${esc(sold)}"><span class="q" style="background:${esc(col)}">${i + 1}</span><span class="nm" title="${esc(cl ? cl.nome : sold)}">${esc(cl ? cl.nome : sold + ' (não cadastrado)')}</span><span class="muted num" style="font-size:11px">${esc(sold)}</span></div>`; }).join('');
+  return `<section class="stack">
+    <div class="row" style="justify-content:space-between"><span class="lbl">Rota</span>${ocPill(m.ocup)}</div>
+    <div><b>${esc(s.nome)}</b> · Semana ${r.w} · ${DIA_L[r.d]}<div class="muted">${c ? esc(c.nome) + ' · jornada ' + fhm(m.jornada) : 'Sem colaborador — sem base de saída'}</div></div>
+    <div class="mgrid">
+      <span>Visitas</span><span class="v">${m.n}${r.missing ? ' +' + r.missing + '?' : ''}</span>
+      <span>KM ida (base → 1º)</span><span class="v">${fkm(m.kmIda)}</span>
+      <span>KM entre visitas</span><span class="v">${fkm(m.kmEntre)}</span>
+      <span>KM volta (último → base)</span><span class="v">${fkm(m.kmVolta)}</span>
+      <span>KM total ${m.real ? `<span class="pill ok" title="Percurso real pelas ruas">${m.src === 'google' ? 'Google' : 'pelas ruas'}</span>` : r.stale ? '<span class="pill warn" title="A rota mudou depois do último cálculo">desatualizado</span>' : '<span class="pill idle" title="Linha reta × fator de rota">estimado</span>'}</span><span class="v">${fkm(m.km)}</span>
+      <span>Deslocamento</span><span class="v">${fhm(m.tDesl)}</span>
+      <span>Atendimento</span><span class="v">${fhm(m.tAtend)}</span>
+      <span>Total do dia</span><span class="v">${fhm(m.total)}</span>
+    </div>
+    ${m.real ? `<div class="muted" style="font-size:12.5px">Calculada como: <b style="color:var(--ink)">${esc(rotaTxt(m.o))}</b>${m.o !== rotaKey(rotaOpt()) ? ' <span class="pill warn" title="O formato escolhido no painel é outro. Roteirize de novo para aplicar">outro formato</span>' : ''}${m.toll && !rotaAviso(m) ? ' <span class="pill idle">com pedágio</span>' : ''}</div>` : ''}
+    ${rotaAviso(m) ? `<div class="banner" style="font-size:12.5px">Sem alternativa no mapa: ${esc(rotaAviso(m))}.</div>` : ''}
+    <div class="row"><button class="btn sm primary" data-rop="ropt" data-rk="${esc(r.k)}" title="Melhor ordem pelas ruas reais (${rotaTxt(rotaKey(rotaOpt()))}) e traçado do percurso"${roadOk() ? '' : ' disabled'}>Roteirizar pelas ruas</button><button class="btn sm" data-rop="rtrace" data-rk="${esc(r.k)}" title="Mantém a ordem e traça o caminho pelas ruas"${roadOk() ? '' : ' disabled'}>Só traçar</button></div>
+    <div class="row"><button class="btn sm" data-rop="opt" data-rk="${esc(r.k)}" title="Sem consultar o servidor: usa linha reta">Otimizar em linha reta</button><button class="btn sm" data-rop="rev" data-rk="${esc(r.k)}">Inverter sentido</button><button class="btn sm" data-rop="selall" data-rk="${esc(r.k)}">Selecionar clientes</button></div>
+    <p class="muted" style="margin:0;font-size:12px">Arraste para mudar a ordem. A sequência vale para o dia nas semanas em que o cliente é visitado.</p>
+    <div class="rlist" data-rk="${esc(r.k)}">
+      ${b ? `<div class="rit base"><span class="q" style="background:var(--ink)">${ICON.home.replace('<svg', '<svg width="11" height="11"')}</span><span class="nm">Saída: ${esc(c.endereco || 'base do colaborador')}</span><span></span></div>` : ''}
+      ${items}
+      ${b ? `<div class="rit base"><span class="q" style="background:var(--ink)">${ICON.home.replace('<svg', '<svg width="11" height="11"')}</span><span class="nm">Retorno à base</span><span></span></div>` : ''}
+    </div></section>`;
+}
+/* Padrões do fluxo da seleção, conforme o que os clientes já têm */
+function selPadrao() {
+  const its = [...st.sel].map(s => st.itens && st.itens.get(s)).filter(Boolean);
+  const comSetor = its.filter(i => setorOf(i.s)), setores = new Set(comSetor.map(i => i.s));
+  const todosMesmo = comSetor.length === st.sel.size && setores.size === 1;
+  const temDia = its.some(i => setorOf(i.s) && (i.d || []).length), temSem = its.some(i => setorOf(i.s) && (i.w || []).length);
+  return { setor: todosMesmo ? [...setores][0] : comSetor.length ? '__manter' : '__novo', dias: temDia ? 'manter' : 'auto', sem: temSem ? 'manter' : 'freq', temDia, temSem, semSetor: st.sel.size - comSetor.length };
+}
+function proximoSetor() {
+  const usados = new Set(sortedSetores().map(([, x]) => x.nome));
+  for (let n = sortedSetores().length + 1; ; n++) { const nome = `Setor ${String(n).padStart(2, '0')}`; if (!usados.has(nome)) return nome; }
+}
+function selSection() {
+  const a = amb(), W = P().semanas, sel = [...st.sel], pad = selPadrao(), f = st.selForm, ro = st.ro ? ' disabled' : '';
+  const setor = f.setor ?? pad.setor, dias = f.dias ?? pad.dias, sem = f.sem ?? pad.sem;
+  const nFora = sel.filter(s => !st.itens || !st.itens.has(s)).length;
+  const colOpts = [...st.col.values()].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).map(c => `<option value="${esc(c.codigo)}"${c.codigo === f.colab ? ' selected' : ''}>${esc(c.nome)} (${esc(c.codigo)})</option>`).join('');
+  const setOpts = sortedSetores().map(([id, s]) => `<option value="${esc(id)}"${setor === id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('');
+  const list = sel.slice(0, 80).map(sold => { const c = st.cli.get(sold); const it = st.itens && st.itens.get(sold); const s = it && setorOf(it.s); return `<div class="rit" style="cursor:default;grid-template-columns:1fr auto"><span class="nm">${esc(c ? c.nome : sold)}</span><span class="muted" style="font-size:11px">${s ? esc(s.nome) + ' · ' + ((it.d || []).map(d => DIA_C[d]).join('/') || 'sem dia') : it ? 'sem setor' : 'fora'}</span></div>`; }).join('');
+  const chip = (attr, v, txt, on) => `<button type="button" data-${attr}="${v}" aria-pressed="${on}">${txt}</button>`;
+  const dicaDia = dias === 'auto' ? 'O sistema divide os clientes nos dias de trabalho, por proximidade e frequência.' : dias === 'manter' ? `Mantém os dias atuais.${pad.temDia && sel.some(x => { const it = st.itens && st.itens.get(x); return !it || !(it.d || []).length; }) ? ' Quem não tem dia fica fora das rotas.' : ''}` : 'Cada cliente é visitado em todos os dias marcados.';
+  const dicaSem = sem === 'freq' ? 'Pela frequência: semanal em todas, quinzenal alternada e mensal na mais leve.' : sem === 'manter' ? '' : 'Visitas somente nas semanas marcadas.';
+  return `<section class="stack">
+    <div class="row" style="justify-content:space-between"><span class="lbl">${sel.length} cliente${sel.length === 1 ? '' : 's'} selecionado${sel.length === 1 ? '' : 's'}</span><button class="btn sm ghost" data-sop="clear">Limpar</button></div>
+    <div class="field"><span class="lbl">1 · Setor</span><select id="sSet"${ro}><option value="__novo"${setor === '__novo' ? ' selected' : ''}>+ Criar novo setor</option>${pad.setor === '__manter' ? `<option value="__manter"${setor === '__manter' ? ' selected' : ''}>Manter o setor de cada cliente</option>` : ''}${setOpts}</select></div>
+    ${setor === '__novo' ? `<div class="stack" style="gap:6px"><input type="text" id="sNome" aria-label="Nome do novo setor" value="${esc(f.nome ?? proximoSetor())}"${ro}>${colOpts ? `<select id="sCol" aria-label="Colaborador do novo setor"${ro}><option value="">Colaborador: definir depois</option>${colOpts}</select>` : ''}</div>` : ''}
+    <div class="field"><span class="lbl">2 · Dias e semanas</span>
+      <div class="daychips" role="group" aria-label="Dias da visita">${pad.temDia ? chip('fd', 'manter', 'Manter', dias === 'manter') : ''}${chip('fd', 'auto', 'Automático', dias === 'auto')}${[1, 2, 3, 4, 5, 6].map(d => chip('fd', d, DIA_C[d], Array.isArray(dias) && dias.includes(d))).join('')}</div>
+      <div class="daychips" role="group" aria-label="Semanas do ciclo" style="margin-top:4px">${pad.temSem ? chip('fw', 'manter', 'Manter', sem === 'manter') : ''}${chip('fw', 'freq', 'Pela frequência', sem === 'freq')}${[...Array(W)].map((_, i) => chip('fw', i + 1, 'S' + (i + 1), Array.isArray(sem) && sem.includes(i + 1))).join('')}</div>
+      <span class="hint">${dicaDia}${dicaSem ? ' ' + dicaSem : ''}</span>
+    </div>
+    <div class="stack"><span class="lbl">3 · Modo de roteirização</span>${modoHtml()}</div>
+    <button class="btn primary rzgo" data-sop="go"${ro}>Roteirizar ${sel.length} cliente${sel.length === 1 ? '' : 's'}</button>
+    <div class="row"><button class="btn sm" data-sop="salvar"${ro} title="Grava o setor, os dias e as semanas sem consultar o servidor de rotas">Só salvar, sem calcular</button>${a && nFora ? `<button class="btn sm" data-sop="include"${ro}>Só incluir no estudo (${nFora})</button>` : ''}</div>
+    ${a && nFora < sel.length && !st.ro ? `<div class="row"><button class="btn sm" data-sop="unassign">Tirar do roteiro</button><button class="btn sm danger" data-sop="remove">Remover do estudo</button></div>` : ''}
+    <div class="rlist">${list}${sel.length > 80 ? `<div class="muted" style="font-size:12px">+ ${sel.length - 80} outros</div>` : ''}</div>
+  </section>`;
+}
+function selChip(campo, v) {
+  const f = st.selForm, pad = selPadrao(), atual = f[campo] ?? pad[campo];
+  if (typeof v === 'string' && isNaN(+v)) { f[campo] = v; }
+  else { const n = +v, base = Array.isArray(atual) ? atual : [], nova = base.includes(n) ? base.filter(x => x !== n) : [...base, n].sort((x, y) => x - y); f[campo] = nova.length ? nova : undefined; }
+  renderSelPanel();
+}
+const ITEM_VAZIO = () => ({ s: '', d: [], w: [], q: {} });
+/* Sem estudo aberto, cria um com toda a base: o que não for selecionado continua no mapa como "sem setor".
+   Com a base filtrada, continua nela para seguir separando as mesmas cidades ou clientes */
+async function garantirEstudo() {
+  if (amb()) return;
+  const id = uid('a'), sel = new Set(st.sel), agora = Date.now(), filtrada = st.baseF.cidades.size || st.baseF.soldes.size;
+  st.amb.put(id, { id, nome: `Estudo ${fdate(agora)}`, desc: 'Criado a partir da base de clientes', criado: agora, alterado: agora, params: { ...DEF_P }, setores: {}, pend: { cli: [], col: [] } });
+  await openAmb(id, false);
+  for (const c of st.cli.values()) st.itens.put(c.sold, ITEM_VAZIO());
+  st.sel = sel;
+  if (filtrada) st.visao = 'base';
+}
+/* O campo de cor devolve minúsculas e a paleta está em maiúsculas: compara sem diferenciar */
+function corLivre() {
+  const usadas = new Set(sortedSetores().map(([, x]) => String(x.cor).toUpperCase()));
+  return E.PALETA.find(x => !usadas.has(x.toUpperCase())) || E.PALETA[sortedSetores().length % E.PALETA.length];
+}
+function novoSetor(nome, cor, colab) {
+  const id = uid('s'), c = cor || corLivre();
+  touchAmb(a => { a.setores[id] = { nome: nome || proximoSetor(), cor: c, colab: colab || '' }; });
+  return id;
+}
+/* Passa a seleção para um setor. Quem já tem dia mantém: assim um setor novo já mostra rotas e KM para comparar */
+function moverSelecao(sid) {
+  const touched = new Set(); st.baseCor = 'setor';
+  for (const s of st.sel) {
+    const it = st.itens.get(s) || ITEM_VAZIO(); sdKeys(it).forEach(k => touched.add(k));
+    const nv = { ...clone(it), s: sid }; st.itens.put(s, nv); sdKeys(nv).forEach(k => touched.add(k));
+  }
+  resequence(touched); st.hiddenSet.delete(sid);
+}
+function avisoSetor(sid, n, verbo) {
+  const x = setorOf(sid);
+  showNote(`<b>${esc(x.nome)}</b> ${verbo} ${n} cliente${n === 1 ? '' : 's'}. <button class="btn sm" id="goSetor">Abrir setor</button>`);
+  $('#goSetor').onclick = () => { $('#mapNote').hidden = true; verSetor(sid); setTimeout(fitVisible, 30); };
+  clearTimeout(st.notaT); st.notaT = setTimeout(() => { const n = $('#mapNote'); if (n.querySelector('#goSetor')) n.hidden = true; }, 12000);
+}
+function setorForm() {
+  const n = st.sel.size, cols = [...st.col.values()].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).map(c => `<option value="${esc(c.codigo)}">${esc(c.nome)} (${esc(c.codigo)})</option>`).join('');
+  const cor = corLivre();
+  openModal(`<div class="dh"><h2>Criar setor com ${n} cliente${n === 1 ? '' : 's'}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fSetor" class="db">
+    <label class="field"><span class="lbl">Nome do setor</span><input type="text" name="nome" required value="${esc(proximoSetor())}"></label>
+    <div class="row"><label class="field"><span class="lbl">Cor</span><input type="color" name="cor" value="${esc(cor)}"></label>
+    <label class="field" style="flex:1;min-width:180px"><span class="lbl">Colaborador e base de saída</span><select name="colab"><option value="">Definir depois</option>${cols}</select></label></div>
+    <p class="muted" style="margin:0;font-size:12.5px">Depois é só abrir o setor e montar as rotas diárias.</p>
+  </form>
+  <div class="df"><button class="btn" data-close>Cancelar</button><button class="btn primary" form="fSetor" type="submit">Criar setor</button></div>`, 'sm');
+  // openModal foca o primeiro botão (o X) depois de 20 ms: o nome precisa ganhar o foco depois disso
+  setTimeout(() => { const nm = $('#fSetor [name=nome]'); if (nm) { nm.focus(); nm.select(); } }, 40);
+  $('#fSetor').onsubmit = async e => {
+    e.preventDefault(); const d = new FormData(e.target), qtd = st.sel.size; closeModal();
+    await garantirEstudo();
+    pushUndo('Criar setor');
+    const sid = novoSetor(String(d.get('nome')).trim(), d.get('cor'), d.get('colab'));
+    moverSelecao(sid); st.sel.clear(); rebuild(); renderAll(); renderToolbar();
+    avisoSetor(sid, qtd, 'criado com');
+  };
+}
+/* Setor → dias e semanas → modo → roteirizar */
+async function aplicarSelecao(calcular) {
+  const pad = selPadrao(), f = st.selForm, sel = [...st.sel];
+  const setorEsc = f.setor ?? pad.setor, diasEsc = f.dias ?? pad.dias, semEsc = f.sem ?? pad.sem;
+  if (setorEsc === '__manter' && pad.semSetor) { toast(`${pad.semSetor} cliente(s) ainda sem setor: escolha um setor para a seleção`); return; }
+  const nome = f.nome, colab = f.colab;
+  await garantirEstudo();
+  pushUndo('Roteirizar seleção');
+  let alvo = setorEsc;
+  if (setorEsc === '__novo') alvo = novoSetor(String(nome ?? proximoSetor()).trim(), '', colab);
+  if (setorEsc !== '__manter' && !setorOf(alvo)) { toast('Escolha um setor'); return; }
+  const touched = new Set(), grupos = new Map();
+  for (const s of sel) {
+    const it = st.itens.get(s) || ITEM_VAZIO(); sdKeys(it).forEach(k => touched.add(k));
+    const nv = clone(it); if (setorEsc !== '__manter') { nv.s = alvo; st.hiddenSet.delete(alvo); }
+    st.itens.put(s, nv);
+    if (!grupos.has(nv.s)) grupos.set(nv.s, []); grupos.get(nv.s).push(s);
+  }
+  if (Array.isArray(diasEsc)) touchAmb(a => { a.params = { ...P(), dias: [...new Set([...P().dias, ...diasEsc])].sort((x, y) => x - y) }; });
+  const W = P().semanas;
+  for (const [gid, solds] of grupos) {
+    const load = {}, auto = diasEsc === 'auto' ? E.autoRoute(solds.map(cliPt).filter(Boolean), baseOf(gid), P(), { seed: 3 }) : null;
+    for (const s of solds) {
+      const it = clone(st.itens.get(s)), c = st.cli.get(s);
+      if (auto) { const v = auto.get(s); if (v) { it.d = v.d; it.w = v.w; it.q = v.q; } }
+      else if (Array.isArray(diasEsc)) it.d = diasEsc;
+      if (Array.isArray(semEsc)) it.w = semEsc;
+      else if (!auto && (it.d || []).length && (semEsc === 'freq' || !(it.w || []).length)) { it.w = weeksByFreq((c && c.f) || 4, W, load); it.w.forEach(w => { load[w] = (load[w] || 0) + 1; }); }
+      st.itens.put(s, it); sdKeys(it).forEach(k => touched.add(k));
+    }
+  }
+  resequence(touched); st.sel.clear(); st.selForm = {}; st.baseCor = 'setor'; rebuild();
+  // Mostra o resultado: da visão geral ou da base, abre o setor trabalhado
+  if (st.visao === 'base' || setorVisto() === '') verSetor(grupos.size === 1 ? [...grupos.keys()][0] : '');
+  renderAll(); renderToolbar();
+  const keys = [...st.routes.values()].filter(r => touched.has(r.s + '|' + r.d)).map(r => r.k);
+  if (!keys.length) { toast('Setor salvo. Os clientes ainda não têm dia, então não há rota para calcular'); return; }
+  if (!calcular) { toast(`Salvo: ${keys.length} rota(s) com KM estimado. Use Roteirizar para calcular pelas ruas`, 5000); return; }
+  if (roadOk()) roadJob(keys, true, `Rotas roteirizadas (${rotaTxt(rotaKey(rotaOpt()))})`);
+  else { roadUnavailable(); toast('Dias salvos, com a ordem em linha reta. O servidor de rotas está indisponível', 6000); }
+}
+async function setRotaParam(k, v) {
+  await garantirEstudo();
+  touchAmb(a => { a.params = { ...P(), [k]: v }; });
+  renderMap();
+}
+/* Menu do botão direito */
+function fecharCtx() { const m = $('#ctx'); if (m && !m.hidden) m.hidden = true; }
+function abrirCtx(e, sold) {
+  if (st.placing || st.tool === 'ruler') return;
+  if (sold && !st.sel.has(sold)) { st.sel = new Set([sold]); afterSel(); }
+  const n = st.sel.size, ro = st.ro, itens = [];
+  const add = (t, fn, cls) => itens.push({ t, fn, cls });
+  if (n) {
+    itens.push({ h: `${n} cliente${n === 1 ? '' : 's'} selecionado${n === 1 ? '' : 's'}` });
+    if (!ro) {
+      add('Criar setor com a seleção…', setorForm, 'forte');
+      add('Escolher dias, semanas e roteirizar…', () => { st.panelR = true; applyPanels(); renderSelPanel(); $('#selPanel .body').scrollTop = 0; });
+      const sets = sortedSetores();
+      if (sets.length) {
+        itens.push({ h: 'Mover para o setor' });
+        itens.push({ lista: sets.map(([id, x]) => ({ t: x.nome, cor: x.cor, fn: () => { pushUndo('Mover para setor'); moverSelecao(id); st.sel.clear(); rebuild(); renderAll(); renderToolbar(); avisoSetor(id, n, 'recebeu'); } })) });
+      }
+      if ([...st.sel].some(s => st.itens && st.itens.has(s))) add('Tirar do roteiro', () => selOp('unassign'));
+    }
+    add('Limpar seleção', () => { st.sel.clear(); afterSel(); });
+    itens.push({ sep: 1 });
+  } else {
+    add('Selecionar com o laço', () => setTool('lasso'));
+    add('Selecionar com o retângulo', () => setTool('rect'));
+  }
+  const it = sold && st.itens && st.itens.get(sold), sx = it && setorOf(it.s);
+  if (sx) add(`Abrir ${sx.nome}`, () => { verSetor(it.s); setTimeout(fitVisible, 30); });
+  add('Selecionar todos os visíveis', () => { st.sel = new Set(st.mk.keys()); afterSel(); });
+  if (amb() && (st.visao !== 'setores' || setorVisto() !== '')) add('Ver todos os setores', () => verSetor(''));
+  const fns = [];
+  const reg = fn => { fns.push(fn); return fns.length - 1; };
+  const m = $('#ctx');
+  m.innerHTML = itens.map(x => {
+    if (x.sep) return '<hr>';
+    if (x.h) return `<div class="ctx-h">${esc(x.h)}</div>`;
+    if (x.lista) return `<div class="ctx-l">${x.lista.map(y => `<button type="button" role="menuitem" data-i="${reg(y.fn)}"><span class="sw" style="background:${esc(y.cor)}"></span>${esc(y.t)}</button>`).join('')}</div>`;
+    return `<button type="button" role="menuitem" class="${x.cls || ''}" data-i="${reg(x.fn)}">${esc(x.t)}</button>`;
+  }).join('');
+  m.onclick = ev => { const b = ev.target.closest('[data-i]'); if (!b) return; fecharCtx(); fns[+b.dataset.i](); };
+  m.hidden = false;
+  const oe = e.originalEvent, x = Math.min(oe.clientX, innerWidth - m.offsetWidth - 8), y = Math.min(oe.clientY, innerHeight - m.offsetHeight - 8);
+  m.style.left = Math.max(8, x) + 'px'; m.style.top = Math.max(8, y) + 'px';
+  const pri = m.querySelector('button'); if (pri) pri.focus();
+}
+function bindRouteList(body) {
+  const list = body.querySelector('.rlist[data-rk]'); if (!list) return;
+  let dragEl = null;
+  list.addEventListener('dragstart', e => { const it = e.target.closest('.rit[data-sold]'); if (!it) return; dragEl = it; it.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', it.dataset.sold); } catch (_) { /* ok */ } });
+  list.addEventListener('dragover', e => { if (!dragEl) return; e.preventDefault(); const over = e.target.closest('.rit[data-sold]'); $$('.rit.over', list).forEach(x => x.classList.remove('over')); if (over && over !== dragEl) over.classList.add('over'); });
+  list.addEventListener('drop', e => {
+    e.preventDefault(); if (!dragEl) return;
+    const over = e.target.closest('.rit[data-sold]');
+    if (over && over !== dragEl) list.insertBefore(dragEl, over);
+    const order = $$('.rit[data-sold]', list).map(x => x.dataset.sold);
+    dragEl.classList.remove('dragging'); dragEl = null;
+    reorderRoute(list.dataset.rk, order);
+  });
+  list.addEventListener('dragend', () => { if (dragEl) { dragEl.classList.remove('dragging'); dragEl = null; } $$('.rit.over', list).forEach(x => x.classList.remove('over')); });
+}
+
+/* ================= Operações de roteiro ================= */
+function dayUnion(s, d) { const out = []; for (const [sold, it] of st.itens.map) if (it.s === s && (it.d || []).includes(d)) out.push(sold); return out; }
+function resequence(sd) { // sd: Set de "s|d"
+  for (const k of sd) {
+    const [s, dd] = k.split('|'); const d = +dd; if (!setorOf(s)) continue;
+    const sold = dayUnion(s, d).filter(x => cliPt(x));
+    const order = E.sequence(baseOf(s), sold.map(cliPt));
+    order.forEach((idx, pos) => { const it = clone(st.itens.get(sold[idx])); it.q = { ...(it.q || {}), [d]: pos + 1 }; st.itens.put(sold[idx], it); });
+  }
+}
+function sdKeys(it) { return it && it.s ? (it.d || []).map(d => it.s + '|' + d) : []; }
+function mutateItems(solds, fn, label) {
+  pushUndo(label);
+  const touched = new Set();
+  for (const sold of solds) {
+    const it = st.itens.get(sold); if (!it) continue;
+    sdKeys(it).forEach(k => touched.add(k));
+    const nv = fn(clone(it), sold); st.itens.put(sold, nv);
+    sdKeys(nv).forEach(k => touched.add(k));
+  }
+  if (st.autoResequence) resequence(touched);
+  rebuild(); renderAll(); renderToolbar(); toast(label);
+}
+function reorderRoute(rk, order) {
+  const [s, , dd] = rk.split('|'); const d = +dd;
+  pushUndo('Ordem da rota');
+  const union = dayUnion(s, d).sort((x, y) => ((st.itens.get(x).q || {})[d] ?? 9999) - ((st.itens.get(y).q || {})[d] ?? 9999));
+  const inRoute = new Set(order); const slots = []; union.forEach((sold, i) => { if (inRoute.has(sold)) slots.push(i); });
+  const res = union.slice(); slots.forEach((slot, i) => { res[slot] = order[i]; });
+  res.forEach((sold, i) => { const it = clone(st.itens.get(sold)); it.q = { ...(it.q || {}), [d]: i + 1 }; st.itens.put(sold, it); });
+  rebuild(); renderMap(); renderToolbar();
+}
+function routeOp(op, rk) {
+  const r = st.routes.get(rk); if (!r) return;
+  if (op === 'ropt') { roadJob([rk], true, 'Rota roteirizada pelas ruas'); return; }
+  if (op === 'rtrace') { roadJob([rk], false, 'Percurso traçado pelas ruas'); return; }
+  if (op === 'selall') { st.sel = new Set(r.stops); afterSel(); return; }
+  pushUndo(op === 'opt' ? 'Otimizar sequência' : 'Inverter sentido');
+  if (op === 'opt') resequence(new Set([r.s + '|' + r.d]));
+  else {
+    const union = dayUnion(r.s, r.d).sort((x, y) => ((st.itens.get(x).q || {})[r.d] ?? 9999) - ((st.itens.get(y).q || {})[r.d] ?? 9999)).reverse();
+    union.forEach((sold, i) => { const it = clone(st.itens.get(sold)); it.q = { ...(it.q || {}), [r.d]: i + 1 }; st.itens.put(sold, it); });
+  }
+  const before = r.m.km; rebuild(); const after = (st.routes.get(rk) || r).m.km;
+  renderMap(); renderToolbar();
+  toast(op === 'opt' ? `Sequência otimizada: ${fkm(before)} → ${fkm(after)} km` : 'Sentido invertido');
+}
+function weeksByFreq(f, W, load) {
+  if (W === 1 || f >= 4) return [...Array(W)].map((_, i) => i + 1);
+  if (f >= 2) { const pats = W === 4 ? [[1, 3], [2, 4]] : [[1], [2]]; return pats.reduce((b, p) => (p.reduce((s, w) => s + (load[w] || 0), 0) < b.reduce((s, w) => s + (load[w] || 0), 0) ? p : b)); }
+  let bw = 1; for (let w = 2; w <= W; w++) if ((load[w] || 0) < (load[bw] || 0)) bw = w; return [bw];
+}
+function selOp(op) {
+  const sel = [...st.sel];
+  const inS = sel.filter(s => st.itens && st.itens.has(s));
+  if (op === 'clear') { st.sel.clear(); afterSel(); return; }
+  if (op === 'include') { pushUndo('Incluir no estudo'); let n = 0; for (const s of sel) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); return; }
+  if (!inS.length) return;
+  if (op === 'unassign') {
+    mutateItems(inS, it => ({ s: '', d: [], w: [], q: {} }), `${inS.length} cliente(s) tirados do roteiro`);
+  } else if (op === 'remove') {
+    pushUndo('Remover do estudo'); const touched = new Set();
+    for (const s of inS) { sdKeys(st.itens.get(s)).forEach(k => touched.add(k)); st.itens.del(s); }
+    if (st.autoResequence) resequence(touched);
+    st.sel.clear(); rebuild(); renderAll(); renderToolbar(); toast(`${inS.length} cliente(s) removidos do estudo`);
+  }
+}
+/* Dividir os clientes de um setor nos dias de trabalho, sem mexer nos outros setores */
+function distribuirSetor(sid, todos) {
+  const solds = [...st.itens.map].filter(([, it]) => it.s === sid && (todos || !itemKeys(it).length)).map(([s]) => s);
+  const pts = solds.map(cliPt).filter(Boolean);
+  if (!pts.length) { toast('Nenhum cliente com coordenada para dividir'); return; }
+  pushUndo('Dividir nos dias');
+  const res = E.autoRoute(pts, baseOf(sid), P(), { seed: 3 }), touched = new Set();
+  for (const [sold, v] of res) { const it = clone(st.itens.get(sold)); sdKeys(it).forEach(k => touched.add(k)); it.d = v.d; it.w = v.w; it.q = v.q; st.itens.put(sold, it); sdKeys(it).forEach(k => touched.add(k)); }
+  resequence(touched); rebuild(); renderAll(); renderToolbar();
+  toast(`${res.size} cliente(s) divididos nos dias. Use Roteirizar para calcular pelas ruas`, 5000);
+}
+function touchAmb(mut) { const a = clone(amb()); a.setores = a.setores || {}; mut(a); a.alterado = Date.now(); st.amb.put(a.id, a); }
+function cleanPend(a) {
+  const p = a.pend || { cli: [], col: [] };
+  return { cli: (p.cli || []).filter(x => !st.cli.has(x.sold)), col: (p.col || []).filter(x => !st.col.has(x.codigo)) };
+}
+
+/* ================= Páginas ================= */
+function renderPage() {
+  const v = st.view; const el = $('#pageView');
+  const keepScroll = el.scrollTop;
+  if (v === 'roteiros') el.innerHTML = pageRoteiros();
+  else if (v === 'estudos') el.innerHTML = pageEstudos();
+  else if (v === 'clientes') el.innerHTML = pageClientes();
+  else if (v === 'colaboradores') el.innerHTML = pageColabs();
+  else if (v === 'importar') el.innerHTML = pageImportar();
+  else if (v === 'config') el.innerHTML = pageConfig();
+  el.scrollTop = keepScroll;
+}
+
+/* ----- Roteiros ----- */
+function pageRoteiros() {
+  const a = amb();
+  if (!a) return `<div class="page"><div class="card"><div class="empty"><h3>Nenhum estudo aberto</h3><p>Os roteiros pertencem a um estudo. Crie um estudo ou importe um roteiro para começar.</p><button class="btn primary" data-go="estudos">Ir para estudos</button></div></div></div>`;
+  const pg = st.pg.roteiros; const W = P().semanas, D = P().dias;
+  const setores = sortedSetores().filter(([id]) => !pg.setor || pg.setor === id);
+  const all = sortedRoutes([...st.routes.values()]).filter(r => !pg.setor || r.s === pg.setor);
+  const tot = sumRoutes(all);
+  let body = '';
+  if (!all.length) body = `<div class="card"><div class="empty"><h3>Sem rotas montadas</h3><p>Atribua setores, dias e semanas aos clientes no mapa ou rode a roteirização automática em “Estudos e setores”.</p><div class="row" style="justify-content:center"><button class="btn primary" data-go="estudos">Roteirizar automaticamente</button><button class="btn" data-go="mapa">Montar no mapa</button></div></div></div>`;
+  else if (pg.mode === 'grade') {
+    body = setores.map(([id, s]) => {
+      const c = colabOfSetor(id); const rs = all.filter(r => r.s === id); if (!rs.length) return '';
+      const sm = sumRoutes(rs);
+      let g = `<div class="wgrid" style="grid-template-columns:34px repeat(${D.length},minmax(84px,1fr))"><span></span>${D.map(d => `<span class="hd">${DIA_L[d]}</span>`).join('')}`;
+      for (let w = 1; w <= W; w++) {
+        g += `<span class="wl">S${w}</span>`;
+        for (const d of D) {
+          const r = st.routes.get(`${id}|${w}|${d}`);
+          if (!r) { g += `<div class="cell empty-c"><span class="c2">—</span></div>`; continue; }
+          const o = r.m.ocup, colr = o > 1 ? 'var(--bad)' : o >= 0.9 ? 'var(--warn)' : o < 0.5 ? 'var(--muted)' : 'var(--ok)';
+          g += `<button class="cell" data-openrk="${esc(r.k)}" title="Abrir esta rota no mapa"><span class="c1">${r.stops.length} <span class="c2">visitas</span></span><span class="c2">${r.missing ? `<span style="color:var(--warn)">${r.missing} sem cadastro</span>` : `${fkm(r.m.km)} km${r.m.real ? ' ruas' : ''} · ${fhm(r.m.total)}`}</span><span class="bar"><i style="width:${Math.min(100, o * 100)}%;background:${colr}"></i></span></button>`;
+        }
+      }
+      g += '</div>';
+      return `<div class="card"><div class="ch"><h2><span class="sw" style="background:${esc(s.cor)};margin-right:7px;vertical-align:-1px"></span>${esc(s.nome)} <span class="muted" style="font-weight:400">· ${c ? esc(c.nome) : 'sem colaborador'}</span></h2>
+        <div class="row muted" style="font-size:12.5px"><span><b class="num">${fkm(sm.km)}</b> km/ciclo</span><span><b class="num">${fhm(sm.total)}</b> no ciclo</span>${ocPill(sm.ocMed)}<button class="btn sm" data-solo-set="${esc(id)}">Ver setor no mapa</button></div></div>
+        <div class="cb" style="overflow-x:auto">${g}</div></div>`;
+    }).join('');
+  } else {
+    let rows = '';
+    for (const [id, s] of setores) {
+      const rs = all.filter(r => r.s === id); if (!rs.length) continue;
+      const c = colabOfSetor(id);
+      for (const r of rs) rows += `<tr class="clk" data-openrk="${esc(r.k)}"><td><input type="checkbox" data-chkrk="${esc(r.k)}" ${pg.chk.has(r.k) ? 'checked' : ''} aria-label="Selecionar rota"></td><td><span class="sw" style="background:${esc(s.cor)}"></span> ${esc(s.nome)}</td><td>${c ? esc(c.nome) : '—'}</td><td class="n">${r.w}</td><td>${DIA_L[r.d]}</td><td class="n">${r.m.n}</td><td class="n">${fkm(r.m.kmIda)}</td><td class="n">${fkm(r.m.kmEntre)}</td><td class="n">${fkm(r.m.kmVolta)}</td><td class="n"><b>${fkm(r.m.km)}</b>${r.m.real ? ' <span class="pill ok" title="Percurso real pelas ruas">ruas</span>' : r.stale ? ' <span class="pill warn" title="Desatualizado">!</span>' : ''}</td><td class="n">${fhm(r.m.tDesl)}</td><td class="n">${fhm(r.m.tAtend)}</td><td class="n">${fhm(r.m.total)}</td><td>${ocPill(r.m.ocup)}</td></tr>`;
+      const sm = sumRoutes(rs);
+      rows += `<tr class="sub"><td></td><td colspan="4">Subtotal ${esc(s.nome)} · ${rs.length} rotas</td><td class="n">${sm.n}</td><td class="n" colspan="3"></td><td class="n">${fkm(sm.km)}</td><td class="n">${fhm(sm.tDesl)}</td><td class="n">${fhm(sm.tAtend)}</td><td class="n">${fhm(sm.total)}</td><td>${ocPill(sm.ocMed)}</td></tr>`;
+    }
+    rows += `<tr class="tot"><td></td><td colspan="4">Total do estudo · ${all.length} rotas</td><td class="n">${tot.n}</td><td colspan="3"></td><td class="n">${fkm(tot.km)}</td><td class="n">${fhm(tot.tDesl)}</td><td class="n">${fhm(tot.tAtend)}</td><td class="n">${fhm(tot.total)}</td><td>${ocPill(tot.ocMed)}</td></tr>`;
+    body = `<div class="tblwrap"><table class="t"><thead><tr><th></th><th>Setor</th><th>Colaborador</th><th class="n">Sem.</th><th>Dia</th><th class="n">Visitas</th><th class="n">KM ida</th><th class="n">KM entre</th><th class="n">KM volta</th><th class="n">KM total</th><th class="n">Desloc.</th><th class="n">Atend.</th><th class="n">Total</th><th>Jornada</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  return `<div class="page">
+    <div class="ph"><div><h1>Roteiros · ${esc(a.nome)}</h1><p>Cada rota é um setor em uma semana do ciclo e um dia. Clique numa rota para abri-la sozinha no mapa.</p></div>
+      <div class="row"><button class="btn" data-exp="roteiro">Exportar Excel</button><button class="btn" data-imp="roteiro">Importar roteiro</button><button class="btn" data-modelo="roteiro">Baixar modelo</button></div></div>
+    <div class="toolbar">
+      <div class="seg"><button data-rmode="grade" aria-pressed="${pg.mode === 'grade'}">Grade semana × dia</button><button data-rmode="tabela" aria-pressed="${pg.mode === 'tabela'}">Tabela de rotas</button></div>
+      <select id="rSet"><option value="">Todos os setores</option>${sortedSetores().map(([id, s]) => `<option value="${esc(id)}"${pg.setor === id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select>
+      ${pg.mode === 'tabela' ? `<button class="btn" data-act="openchk"${pg.chk.size ? '' : ' disabled'}>Abrir ${pg.chk.size || ''} selecionadas no mapa</button><button class="btn" data-act="roadchk"${pg.chk.size && roadOk() ? '' : ' disabled'}>Roteirizar selecionadas pelas ruas</button>` : ''}
+      <button class="btn primary" data-act="roadall"${roadOk() && all.length ? '' : ' disabled'} title="${roadOk() ? 'Ordem e percurso pelas ruas reais' : 'Servidor de rotas indisponível nesta janela'}">Roteirizar todas pelas ruas (${all.length})</button>
+      <span class="muted">Formato: <b style="color:var(--ink)">${esc(rotaTxt(rotaKey(rotaOpt())))}</b></span>
+      <span class="grow"></span>
+      <span class="muted">Ciclo de ${W} semana(s) · <b class="num">${fkm(tot.km)}</b> km · <b class="num">${fhm(tot.total)}</b> · ${all.length} rotas</span>
+    </div>
+    ${body}</div>`;
+}
+
+/* ----- Estudos ----- */
+function ambStats(a, items, routes) {
+  const t = sumRoutes([...routes.values()]);
+  let nSet = 0; for (const it of items.values()) if (it.s && a.setores && a.setores[it.s]) nSet++;
+  const max = Math.max(0, ...[...routes.values()].map(r => r.m.ocup));
+  return { clientes: items.size, setorizados: nSet, setores: Object.keys(a.setores || {}).length, rotas: routes.size, km: t.km, horas: t.total, oc: t.ocMed, ocMax: max };
+}
+function pageEstudos() {
+  const list = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0));
+  const a = amb();
+  const side = `<div class="stack">
+    <div class="row"><button class="btn primary" data-act="newamb">Novo estudo</button><button class="btn" data-imp="roteiro">Importar roteiro</button></div>
+    <div class="amblist">${list.map(x => `<button class="ambi" data-openamb="${esc(x.id)}" aria-current="${x.id === st.cur}"><span class="nm">${esc(x.nome)}</span><span class="mt">${Object.keys(x.setores || {}).length} setores · ${new Date(x.alterado || x.criado || Date.now()).toLocaleDateString('pt-BR')}</span></button>`).join('') || '<p class="muted">Nenhum estudo criado.</p>'}</div>
+    <div class="card"><div class="cb stack"><span class="lbl">Backup completo</span><p class="muted" style="margin:0;font-size:12.5px">Bases, estudos e roteiros num arquivo JSON, para guardar ou levar para outro navegador.</p><div class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button></div></div></div>
+  </div>`;
+  if (!a) return `<div class="page"><div class="ph"><div><h1>Estudos e setores</h1><p>Um estudo é um cenário de setorização e roteiro que usa as bases de clientes e colaboradores sem alterá-las.</p></div></div>
+    <div class="cols2">${side}<div class="card"><div class="empty"><h3>Comece por um estudo</h3><p>Crie um estudo a partir da base de clientes, importe um roteiro em Excel ou gere dados de exemplo para conhecer o sistema.</p><div class="row" style="justify-content:center"><button class="btn primary" data-act="newamb">Novo estudo</button><button class="btn" data-act="sample">Gerar dados de exemplo</button></div></div></div></div></div>`;
+  const p = P(); const routes = st.routes; const s = ambStats(a, st.itens.map, routes);
+  const pend = cleanPend(a);
+  const cnt = new Map(), hrs = new Map(), kms = new Map();
+  for (const it of st.itens.values()) if (it.s) cnt.set(it.s, (cnt.get(it.s) || 0) + 1);
+  for (const r of routes.values()) { hrs.set(r.s, (hrs.get(r.s) || 0) + r.m.total); kms.set(r.s, (kms.get(r.s) || 0) + r.m.km); }
+  const colOpts = sel => `<option value="">— Sem colaborador —</option>` + [...st.col.values()].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).map(c => `<option value="${esc(c.codigo)}"${c.codigo === sel ? ' selected' : ''}>${esc(c.nome)} (${esc(c.codigo)})</option>`).join('');
+  const setRows = sortedSetores().map(([id, x]) => {
+    const used = sortedSetores().filter(([, y]) => y.colab && y.colab === x.colab).length > 1;
+    return `<tr><td><input type="color" value="${esc(x.cor)}" data-scor="${esc(id)}" aria-label="Cor do setor"></td><td><input type="text" value="${esc(x.nome)}" data-snome="${esc(id)}" aria-label="Nome do setor" style="width:150px"></td><td><select data-scol="${esc(id)}" aria-label="Colaborador">${colOpts(x.colab)}</select>${used ? ' <span class="pill warn" title="Mesmo colaborador em mais de um setor">repetido</span>' : ''}${x.colab && !st.col.has(x.colab) ? ' <span class="pill bad">não cadastrado</span>' : ''}</td><td class="n">${cnt.get(id) || 0}</td><td class="n">${fkm(kms.get(id) || 0)}</td><td class="n">${fhm(hrs.get(id) || 0)}</td><td><button class="btn sm" data-solo-set="${esc(id)}">Mapa</button> <button class="btn sm danger" data-sdel="${esc(id)}">Excluir</button></td></tr>`;
+  }).join('');
+  const colabChecks = [...st.col.values()].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).map(c => `<label class="chk"><input type="checkbox" data-acol="${esc(c.codigo)}" ${sortedSetores().some(([, x]) => x.colab === c.codigo) || !Object.keys(a.setores || {}).length ? 'checked' : ''}> ${esc(c.nome)} <span class="muted">· ${esc(c.funcao || '')}${isNum(c.lat) ? '' : ' · sem base'}</span></label>`).join('');
+  const cmp = st.cmp;
+  return `<div class="page">
+    <div class="ph"><div><h1>Estudos e setores</h1><p>Um estudo é um cenário de setorização e roteiro que usa as bases de clientes e colaboradores sem alterá-las. Duplique para comparar alternativas.</p></div></div>
+    <div class="cols2">${side}
+    <div class="stack">
+      ${pend.cli.length || pend.col.length ? `<div class="card" id="pendCard"><div class="ch"><h2>Pendências de cadastro</h2><span class="pill warn">${pend.cli.length + pend.col.length}</span></div><div class="cb stack">
+        <p class="muted" style="margin:0">O roteiro importado cita registros que não existem nas bases. Cadastre-os para que apareçam no mapa e entrem nos cálculos.</p>
+        ${pend.cli.length ? `<div><span class="lbl">Clientes</span><div class="row" style="margin-top:6px">${pend.cli.slice(0, 40).map(x => `<button class="btn sm" data-newcli="${esc(x.sold)}" data-nome="${esc(x.nome || '')}">Cadastrar ${esc(x.sold)}${x.nome ? ' · ' + esc(x.nome) : ''}</button>`).join('')}${pend.cli.length > 40 ? `<span class="muted">+${pend.cli.length - 40}</span>` : ''}</div><p class="muted" style="font-size:12px;margin:6px 0 0">Muitos clientes? Importe a planilha deles em Clientes — as pendências somem sozinhas.</p></div>` : ''}
+        ${pend.col.length ? `<div><span class="lbl">Colaboradores</span><div class="row" style="margin-top:6px">${pend.col.map(x => `<button class="btn sm" data-newcol="${esc(x.codigo)}" data-nome="${esc(x.nome || '')}">Cadastrar ${esc(x.codigo)}</button>`).join('')}</div></div>` : ''}
+      </div></div>` : ''}
+      <div class="card"><div class="ch"><h2>Identificação</h2><div class="row"><button class="btn sm" data-act="dupamb">Duplicar como cenário</button><button class="btn sm danger" data-act="delamb">Excluir estudo</button></div></div><div class="cb fgrid">
+        <label class="field" style="grid-column:span 2"><span class="lbl">Nome do estudo</span><input type="text" id="aNome" value="${esc(a.nome)}"></label>
+        <label class="field" style="grid-column:span 2"><span class="lbl">Descrição</span><input type="text" id="aDesc" value="${esc(a.desc || '')}" placeholder="Objetivo, premissas, origem do roteiro"></label>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Parâmetros de cálculo</h2></div><div class="cb fgrid">
+        <label class="field"><span class="lbl">Ciclo (semanas)</span><select id="pSem">${[1, 2, 4].map(w => `<option value="${w}"${p.semanas === w ? ' selected' : ''}>${w} semana${w > 1 ? 's' : ''}</option>`).join('')}</select><span class="hint">Período em que o roteiro se repete</span></label>
+        <div class="field"><span class="lbl">Dias trabalhados</span><div class="daychips" id="pDias">${[1, 2, 3, 4, 5, 6].map(d => `<button type="button" data-d="${d}" aria-pressed="${p.dias.includes(d)}">${DIA_C[d]}</button>`).join('')}</div></div>
+        <label class="field"><span class="lbl">Velocidade média (km/h)</span><input type="number" id="pVel" min="5" max="90" step="1" value="${p.vel}"><span class="hint">Trânsito urbano: 18–30</span></label>
+        <label class="field"><span class="lbl">Fator de rota</span><input type="number" id="pFat" min="1" max="2.5" step="0.05" value="${p.fator}"><span class="hint">Linha reta × fator ≈ km por via</span></label>
+        <label class="field"><span class="lbl">Jornada padrão (min)</span><input type="number" id="pJor" min="60" max="900" step="10" value="${p.jornada}"><span class="hint">${fhm(p.jornada)} · o colaborador pode ter a sua</span></label>
+        <label class="field"><span class="lbl">Formato da rota</span><select id="pCrit"><option value="tempo"${p.criterio === 'tempo' ? ' selected' : ''}>Mais rápida</option><option value="distancia"${p.criterio !== 'tempo' ? ' selected' : ''}>Mais curta</option></select><span class="hint">Critério da roteirização pelas ruas</span></label>
+        <div class="field"><span class="lbl">Evitar nas rotas</span><label class="chk"><input type="checkbox" id="pPed" ${p.evitaPedagio ? 'checked' : ''}> Pedágios</label><label class="chk"><input type="checkbox" id="pTer" ${p.evitaTerra ? 'checked' : ''}> Estrada de terra e via precária</label></div>
+        <label class="field"><span class="lbl">Motor de rotas</span><select id="pMotor"><option value="osrm"${p.motor !== 'google' ? ' selected' : ''}>OpenStreetMap (gratuito)</option><option value="google"${p.motor === 'google' ? ' selected' : ''}>Google (usa a chave)</option></select><span class="hint">${st.road === 'ok' ? 'Servidor gratuito conectado' : 'Servidor indisponível nesta janela'}</span></label>
+        <label class="field"><span class="lbl">Atendimento padrão (min)</span><input type="number" id="pTpa" min="1" max="240" step="1" value="${p.tPadrao}"><span class="hint">Usado quando o cliente não tem</span></label>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Clientes no estudo</h2><div class="row"><button class="btn sm" data-act="incl">Incluir clientes da base</button><button class="btn sm" data-go="mapa">Montar no mapa</button></div></div><div class="cb">
+        <div class="row" style="gap:22px"><div><div class="lbl">No estudo</div><div class="num" style="font-size:20px;font-weight:600">${s.clientes}</div></div><div><div class="lbl">Setorizados</div><div class="num" style="font-size:20px;font-weight:600">${s.setorizados}</div></div><div><div class="lbl">Rotas</div><div class="num" style="font-size:20px;font-weight:600">${s.rotas}</div></div><div><div class="lbl">KM no ciclo</div><div class="num" style="font-size:20px;font-weight:600">${fkm(s.km)}</div></div><div><div class="lbl">Horas no ciclo</div><div class="num" style="font-size:20px;font-weight:600">${fhm(s.horas)}</div></div><div><div class="lbl">Ocupação média</div><div style="font-size:15px;margin-top:3px">${s.rotas ? ocPill(s.oc) : '—'}</div></div></div>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Setorização e roteirização automáticas</h2></div><div class="cb stack">
+        <div class="fgrid">
+          <label class="field"><span class="lbl">Nº de setores</span><input type="number" id="aK" min="1" max="200" value="${Math.max(1, Object.keys(a.setores || {}).length || [...st.col.values()].length || 4)}"></label>
+          <label class="field"><span class="lbl">Equilibrar por</span><select id="aBy"><option value="carga">Carga de trabalho (tempo × frequência)</option><option value="qtd">Quantidade de clientes</option></select></label>
+          <label class="field"><span class="lbl">Clientes</span><select id="aEsc"><option value="todos">Todos do estudo (refaz setores)</option><option value="encaixe">Só os sem setor (encaixa no setor mais próximo)</option></select></label>
+        </div>
+        ${colabChecks ? `<div class="field"><span class="lbl">Colaboradores para atribuir aos novos setores (pela proximidade da base)</span><div class="fgrid" style="gap:6px">${colabChecks}</div></div>` : '<p class="muted" style="margin:0">Cadastre colaboradores para que cada setor ganhe um responsável e uma base de saída.</p>'}
+        <label class="chk"><input type="checkbox" id="aRoad" ${roadOk() ? 'checked' : 'disabled'}> Em seguida, ajustar a sequência e o percurso pelas ruas reais${roadOk() ? '' : ' (indisponível nesta janela)'}</label>
+        <div class="row"><button class="btn primary" data-act="autoset" ${st.ro ? 'disabled' : ''}>Setorizar e roteirizar</button><button class="btn" data-act="autoroute" ${st.ro ? 'disabled' : ''}>Só roteirizar (manter setores)</button><button class="btn" data-act="reseqall" ${st.ro ? 'disabled' : ''}>Só otimizar sequências</button><button class="btn" data-act="roadall"${roadOk() && st.routes.size && !st.ro ? '' : ' disabled'}>Roteirizar tudo pelas ruas (${st.routes.size})</button></div>
+        <p class="muted" style="margin:0;font-size:12.5px">A roteirização distribui cada setor nos dias trabalhados, define as semanas pela frequência (semanal em todas, quinzenal em semanas alternadas, mensal na semana mais leve) e sequencia cada dia a partir da base do colaborador. Tudo pode ser desfeito.</p>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Setores · ${sortedSetores().length}</h2><button class="btn sm" data-act="newset">Novo setor</button></div>
+        ${setRows ? `<div style="overflow-x:auto"><table class="t"><thead><tr><th>Cor</th><th>Nome</th><th>Colaborador</th><th class="n">Clientes</th><th class="n">KM/ciclo</th><th class="n">Horas/ciclo</th><th></th></tr></thead><tbody>${setRows}</tbody></table></div>` : '<div class="cb muted">Nenhum setor. Use a setorização automática ou crie setores à mão.</div>'}
+      </div>
+      <div class="card"><div class="ch"><h2>Comparar cenários</h2><button class="btn sm" data-act="cmp">${cmp ? 'Atualizar' : 'Calcular comparativo'}</button></div>
+        ${cmp ? `<div style="overflow-x:auto"><table class="t"><thead><tr><th>Estudo</th><th class="n">Clientes</th><th class="n">Setores</th><th class="n">Rotas</th><th class="n">KM no ciclo</th><th class="n">Horas no ciclo</th><th>Ocup. média</th><th>Maior ocup.</th></tr></thead><tbody>${cmp.map(r => `<tr class="clk" data-openamb="${esc(r.id)}"><td>${esc(r.nome)}${r.id === st.cur ? ' <span class="pill ok">aberto</span>' : ''}</td><td class="n">${r.clientes}</td><td class="n">${r.setores}</td><td class="n">${r.rotas}</td><td class="n">${fkm(r.km)}</td><td class="n">${fhm(r.horas)}</td><td>${r.rotas ? ocPill(r.oc) : '—'}</td><td>${r.rotas ? ocPill(r.ocMax) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="cb muted">Calcula KM, horas e ocupação de todos os estudos lado a lado.</div>'}
+      </div>
+    </div></div></div>`;
+}
+
+/* ----- Clientes ----- */
+function pageClientes() {
+  const pg = st.pg.clientes; const q = pg.q.trim().toLowerCase();
+  const cidades = [...new Set([...st.cli.values()].map(c => c.cidade).filter(Boolean))].sort();
+  let rows = [...st.cli.values()];
+  if (q) rows = rows.filter(c => (c.sold + ' ' + (c.nome || '') + ' ' + (c.endereco || '') + ' ' + (c.bairro || '')).toLowerCase().includes(q));
+  if (pg.cidade) rows = rows.filter(c => c.cidade === pg.cidade);
+  if (pg.semCoord) rows = rows.filter(c => !isNum(c.lat) || !isNum(c.lng));
+  if (pg.noEstudo === 'sim') rows = rows.filter(c => st.itens && st.itens.has(c.sold)); else if (pg.noEstudo === 'nao') rows = rows.filter(c => !st.itens || !st.itens.has(c.sold));
+  rows.sort((a, b) => String(a.nome || a.sold).localeCompare(String(b.nome || b.sold), 'pt-BR'));
+  pg.ultimos = rows.map(c => c.sold);
+  const PER = 100; const pages = Math.max(1, Math.ceil(rows.length / PER)); pg.page = Math.min(pg.page, pages - 1);
+  const slice = rows.slice(pg.page * PER, pg.page * PER + PER);
+  const semCoord = [...st.cli.values()].filter(c => !isNum(c.lat) || !isNum(c.lng)).length;
+  const nSea = seaList().length, nBusca = seaList().filter(c => c.endereco || c.cep).length;
+  const temEx = [...st.cli.values()].some(c => c.exemplo);
+  const latCell = c => isNum(c.lat) ? c.lat.toFixed(5) + (c.geoNivel === 'rua' ? ' <span class="pill idle" title="Coordenada da rua, sem o número exato">rua</span>' : '') : geoQueued(c.sold) ? '<span class="pill idle">na fila</span>' : `<span class="pill warn" title="${esc(c.geoPend ? c.geoPend.msg : 'sem coordenada')}">no mar</span>`;
+  const tb = slice.map(c => { const it = st.itens && st.itens.get(c.sold); const s = it && setorOf(it.s); return `<tr class="clk" data-editcli="${esc(c.sold)}"><td><input type="checkbox" data-chkcli="${esc(c.sold)}" ${pg.chk.has(c.sold) ? 'checked' : ''} aria-label="Selecionar"></td><td class="num">${esc(c.sold)}</td><td class="wrap">${esc(c.nome || '')}</td><td class="wrap">${esc(c.endereco || '')}</td><td>${esc(c.bairro || '')}</td><td>${esc(c.cidade || '')}</td><td class="n">${latCell(c)}</td><td class="n">${isNum(c.lng) ? c.lng.toFixed(5) : ''}</td><td>${freqTxt(c.f)}</td><td class="n">${c.t || '—'}</td><td>${it ? (s ? `<span class="sw" style="background:${esc(s.cor)}"></span> ${esc(s.nome)}` : 'sem setor') : '<span class="muted">fora</span>'}</td></tr>`; }).join('');
+  return `<div class="page">
+    <div class="ph"><div><h1>Base de clientes</h1><p>Cadastro mestre, identificado pelo SOLD. Os estudos apenas referenciam esta base — editar aqui atualiza todos os estudos.</p></div>
+      <div class="row"><button class="btn primary" data-act="newcli">Novo cliente</button><button class="btn" data-act="clibase" title="Abre o mapa com os clientes marcados ou filtrados aqui">Ver no mapa</button><button class="btn" data-imp="clientes">Importar planilha</button><button class="btn" data-modelo="clientes">Baixar modelo</button><button class="btn" data-exp="clientes">Exportar Excel</button></div></div>
+    ${nSea ? `<div class="banner"><span><b>${nSea}</b> cliente(s) sem coordenada estão no mar, fora dos cálculos. Ajuste cada um pelo endereço, clicando no mapa ou arrastando o pino.</span><button class="btn sm primary" data-act="adj">Ajustar endereços</button><button class="btn sm" data-act="gosea">Ver no mar</button>${nBusca && !geoQ.busy ? `<button class="btn sm" data-act="geo">Buscar de novo (${nBusca})</button>` : ''}</div>` : ''}
+    ${!st.cli.size ? `<div class="card"><div class="empty"><h3>Base vazia</h3><p>Importe sua planilha de clientes (SOLD, nome, endereço, latitude, longitude, visitas por mês, tempo de atendimento) ou gere dados de exemplo.</p><div class="row" style="justify-content:center"><button class="btn primary" data-imp="clientes">Importar planilha</button><button class="btn" data-act="sample">Gerar dados de exemplo</button></div></div></div>` : `
+    <div class="toolbar">
+      <div class="grow"><input type="search" id="cQ" placeholder="Buscar por SOLD, nome, endereço ou bairro" value="${esc(pg.q)}"></div>
+      <select id="cCid"><option value="">Todas as cidades</option>${cidades.map(c => `<option${c === pg.cidade ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      <select id="cEst"><option value="">Estudo atual: todos</option><option value="sim"${pg.noEstudo === 'sim' ? ' selected' : ''}>Só no estudo</option><option value="nao"${pg.noEstudo === 'nao' ? ' selected' : ''}>Só fora do estudo</option></select>
+      <label class="chk"><input type="checkbox" id="cSem" ${pg.semCoord ? 'checked' : ''}> Sem coordenadas (${semCoord})</label>
+    </div>
+    <div class="toolbar">
+      <span class="muted">${rows.length} cliente(s)${pg.chk.size ? ` · ${pg.chk.size} marcados` : ''}</span>
+      <button class="btn sm" data-act="chkall">Marcar os filtrados</button>
+      ${pg.chk.size ? `<button class="btn sm" data-act="chknone">Desmarcar</button>${amb() ? `<button class="btn sm" data-act="cliIncl">Incluir marcados no estudo</button>` : ''}<button class="btn sm danger" data-act="cliDel">Excluir marcados</button>` : ''}
+      ${temEx ? `<button class="btn sm danger" data-act="delex">Remover dados de exemplo</button>` : ''}
+    </div>
+    <div class="tblwrap"><table class="t"><thead><tr><th></th><th>SOLD</th><th>Nome</th><th>Endereço</th><th>Bairro</th><th>Cidade</th><th class="n">Lat</th><th class="n">Lng</th><th>Frequência</th><th class="n">Atend. (min)</th><th>Setor no estudo</th></tr></thead><tbody>${tb}</tbody></table>
+    <div class="pager"><span>Página ${pg.page + 1} de ${pages}</span><button class="btn sm" data-cpage="-1" ${pg.page ? '' : 'disabled'}>Anterior</button><button class="btn sm" data-cpage="1" ${pg.page < pages - 1 ? '' : 'disabled'}>Próxima</button></div></div>`}
+  </div>`;
+}
+/* ----- Colaboradores ----- */
+function pageColabs() {
+  const pg = st.pg.colaboradores; const q = pg.q.trim().toLowerCase();
+  let rows = [...st.col.values()]; if (q) rows = rows.filter(c => (c.codigo + ' ' + (c.nome || '') + ' ' + (c.funcao || '')).toLowerCase().includes(q));
+  rows.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+  const setoresDe = cod => sortedSetores().filter(([, s]) => s.colab === cod).map(([, s]) => s.nome).join(', ');
+  const tb = rows.map(c => `<tr class="clk" data-editcol="${esc(c.codigo)}"><td><span class="sw" style="background:${esc(c.cor || '#7d8a84')}"></span></td><td class="num">${esc(c.codigo)}</td><td>${esc(c.nome)}</td><td>${esc(c.funcao || '')}</td><td class="wrap">${esc(addrTxt(c))}</td><td class="n">${isNum(c.lat) ? c.lat.toFixed(5) : geoQ.set.has(qKey('col', c.codigo)) ? '<span class="pill idle">na fila</span>' : `<span class="pill warn" title="${esc(c.geoPend ? c.geoPend.msg : 'sem coordenada')}">falta</span>`}</td><td class="n">${isNum(c.lng) ? c.lng.toFixed(5) : ''}</td><td class="n">${c.jornada ? fhm(c.jornada) : '<span class="muted">padrão</span>'}</td><td>${esc(setoresDe(c.codigo)) || '<span class="muted">—</span>'}</td></tr>`).join('');
+  return `<div class="page">
+    <div class="ph"><div><h1>Base de colaboradores</h1><p>Vendedores, promotores, motoristas e supervisores. A base (residência ou depósito) é o ponto de saída e retorno das rotas.</p></div>
+      <div class="row"><button class="btn primary" data-act="newcol">Novo colaborador</button><button class="btn" data-imp="colaboradores">Importar planilha</button><button class="btn" data-modelo="colaboradores">Baixar modelo</button><button class="btn" data-exp="colaboradores">Exportar Excel</button></div></div>
+    ${!st.col.size ? `<div class="card"><div class="empty"><h3>Nenhum colaborador</h3><p>Cadastre quem executa as rotas com código, nome, função e a localização da base de saída.</p><div class="row" style="justify-content:center"><button class="btn primary" data-act="newcol">Novo colaborador</button><button class="btn" data-imp="colaboradores">Importar planilha</button></div></div></div>` : `
+    <div class="toolbar"><div class="grow"><input type="search" id="kQ" placeholder="Buscar por código, nome ou função" value="${esc(pg.q)}"></div><span class="muted">${rows.length} colaborador(es)</span></div>
+    <div class="tblwrap"><table class="t"><thead><tr><th></th><th>Código</th><th>Nome</th><th>Função</th><th>Base (endereço)</th><th class="n">Lat</th><th class="n">Lng</th><th class="n">Jornada</th><th>Setores no estudo</th></tr></thead><tbody>${tb}</tbody></table></div>`}
+  </div>`;
+}
+
+/* ================= Modais ================= */
+function openModal(html, cls = '') { const m = $('#modal'); m.innerHTML = `<div class="dlg ${cls}" role="dialog" aria-modal="true">${html}</div>`; m.hidden = false; const f = m.querySelector('input,select,textarea,button'); if (f) setTimeout(() => f.focus(), 20); }
+function closeModal() { $('#modal').hidden = true; $('#modal').innerHTML = ''; }
+function numBR(v) { if (v === null || v === undefined || v === '') return NaN; if (typeof v === 'number') return v; let s = String(v).trim().replace(/\s/g, ''); if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(',', '.'); const n = parseFloat(s); return isFinite(n) ? n : NaN; }
+
+function cliForm(c, isNew) {
+  c = c || {};
+  openModal(`<div class="dh"><h2>${isNew ? 'Novo cliente' : 'Cliente ' + esc(c.sold)}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fCli" class="db">${!isNew && !hasXY(c) ? `<div class="banner">No mar: ${esc(c.geoPend ? c.geoPend.msg : 'ainda sem coordenada')}. Busque pelo endereço, cole a coordenada ou marque no mapa.</div>` : ''}<div class="fgrid">
+    <label class="field"><span class="lbl">SOLD *</span><input type="text" name="sold" value="${esc(c.sold || '')}" ${isNew ? '' : 'readonly'} required></label>
+    <label class="field" style="grid-column:span 2"><span class="lbl">Nome</span><input type="text" name="nome" value="${esc(c.nome || '')}"></label>
+    <label class="field" style="grid-column:span 2"><span class="lbl">Endereço</span><input type="text" name="endereco" value="${esc(c.endereco || '')}"></label>
+    <label class="field"><span class="lbl">Bairro</span><input type="text" name="bairro" value="${esc(c.bairro || '')}"></label>
+    <label class="field"><span class="lbl">Cidade</span><input type="text" name="cidade" value="${esc(c.cidade || '')}"></label>
+    <label class="field"><span class="lbl">UF</span><input type="text" name="uf" value="${esc(c.uf || '')}" maxlength="2"></label>
+    <label class="field"><span class="lbl">CEP</span><input type="text" name="cep" value="${esc(c.cep || '')}"></label>
+    <label class="field"><span class="lbl">Latitude</span><input type="text" name="lat" value="${isNum(c.lat) ? c.lat : ''}" placeholder="-23,5891 ou cole “lat, lng”"></label>
+    <label class="field"><span class="lbl">Longitude</span><input type="text" name="lng" value="${isNum(c.lng) ? c.lng : ''}" placeholder="-46,6349"></label>
+    <label class="field"><span class="lbl">Frequência</span><select name="f">${[[1, 'Mensal (1x/mês)'], [2, 'Quinzenal (2x/mês)'], [4, 'Semanal (4x/mês)'], [8, '2x por semana'], [12, '3x por semana']].map(([v, l]) => `<option value="${v}"${(c.f || 4) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">Atendimento (min)</span><input type="number" name="t" min="1" max="600" value="${c.t || ''}" placeholder="${P().tPadrao}"></label>
+  </div><div class="row"><button class="btn sm" type="button" data-fgeo>Buscar pelo endereço</button>${!isNew && !st.ro ? '<button class="btn sm" type="button" id="fPlace">Salvar e marcar no mapa</button>' : ''}<span class="muted fgeo-msg" style="font-size:12.5px"></span></div>
+  <p class="muted" style="margin:0;font-size:12.5px">Dica: no Google Maps, clique com o botão direito no local e copie a coordenada; colada no campo Latitude, ela preenche os dois campos.</p></form>
+  <div class="df">${!isNew ? `<button class="btn danger" data-delcli="${esc(c.sold)}">Excluir da base</button><span style="flex:1"></span>` : ''}<button class="btn" data-close>Cancelar</button><button class="btn primary" form="fCli" type="submit">Salvar</button></div>`);
+  const form = $('#fCli'); bindFormGeo(form); let placeAfter = false;
+  const fp = $('#fPlace'); if (fp) fp.onclick = () => { placeAfter = true; form.requestSubmit(); };
+  form.onsubmit = e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const sold = String(f.get('sold') || '').trim(); if (!sold) { toast('Informe o SOLD'); return; }
+    if (isNew && st.cli.has(sold)) { toast('Já existe um cliente com esse SOLD'); return; }
+    const ex = st.cli.get(sold) || {};
+    const o = { ...ex, sold, nome: f.get('nome').trim(), endereco: f.get('endereco').trim(), bairro: f.get('bairro').trim(), cidade: f.get('cidade').trim(), uf: f.get('uf').trim().toUpperCase(), cep: f.get('cep').trim(), lat: numBR(f.get('lat')), lng: numBR(f.get('lng')), f: +f.get('f'), t: numBR(f.get('t')) };
+    if (!isNum(o.lat)) o.lat = null; if (!isNum(o.lng)) o.lng = null; if (!isNum(o.t)) delete o.t;
+    if (hasXY(o)) { if (o.lat !== ex.lat || o.lng !== ex.lng) { o.geo = form.dataset.gsrc || 'manual'; o.geoNivel = form.dataset.gniv || 'exato'; } delete o.geoPend; }
+    st.cli.put(sold, o);
+    // sem coordenada e com endereço novo: entra na busca automática
+    const busca = !placeAfter && !hasXY(o) && (o.endereco || o.cep) && (isNew || addrTxt(o) !== addrTxt(ex));
+    closeModal(); if (busca) geoEnqueue([['cli', sold]]);
+    rebuild(); renderAll(); toast(isNew ? 'Cliente cadastrado' : 'Cliente atualizado');
+    if (placeAfter) startPlace(sold);
+  };
+}
+function colForm(c, isNew) {
+  c = c || {};
+  openModal(`<div class="dh"><h2>${isNew ? 'Novo colaborador' : esc(c.nome)}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fCol" class="db"><div class="fgrid">
+    <label class="field"><span class="lbl">Código *</span><input type="text" name="codigo" value="${esc(c.codigo || '')}" ${isNew ? '' : 'readonly'} required></label>
+    <label class="field" style="grid-column:span 2"><span class="lbl">Nome</span><input type="text" name="nome" value="${esc(c.nome || '')}"></label>
+    <label class="field"><span class="lbl">Função</span><select name="funcao">${['Vendedor', 'Promotor', 'Supervisor', 'Motorista', 'Técnico', 'Outro'].map(x => `<option${(c.funcao || 'Vendedor') === x ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
+    <label class="field" style="grid-column:span 2"><span class="lbl">Endereço da base</span><input type="text" name="endereco" value="${esc(c.endereco || '')}" placeholder="Residência, depósito ou CD"></label>
+    <label class="field"><span class="lbl">Bairro</span><input type="text" name="bairro" value="${esc(c.bairro || '')}"></label>
+    <label class="field"><span class="lbl">Cidade</span><input type="text" name="cidade" value="${esc(c.cidade || '')}"></label>
+    <label class="field"><span class="lbl">UF</span><input type="text" name="uf" value="${esc(c.uf || '')}" maxlength="2"></label>
+    <label class="field"><span class="lbl">CEP</span><input type="text" name="cep" value="${esc(c.cep || '')}"></label>
+    <label class="field"><span class="lbl">Latitude da base</span><input type="text" name="lat" value="${isNum(c.lat) ? c.lat : ''}" placeholder="ou cole “lat, lng”"></label>
+    <label class="field"><span class="lbl">Longitude da base</span><input type="text" name="lng" value="${isNum(c.lng) ? c.lng : ''}"></label>
+    <label class="field"><span class="lbl">Jornada (min)</span><input type="number" name="jornada" min="60" max="900" value="${c.jornada || ''}" placeholder="padrão do estudo"></label>
+    <label class="field"><span class="lbl">Cor</span><input type="color" name="cor" value="${esc(c.cor || E.PALETA[st.col.size % E.PALETA.length])}"></label>
+  </div><div class="row"><button class="btn sm" type="button" data-fgeo>Buscar pelo endereço</button><span class="muted fgeo-msg" style="font-size:12.5px"></span></div></form>
+  <div class="df">${!isNew ? `<button class="btn danger" data-delcol="${esc(c.codigo)}">Excluir da base</button><span style="flex:1"></span>` : ''}<button class="btn" data-close>Cancelar</button><button class="btn primary" form="fCol" type="submit">Salvar</button></div>`);
+  bindFormGeo($('#fCol'));
+  $('#fCol').onsubmit = e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const codigo = String(f.get('codigo') || '').trim(); if (!codigo) { toast('Informe o código'); return; }
+    if (isNew && st.col.has(codigo)) { toast('Já existe um colaborador com esse código'); return; }
+    const ex = st.col.get(codigo) || {};
+    const o = { ...ex, codigo, nome: f.get('nome').trim() || codigo, funcao: f.get('funcao'), endereco: f.get('endereco').trim(), bairro: f.get('bairro').trim(), cidade: f.get('cidade').trim(), uf: f.get('uf').trim().toUpperCase(), cep: f.get('cep').trim(), lat: numBR(f.get('lat')), lng: numBR(f.get('lng')), jornada: numBR(f.get('jornada')), cor: f.get('cor') };
+    if (!isNum(o.lat)) o.lat = null; if (!isNum(o.lng)) o.lng = null; if (!isNum(o.jornada)) delete o.jornada;
+    if (hasXY(o)) delete o.geoPend;
+    st.col.put(codigo, o); closeModal();
+    if (!hasXY(o) && (o.endereco || o.cep) && (isNew || addrTxt(o) !== addrTxt(ex))) geoEnqueue([['col', codigo]]);
+    rebuild(); renderAll(); toast(isNew ? 'Colaborador cadastrado' : 'Colaborador atualizado');
+  };
+}
+function newAmbForm(opts = {}) {
+  const cid = [...new Set([...st.cli.values()].map(c => c.cidade).filter(Boolean))].sort();
+  openModal(`<div class="dh"><h2>${opts.vazio ? 'Novo planner vazio' : 'Novo estudo'}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fAmb" class="db">
+    <label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required placeholder="Ex.: Zona Sul — redesenho 2027"></label>
+    <label class="field"><span class="lbl">Clientes iniciais</span><select name="ini"><option value="todos"${opts.vazio ? '' : ' selected'}>Todos da base (${st.cli.size})</option>${cid.length ? '<option value="cidade">Só de uma cidade</option>' : ''}<option value="vazio"${opts.vazio ? ' selected' : ''}>Nenhum — vou incluir pelo mapa ou por importação</option></select></label>
+    ${cid.length ? `<label class="field"><span class="lbl">Cidade</span><select name="cidade">${cid.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>` : ''}
+    <label class="field"><span class="lbl">Ciclo</span><select name="sem"><option value="4">4 semanas</option><option value="2">2 semanas</option><option value="1">1 semana</option></select></label>
+  </form>
+  <div class="df"><button class="btn" data-close>Cancelar</button><button class="btn primary" form="fAmb" type="submit">${opts.vazio ? 'Criar e abrir o Planner' : 'Criar estudo'}</button></div>`, 'sm');
+  $('#fAmb').onsubmit = async e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const id = uid('a');
+    const meta = { id, nome: f.get('nome').trim() || 'Novo estudo', desc: '', criado: Date.now(), alterado: Date.now(), params: { ...DEF_P, semanas: +f.get('sem') }, setores: {}, pend: { cli: [], col: [] } };
+    st.amb.put(id, meta); closeModal();
+    await openAmb(id, false);
+    const ini = f.get('ini');
+    if (ini !== 'vazio') { for (const c of st.cli.values()) if (ini === 'todos' || c.cidade === f.get('cidade')) st.itens.put(c.sold, { s: '', d: [], w: [], q: {} }); }
+    rebuild(); renderAll(); toast('Estudo criado');
+    if (opts.go) enterPlanner('mapa'); else fitVisible();
+  };
+}
+function inclForm() {
+  const cid = [...new Set([...st.cli.values()].map(c => c.cidade).filter(Boolean))].sort();
+  const bai = [...new Set([...st.cli.values()].map(c => c.bairro).filter(Boolean))].sort();
+  openModal(`<div class="dh"><h2>Incluir clientes da base no estudo</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fIncl" class="db">
+    <label class="field"><span class="lbl">Critério</span><select name="cr" id="inclCr"><option value="todos">Todos os clientes da base</option>${cid.length ? '<option value="cidade">Por cidade</option>' : ''}${bai.length ? '<option value="bairro">Por bairro</option>' : ''}<option value="lista">Colar lista de SOLD</option></select></label>
+    ${cid.length ? `<label class="field" data-cr="cidade" hidden><span class="lbl">Cidade</span><select name="cidade">${cid.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>` : ''}
+    ${bai.length ? `<label class="field" data-cr="bairro" hidden><span class="lbl">Bairro</span><select name="bairro">${bai.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>` : ''}
+    <label class="field" data-cr="lista" hidden><span class="lbl">SOLDs (um por linha, ou separados por vírgula)</span><textarea name="lista"></textarea></label>
+    <p class="muted" style="margin:0;font-size:12.5px">No mapa, ligue “Clientes da base fora do estudo”, selecione com o laço e use “Incluir no estudo”.</p>
+  </form>
+  <div class="df"><button class="btn" data-close>Cancelar</button><button class="btn primary" form="fIncl" type="submit">Incluir</button></div>`, 'sm');
+  $('#inclCr').onchange = e => $$('[data-cr]').forEach(x => { x.hidden = x.dataset.cr !== e.target.value; });
+  $('#fIncl').onsubmit = e => {
+    e.preventDefault(); const f = new FormData(e.target); const cr = f.get('cr');
+    let alvo = [];
+    if (cr === 'lista') { const ls = String(f.get('lista') || '').split(/[\s,;]+/).map(x => x.trim()).filter(Boolean); const falt = ls.filter(x => !st.cli.has(x)); alvo = ls.filter(x => st.cli.has(x)); if (falt.length) touchAmb(a => { a.pend = a.pend || { cli: [], col: [] }; falt.forEach(s => { if (!a.pend.cli.some(p => p.sold === s)) a.pend.cli.push({ sold: s }); }); }); }
+    else alvo = [...st.cli.values()].filter(c => cr === 'todos' || (cr === 'cidade' && c.cidade === f.get('cidade')) || (cr === 'bairro' && c.bairro === f.get('bairro'))).map(c => c.sold);
+    pushUndo('Incluir clientes'); let n = 0;
+    for (const s of alvo) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; }
+    closeModal(); rebuild(); renderAll(); toast(`${n} cliente(s) incluídos`);
+  };
+}
+
+/* ================= Importação ================= */
+const FIELDS = {
+  clientes: [
+    { k: 'sold', l: 'SOLD / código', req: 1, al: ['sold', 'soldcliente', 'solddocliente', 'codigo', 'cod', 'codcliente', 'codigocliente', 'cliente', 'idcliente', 'id'] },
+    { k: 'nome', l: 'Nome / razão social', al: ['nome', 'razaosocial', 'razao', 'nomefantasia', 'fantasia', 'nomecliente'] },
+    { k: 'endereco', l: 'Endereço', al: ['endereco', 'logradouro', 'rua', 'end'] },
+    { k: 'bairro', l: 'Bairro', al: ['bairro'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'uf', l: 'UF', al: ['uf', 'estado'] },
+    { k: 'cep', l: 'CEP', al: ['cep', 'codigopostal'] },
+    { k: 'lat', l: 'Latitude', al: ['lat', 'latitude'] },
+    { k: 'lng', l: 'Longitude', al: ['lng', 'lon', 'long', 'longitude'] },
+    { k: 'f', l: 'Visitas por mês', al: ['visitaspormes', 'visitasmes', 'frequencia', 'freq', 'visitas'] },
+    { k: 't', l: 'Atendimento (min)', al: ['atendimentomin', 'tempoatendimento', 'atendimento', 'tempo', 'tma', 'duracao'] },
+    { k: 'setor', l: 'Setor', al: ['setor', 'nomesetor', 'territorio'] },
+    { k: 'colab', l: 'SOLD vendedor', al: ['soldvendedor', 'codvendedor', 'codigovendedor', 'vendedor', 'colaborador'] }
+  ],
+  colaboradores: [
+    { k: 'codigo', l: 'SOLD do vendedor / código', req: 1, al: ['soldvendedor', 'solddovendedor', 'soldcolaborador', 'solddocolaborador', 'sold', 'codigo', 'cod', 'codvendedor', 'codigovendedor', 'matricula', 'rca', 'id'] },
+    { k: 'nome', l: 'Nome', al: ['nome', 'vendedor', 'colaborador', 'nomevendedor'] },
+    { k: 'funcao', l: 'Função', al: ['funcao', 'cargo', 'tipo'] },
+    { k: 'endereco', l: 'Endereço da base', al: ['enderecodabase', 'enderecobase', 'endereco', 'base'] },
+    { k: 'bairro', l: 'Bairro', al: ['bairro'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'uf', l: 'UF', al: ['uf', 'estado'] },
+    { k: 'cep', l: 'CEP', al: ['cep', 'codigopostal'] },
+    { k: 'lat', l: 'Latitude', al: ['lat', 'latitude', 'latbase'] },
+    { k: 'lng', l: 'Longitude', al: ['lng', 'lon', 'long', 'longitude', 'lngbase'] },
+    { k: 'jornada', l: 'Jornada (min)', al: ['jornada', 'jornadamin'] }
+  ],
+  roteiro: [
+    { k: 'sold', l: 'SOLD do cliente', req: 1, al: ['soldcliente', 'solddocliente', 'sold', 'codcliente', 'codigocliente', 'cliente', 'codigo'] },
+    { k: 'colab', l: 'SOLD do vendedor (colaborador)', al: ['soldvendedor', 'solddovendedor', 'soldcolaborador', 'solddocolaborador', 'colaborador', 'codvendedor', 'codigovendedor', 'vendedor', 'rca', 'matricula'] },
+    { k: 'dia', l: 'Dia(s) da semana', al: ['dia', 'dias', 'diasemana', 'diadasemana'] },
+    { k: 'semana', l: 'Semana(s)', al: ['semana', 'semanas', 'sem'] },
+    { k: 'endereco', l: 'Endereço do cliente (p/ cadastrar)', al: ['endereco', 'enderecodocliente', 'logradouro', 'rua'] },
+    { k: 'bairro', l: 'Bairro', al: ['bairro'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'uf', l: 'UF', al: ['uf', 'estado'] },
+    { k: 'cep', l: 'CEP', al: ['cep', 'codigopostal'] },
+    { k: 'setor', l: 'Setor (vazio = um por vendedor)', al: ['setor', 'territorio', 'rota', 'area'] },
+    { k: 'seq', l: 'Sequência', al: ['sequencia', 'seq', 'ordem'] },
+    { k: 'nome', l: 'Nome do cliente (p/ cadastrar)', al: ['nomedocliente', 'nome', 'nomecliente', 'razaosocial', 'cliente'] },
+    { k: 'lat', l: 'Latitude do cliente', al: ['lat', 'latitude'] },
+    { k: 'lng', l: 'Longitude do cliente', al: ['lng', 'lon', 'long', 'longitude'] }
+  ]
+};
+const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+let wz = null;
+function openImport(kind, opts = {}) {
+  if (!window.XLSX) { toast('O leitor de planilhas não carregou. Use “Colar dados”.'); }
+  wz = { kind, step: 1, rows: null, headers: [], map: {}, wb: null, sheet: '', toPlanner: !!opts.toPlanner, target: kind === 'roteiro' ? (amb() && !opts.toPlanner ? 'atual' : 'novo') : '', modo: 'mesclar', novoNome: 'Roteiro importado ' + new Date().toLocaleDateString('pt-BR'), update: true, geo: true };
+  renderWz();
+}
+function renderWz() {
+  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro' }[wz.kind];
+  const steps = `<div class="steps"><span class="${wz.step === 1 ? 'on' : ''}">1 · Arquivo</span>›<span class="${wz.step === 2 ? 'on' : ''}">2 · Colunas</span>›<span class="${wz.step === 3 ? 'on' : ''}">3 · Resultado</span></div>`;
+  let body = '', foot = '';
+  if (wz.step === 1) {
+    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 7 = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.' }[wz.kind];
+    body = `<p class="muted" style="margin:0">${help}</p>
+      <div class="row"><button class="btn sm" type="button" data-modelo="${wz.kind}">Baixar modelo (.xlsx)</button><span class="muted" style="font-size:12px">Planilha pronta com as colunas, exemplos e uma aba de instruções.</span></div>
+      <label class="field"><span class="lbl">Planilha (.xlsx, .xls, .csv)</span><input type="file" id="wzFile" accept=".xlsx,.xls,.xlsm,.csv,.txt"></label>
+      ${wz.wb && wz.wb.SheetNames.length > 1 ? `<label class="field"><span class="lbl">Aba</span><select id="wzSheet">${wz.wb.SheetNames.map(n => `<option${n === wz.sheet ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>` : ''}
+      <label class="field"><span class="lbl">Ou cole os dados copiados do Excel (com cabeçalho)</span><textarea id="wzPaste" placeholder="SOLD&#9;Nome&#9;Latitude&#9;Longitude"></textarea></label>
+      ${wz.rows ? `<div class="banner info">${wz.rows.length} linha(s) lidas · ${wz.headers.length} colunas</div>` : ''}`;
+    foot = `<button class="btn" data-close>Cancelar</button><button class="btn" id="wzRead">Ler dados colados</button><button class="btn primary" id="wzNext" ${wz.rows ? '' : 'disabled'}>Continuar</button>`;
+  } else if (wz.step === 2) {
+    const F = FIELDS[wz.kind];
+    const opt = sel => `<option value="-1">— não importar —</option>` + wz.headers.map((h, i) => `<option value="${i}"${sel === i ? ' selected' : ''}>${esc(h || 'Coluna ' + (i + 1))}</option>`).join('');
+    const prev = wz.rows.slice(0, 4);
+    body = `<div style="overflow-x:auto"><table class="t maptbl"><thead><tr><th>Campo do sistema</th><th>Coluna da planilha</th><th>Exemplo</th></tr></thead><tbody>${F.map(f => `<tr><td>${esc(f.l)}${f.req ? ' *' : ''}</td><td><select data-wzf="${f.k}">${opt(wz.map[f.k] ?? -1)}</select></td><td class="muted" style="font-size:12px">${prev.map(r => esc(wz.map[f.k] >= 0 ? r[wz.map[f.k]] : '')).filter(Boolean).slice(0, 2).join(' · ')}</td></tr>`).join('')}</tbody></table></div>
+      ${wz.kind !== 'roteiro' ? `<label class="chk"><input type="checkbox" id="wzUpd" ${wz.update ? 'checked' : ''}> Atualizar registros que já existem (pelo ${wz.kind === 'clientes' ? 'SOLD' : 'código'})</label>` : `
+      <div class="fgrid">
+        <label class="field"><span class="lbl">Destino</span><select id="wzTgt">${amb() ? `<option value="atual"${wz.target === 'atual' ? ' selected' : ''}>Estudo aberto: ${esc(amb().nome)}</option>` : ''}<option value="novo"${wz.target === 'novo' ? ' selected' : ''}>Novo estudo</option></select></label>
+        <label class="field" ${wz.target === 'novo' ? '' : 'hidden'}><span class="lbl">Nome do novo estudo</span><input type="text" id="wzNome" value="${esc(wz.novoNome)}"></label>
+        <label class="field" ${wz.target === 'atual' ? '' : 'hidden'}><span class="lbl">Modo</span><select id="wzModo"><option value="mesclar"${wz.modo === 'mesclar' ? ' selected' : ''}>Mesclar com o que existe</option><option value="substituir"${wz.modo === 'substituir' ? ' selected' : ''}>Substituir todo o roteiro do estudo</option></select></label>
+      </div>`}
+      <div class="row"><label class="chk"><input type="checkbox" id="wzGeo" ${wz.geo ? 'checked' : ''}> Buscar as coordenadas pelo endereço de quem não tiver latitude/longitude</label>${geoSrcSel()}</div>`;
+    foot = `<button class="btn" id="wzBack">Voltar</button><button class="btn primary" id="wzGo">Importar ${wz.rows.length} linha(s)</button>`;
+  } else {
+    const r = wz.res;
+    body = `<div class="stack">${r.lines.map(l => `<div class="banner ${l[0]}">${l[1]}</div>`).join('')}</div>`;
+    foot = wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
+  }
+  openModal(`<div class="dh"><h2>${T}</h2>${steps}<button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div><div class="db">${body}</div><div class="df">${foot}</div>`);
+  if (wz.step === 1) {
+    $('#wzFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const buf = await f.arrayBuffer(); if (!window.XLSX) throw new Error('leitor indisponível'); wz.wb = XLSX.read(buf, { type: 'array', cellDates: false }); wz.sheet = wz.wb.SheetNames[0]; loadSheet(); renderWz(); } catch (err) { toast('Não consegui ler o arquivo: ' + (err.message || err)); } };
+    const sh = $('#wzSheet'); if (sh) sh.onchange = e => { wz.sheet = e.target.value; loadSheet(); renderWz(); };
+    $('#wzRead').onclick = () => { const txt = $('#wzPaste').value; if (!txt.trim()) { toast('Cole os dados primeiro'); return; } wz.wb = null; parseText(txt); renderWz(); };
+    $('#wzNext').onclick = () => { autoMap(); wz.step = 2; renderWz(); };
+  } else if (wz.step === 2) {
+    $$('[data-wzf]').forEach(s => { s.onchange = () => { wz.map[s.dataset.wzf] = +s.value; renderWz(); }; });
+    const u = $('#wzUpd'); if (u) u.onchange = () => { wz.update = u.checked; };
+    $('#wzGeo').onchange = e => { wz.geo = e.target.checked; };
+    const tg = $('#wzTgt'); if (tg) tg.onchange = () => { wz.target = tg.value; renderWz(); };
+    const nm = $('#wzNome'); if (nm) nm.oninput = () => { wz.novoNome = nm.value; };
+    const md = $('#wzModo'); if (md) md.onchange = () => { wz.modo = md.value; };
+    $('#wzBack').onclick = () => { wz.step = 1; renderWz(); };
+    $('#wzGo').onclick = () => runImport();
+  }
+}
+function loadSheet() { const ws = wz.wb.Sheets[wz.sheet]; const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }); setRows(rows); }
+function parseText(txt) {
+  if (window.XLSX) { try { const wb = XLSX.read(txt, { type: 'string' }); setRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' })); return; } catch (e) { /* cai no simples */ } }
+  const lines = txt.replace(/\r/g, '').split('\n').filter(l => l.trim());
+  const sep = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
+  setRows(lines.map(l => l.split(sep)));
+}
+function setRows(rows) {
+  const ne = rows.filter(r => r.some(v => String(v).trim() !== ''));
+  wz.headers = (ne[0] || []).map(h => String(h).trim()); wz.rows = ne.slice(1);
+}
+function autoMap() {
+  const F = FIELDS[wz.kind]; const H = wz.headers.map(norm); const used = new Set(); wz.map = {};
+  for (const f of F) { const i = H.findIndex((h, ix) => !used.has(ix) && f.al.includes(h)); if (i >= 0) { wz.map[f.k] = i; used.add(i); } }
+  for (const f of F) { if (wz.map[f.k] >= 0) continue; const i = H.findIndex((h, ix) => !used.has(ix) && h && f.al.some(a => a.length > 2 && h.includes(a))); if (i >= 0) { wz.map[f.k] = i; used.add(i); } }
+}
+// Dias em número no padrão brasileiro: 1 domingo, 2 segunda, 3 terça … 7 sábado (internamente 1 = segunda … 7 = domingo).
+// Cada algarismo é um dia: "2", "2,5", "25" ou 2,5 lido do Excel como número (2.5) = segunda e quinta. Texto (Seg, Terça…) também vale.
+function parseDias(v) {
+  const s = norm(v); if (!s) return [];
+  const map = [['segunda', 1], ['seg', 1], ['terca', 2], ['ter', 2], ['quarta', 3], ['qua', 3], ['quinta', 4], ['qui', 4], ['sexta', 5], ['sex', 5], ['sabado', 6], ['sab', 6], ['domingo', 7], ['dom', 7]];
+  const out = new Set();
+  String(v).split(/[\/,;.+\s-]+/).forEach(part => {
+    const p = norm(part); if (!p || p === 'e') return;
+    if (/^\d/.test(p)) { (p.match(/\d/g) || []).forEach(x => { const n = +x; if (n >= 2 && n <= 7) out.add(n - 1); else if (n === 1) out.add(7); }); return; }
+    const m = map.find(([k]) => p.startsWith(k)); if (m) out.add(m[1]);
+  });
+  return [...out].sort((a, b) => a - b);
+}
+// Semanas do ciclo de 4: cada algarismo é uma semana. Mensal "1" a "4"; quinzenal "1,3" ou "2,4"; semanal "1234" (ou Todas)
+function parseSemanas(v, W) {
+  const s = String(v ?? '').trim(); if (!s) return [];
+  if (/^(todas?|todos?|\*|t|semanal)$/i.test(s)) return [...Array(W)].map((_, i) => i + 1);
+  const out = new Set(); (s.match(/\d/g) || []).forEach(x => { const n = +x; if (n >= 1 && n <= 4) out.add(n); });
+  return [...out].sort((a, b) => a - b);
+}
+function cell(r, k) { const i = wz.map[k]; return i >= 0 ? r[i] : ''; }
+async function runImport() {
+  const F = FIELDS[wz.kind]; const req = F.filter(f => f.req);
+  for (const f of req) if (!(wz.map[f.k] >= 0)) { toast(`Escolha a coluna de “${f.l}”`); return; }
+  const lines = [], toGeo = [];
+  // Endereço da linha; se mudou em relação ao cadastro (e a planilha não trouxe coordenada), a coordenada antiga é descartada e buscada de novo
+  const readAddr = (r, o, ex) => {
+    for (const k of ['endereco', 'bairro', 'cidade', 'uf', 'cep']) if (wz.map[k] >= 0) { let v = String(cell(r, k)).trim(); if (k === 'uf') v = v.toUpperCase(); if (v || !ex) o[k] = v; }
+    const xy = isNum(numBR(cell(r, 'lat'))) && isNum(numBR(cell(r, 'lng')));
+    if (ex && hasXY(ex) && !xy && wz.geo && norm(o.endereco) + norm(o.cidade) !== norm(ex.endereco) + norm(ex.cidade)) { o.lat = null; o.lng = null; }
+    return xy;
+  };
+  const geoLine = (n, quem) => lines.push(['info', `${n} ${quem} entraram na busca de coordenadas pelo ${geoQ.src === 'google' ? 'Google' : 'OpenStreetMap (cerca de 1 por segundo)'}. Acompanhe no quadro do canto inferior direito${wz.kind === 'colaboradores' ? '' : '; os não encontrados ficam no mar e aparecem em “Ajustar endereços”'}.`]);
+  if (wz.kind === 'clientes') {
+    let nNew = 0, nUpd = 0, nSkip = 0, nSemEnd = 0, nNoXY = 0; const comSetor = [];
+    for (const r of wz.rows) {
+      const sold = String(cell(r, 'sold')).trim(); if (!sold) { nSkip++; continue; }
+      const ex = st.cli.get(sold); if (ex && !wz.update) { nSkip++; continue; }
+      const o = { ...(ex || {}), sold };
+      for (const k of ['nome']) if (wz.map[k] >= 0) { const v = String(cell(r, k)).trim(); if (v || !ex) o[k] = v; }
+      const xy = readAddr(r, o, ex);
+      for (const k of ['lat', 'lng', 'f', 't']) if (wz.map[k] >= 0) { const v = numBR(cell(r, k)); if (isNum(v)) o[k] = v; }
+      if (isNum(o.lat) && Math.abs(o.lat) > 90) o.lat = null;
+      if (hasXY(o)) { delete o.geoPend; if (xy) { o.geo = 'planilha'; delete o.geoNivel; } }
+      else if (o.endereco || o.cep) { if (wz.geo) toGeo.push(['cli', sold]); else nNoXY++; }
+      else { o.lat = null; o.lng = null; o.geoPend = { msg: 'sem endereço na planilha', sug: null }; nSemEnd++; }
+      if (!o.f) o.f = 4;
+      st.cli.put(sold, o); ex ? nUpd++ : nNew++;
+      const setorNome = String(cell(r, 'setor') || '').trim(), colab = String(cell(r, 'colab') || '').trim();
+      if (setorNome || colab) comSetor.push([sold, setorNome || colab, colab]);
+    }
+    lines.push(['info', `${nNew} cliente(s) novos, ${nUpd} atualizados${nSkip ? `, ${nSkip} linha(s) ignoradas` : ''}.`]);
+    if (comSetor.length) {
+      // A listagem já diz o setor de cada cliente: carrega os setores no estudo aberto, ou em um novo com toda a base
+      await garantirEstudo(); pushUndo('Importar setores');
+      const a = clone(amb()); a.setores = a.setores || {}; a.pend = a.pend || { cli: [], col: [] };
+      const byName = new Map(Object.entries(a.setores).map(([id, x]) => [norm(x.nome), id])), antes = byName.size;
+      for (const [sold, nome, colab] of comSetor) {
+        let sid = byName.get(norm(nome));
+        if (!sid) { sid = uid('s'); const i = Object.keys(a.setores).length; a.setores[sid] = { nome, cor: E.PALETA[i % E.PALETA.length], colab }; byName.set(norm(nome), sid); }
+        else if (colab && !a.setores[sid].colab) a.setores[sid].colab = colab;
+        if (colab && !st.col.has(colab) && !a.pend.col.some(p => p.codigo === colab)) a.pend.col.push({ codigo: colab });
+        st.itens.put(sold, { ...(st.itens.get(sold) || { d: [], w: [], q: {} }), s: sid });
+      }
+      a.alterado = Date.now(); st.amb.put(a.id, a); st.visao = 'setores'; verSetor('');
+      lines.push(['info', `${byName.size} setor(es) carregados no estudo “${esc(a.nome)}”${byName.size > antes ? `, ${byName.size - antes} novos` : ''}, com ${comSetor.length} cliente(s). Abra um setor para montar as rotas diárias.`]);
+      const pendC = a.pend.col.filter(p => !st.col.has(p.codigo)).length;
+      if (pendC) lines.push(['', `${pendC} colaborador(es) citados não existem na base. Cadastre-os com a base de saída para calcular KM de ida e volta.`]);
+    }
+    if (toGeo.length) geoLine(toGeo.length, 'endereço(s)');
+    if (nSemEnd) lines.push(['', `${nSemEnd} cliente(s) sem endereço e sem coordenada foram para o mar. Preencha o endereço ou marque no mapa em “Ajustar endereços”.`]);
+    if (nNoXY) lines.push(['', `${nNoXY} cliente(s) sem coordenada ficaram no mar (a busca pelo endereço estava desligada). Use “Ajustar endereços” para buscar depois.`]);
+  } else if (wz.kind === 'colaboradores') {
+    let nNew = 0, nUpd = 0;
+    for (const r of wz.rows) {
+      const codigo = String(cell(r, 'codigo')).trim(); if (!codigo) continue;
+      const ex = st.col.get(codigo); if (ex && !wz.update) continue;
+      const o = { ...(ex || {}), codigo };
+      for (const k of ['nome', 'funcao']) if (wz.map[k] >= 0) { const v = String(cell(r, k)).trim(); if (v || !ex) o[k] = v; }
+      readAddr(r, o, ex);
+      for (const k of ['lat', 'lng', 'jornada']) if (wz.map[k] >= 0) { const v = numBR(cell(r, k)); if (isNum(v)) o[k] = v; }
+      if (!o.nome) o.nome = codigo; if (!o.funcao) o.funcao = 'Vendedor'; if (!o.cor) o.cor = E.PALETA[(st.col.size) % E.PALETA.length];
+      if (hasXY(o)) delete o.geoPend; else if (wz.geo && (o.endereco || o.cep)) toGeo.push(['col', codigo]);
+      st.col.put(codigo, o); ex ? nUpd++ : nNew++;
+    }
+    lines.push(['info', `${nNew} colaborador(es) novos, ${nUpd} atualizados.`]);
+    if (toGeo.length) geoLine(toGeo.length, 'base(s) de saída');
+    const semBase = [...st.col.values()].filter(c => !hasXY(c) && !toGeo.some(([, id]) => id === c.codigo)).length;
+    if (semBase) lines.push(['', `${semBase} colaborador(es) sem localização da base. Sem ela não há KM de ida e volta; abra o colaborador e busque pelo endereço ou informe a coordenada.`]);
+  } else {
+    // Roteiro
+    const maxW = Math.max(1, ...wz.rows.map(r => Math.max(0, ...parseSemanas(cell(r, 'semana'), 4))));
+    if (wz.target === 'novo') {
+      const id = uid('a');
+      st.amb.put(id, { id, nome: wz.novoNome || 'Roteiro importado', desc: 'Importado de planilha', criado: Date.now(), alterado: Date.now(), params: { ...DEF_P, semanas: wz.map.semana >= 0 ? 4 : maxW }, setores: {}, pend: { cli: [], col: [] } });
+      await openAmb(id, false);
+    } else { pushUndo('Importar roteiro'); if (maxW > P().semanas) { touchAmb(x => { x.params = { ...P(x), semanas: 4 }; }); lines.push(['info', 'O ciclo do estudo passou para 4 semanas para receber as semanas do roteiro.']); } }
+    const W = P().semanas;
+    const a = clone(amb()); a.setores = a.setores || {}; a.pend = a.pend || { cli: [], col: [] };
+    if (wz.target === 'atual' && wz.modo === 'substituir') { st.itens.replaceAll(new Map()); a.setores = {}; }
+    const byName = new Map(Object.entries(a.setores).map(([id, s]) => [norm(s.nome), id]));
+    const pendCli = new Map(a.pend.cli.map(p => [p.sold, p])), pendCol = new Map(a.pend.col.map(p => [p.codigo, p]));
+    let n = 0, nCriados = 0, semDia = 0, nFreq = 0, nCoord = 0; const novos = new Set(), geoSet = new Set(), vistos = new Set();
+    for (const r of wz.rows) {
+      const sold = String(cell(r, 'sold')).trim(); if (!sold) continue;
+      const ad = {}; for (const k of ['endereco', 'bairro', 'cidade', 'uf', 'cep']) if (wz.map[k] >= 0) { const v = String(cell(r, k)).trim(); if (v) ad[k] = k === 'uf' ? v.toUpperCase() : v; }
+      const temEnd = !!(ad.endereco || ad.cep);
+      const lat = numBR(cell(r, 'lat')), lng = numBR(cell(r, 'lng')), xy = isNum(lat) && isNum(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+      if (!st.cli.has(sold)) {
+        const nome = String(cell(r, 'nome') || '').trim() || sold;
+        if (xy) { st.cli.put(sold, { sold, nome, ...ad, lat, lng, f: 4, geo: 'planilha' }); nCriados++; novos.add(sold); }
+        else if (temEnd) { st.cli.put(sold, { sold, nome, ...ad, lat: null, lng: null, f: 4, ...(wz.geo ? {} : { geoPend: { msg: 'ainda sem coordenada', sug: null } }) }); nCriados++; novos.add(sold); if (wz.geo) geoSet.add(sold); }
+        else if (!pendCli.has(sold)) pendCli.set(sold, { sold, nome: String(cell(r, 'nome') || '').trim() });
+      } else if (!hasXY(st.cli.get(sold))) {
+        const c = st.cli.get(sold); // já cadastrado sem coordenada: usa a coordenada da planilha ou completa o endereço e busca
+        if (xy) { const o = { ...c, ...ad, lat, lng, geo: 'planilha' }; delete o.geoPend; delete o.geoNivel; st.cli.put(sold, o); geoSet.delete(sold); nCoord++; }
+        else if (temEnd && wz.geo && !geoSet.has(sold)) { st.cli.put(sold, { ...c, ...ad }); geoSet.add(sold); }
+      }
+      const colab = String(cell(r, 'colab') || '').trim();
+      if (colab && !st.col.has(colab) && !pendCol.has(colab)) pendCol.set(colab, { codigo: colab });
+      const setorNome = String(cell(r, 'setor') || '').trim() || colab || 'Sem nome';
+      let sid = byName.get(norm(setorNome));
+      if (!sid) { sid = uid('s'); const i = Object.keys(a.setores).length; a.setores[sid] = { nome: setorNome, cor: E.PALETA[i % E.PALETA.length], colab: colab || '' }; byName.set(norm(setorNome), sid); }
+      else if (colab && !a.setores[sid].colab) a.setores[sid].colab = colab;
+      const ex = st.itens.get(sold) || { s: '', d: [], w: [], q: {} };
+      const it = clone(ex); it.s = sid;
+      // na 1ª linha do cliente nesta planilha, dias e semanas são substituídos; nas seguintes, somados
+      const soma = ex.s === sid && vistos.has(sold); vistos.add(sold);
+      const ds = parseDias(cell(r, 'dia')); const ws = parseSemanas(cell(r, 'semana'), W);
+      if (ds.length) it.d = [...new Set([...(soma ? it.d : []), ...ds])].sort((x, y) => x - y); else if (ex.s !== sid) it.d = [];
+      if (ws.length) it.w = [...new Set([...(soma ? it.w : []), ...ws])].sort((x, y) => x - y);
+      else if (!(it.w || []).length) { const c = st.cli.get(sold); it.w = weeksByFreq((c && c.f) || 4, W, {}); }
+      const sq = numBR(cell(r, 'seq')); if (isNum(sq)) ds.forEach(d => { it.q = { ...(it.q || {}), [d]: sq }; });
+      if (!it.d.length) semDia++;
+      st.itens.put(sold, it); n++;
+    }
+    // frequência do cliente = semanas × dias do roteiro, em visitas por mês (1 semana = mensal, 2 = quinzenal, 4 = semanal)
+    for (const sold of vistos) {
+      const it = st.itens.get(sold), c = st.cli.get(sold); if (!it || !c || !(it.w || []).length) continue;
+      const f = Math.round(it.w.length * (4 / W) * (it.d || []).length);
+      if (f > 0 && f !== c.f) { st.cli.put(sold, { ...c, f }); if (!novos.has(sold)) nFreq++; }
+    }
+    geoSet.forEach(s => toGeo.push(['cli', s]));
+    const usados = new Set(P(a).dias); for (const it of st.itens.values()) (it.d || []).forEach(d => usados.add(d));
+    a.params = { ...P(a), dias: [...usados].filter(d => d >= 1 && d <= 7).sort((x, y) => x - y) };
+    a.pend = { cli: [...pendCli.values()], col: [...pendCol.values()] }; a.alterado = Date.now(); st.amb.put(a.id, a);
+    // sequência para dias sem coluna de sequência
+    if (wz.map.seq === undefined || wz.map.seq < 0) { const sd = new Set(); for (const it of st.itens.values()) sdKeys(it).forEach(k => sd.add(k)); resequence(sd); }
+    lines.push(['info', `${n} linha(s) aplicadas ao estudo “${esc(a.nome)}” em ${Object.keys(a.setores).length} setor(es).`]);
+    if (nCriados) lines.push(['info', `${nCriados} cliente(s) que não estavam na base foram cadastrados com o endereço ou a coordenada da planilha.`]);
+    if (nCoord) lines.push(['info', `${nCoord} cliente(s) da base que estavam sem coordenada receberam a latitude/longitude da planilha.`]);
+    if (nFreq) lines.push(['info', `Frequência atualizada na base em ${nFreq} cliente(s), conforme as semanas e os dias do roteiro.`]);
+    if (toGeo.length) geoLine(toGeo.length, 'endereço(s) de cliente');
+    const pc = cleanPend(a);
+    if (pc.cli.length) lines.push(['', `${pc.cli.length} cliente(s) não existem na base e a planilha não trouxe endereço: ${pc.cli.slice(0, 8).map(x => esc(x.sold)).join(', ')}${pc.cli.length > 8 ? '…' : ''}. Eles ficam pendentes até serem cadastrados.`]);
+    if (pc.col.length) lines.push(['', `${pc.col.length} colaborador(es) não existem na base: ${pc.col.map(x => esc(x.codigo)).join(', ')}. Cadastre-os com a base de saída para calcular KM de ida e volta.`]);
+    if (semDia) lines.push(['', `${semDia} cliente(s) ficaram sem dia de visita. Use “Distribuir automaticamente” ou defina os dias no mapa.`]);
+  }
+  if (toGeo.length) geoEnqueue(toGeo);
+  rebuild(); wz.res = { lines }; wz.step = 3; renderWz(); renderAll(); if (wz.kind !== 'colaboradores') fitVisible();
+}
+
+/* ================= Exportação ================= */
+async function saveFile(filename, blob) {
+  let dl = null;
+  if (window.claude && claude.use) { try { dl = await claude.use('downloads'); } catch (e) { dl = null; } }
+  if (dl) {
+    try { await dl.save({ filename, data: blob }); toast('Arquivo pronto: ' + filename); }
+    catch (e) { const c = e && e.code; toast(c === 'declined' ? 'Download cancelado' : c === 'rate_limited' ? 'Aguarde um instante e tente de novo' : 'Não foi possível baixar aqui (' + (c || 'erro') + ')'); }
+    return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.append(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 3000);
+}
+function xlsxBlob(sheets) {
+  const wb = XLSX.utils.book_new();
+  for (const [name, rows] of sheets) { const ws = XLSX.utils.json_to_sheet(rows); XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31)); }
+  const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+  return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+const dstamp = () => new Date().toISOString().slice(0, 10);
+const slug = s => norm(s).slice(0, 40) || 'estudo';
+function doExport(kind) {
+  if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
+  if (kind === 'clientes') {
+    const rows = [...st.cli.values()].map(c => ({ SOLD: c.sold, Nome: c.nome || '', 'Endereço': c.endereco || '', Bairro: c.bairro || '', Cidade: c.cidade || '', UF: c.uf || '', CEP: c.cep || '', 'Visitas por mês': c.f || '', 'Atendimento (min)': c.t || '', Latitude: c.lat ?? '', Longitude: c.lng ?? '', 'Situação da coordenada': hasXY(c) ? (c.geoNivel === 'rua' ? 'Rua (sem o número)' : 'OK') : (c.geoPend ? 'No mar: ' + c.geoPend.msg : 'Sem coordenada') }));
+    saveFile(`clientes_${dstamp()}.xlsx`, xlsxBlob([['Clientes', rows]]));
+  } else if (kind === 'colaboradores') {
+    const rows = [...st.col.values()].map(c => ({ 'SOLD vendedor': c.codigo, Nome: c.nome, 'Função': c.funcao || '', 'Endereço da base': c.endereco || '', Bairro: c.bairro || '', Cidade: c.cidade || '', UF: c.uf || '', CEP: c.cep || '', 'Jornada (min)': c.jornada || '', Latitude: c.lat ?? '', Longitude: c.lng ?? '' }));
+    saveFile(`colaboradores_${dstamp()}.xlsx`, xlsxBlob([['Colaboradores', rows]]));
+  } else {
+    const a = amb(); if (!a) return;
+    const visitas = [], rotas = [], setores = [];
+    for (const r of sortedRoutes([...st.routes.values()])) {
+      const s = setorOf(r.s), c = colabOfSetor(r.s);
+      r.stops.forEach((sold, i) => { const cl = st.cli.get(sold) || {}; visitas.push({ 'SOLD cliente': sold, 'SOLD vendedor': s.colab || '', Dia: r.d === 7 ? 1 : r.d + 1, Semana: r.w, 'Endereço': cl.endereco || '', Bairro: cl.bairro || '', Cidade: cl.cidade || '', UF: cl.uf || '', CEP: cl.cep || '', 'Nome do cliente': cl.nome || '', 'Sequência': i + 1, Setor: s.nome, 'Nome do vendedor': c ? c.nome : '', Latitude: cl.lat ?? '', Longitude: cl.lng ?? '', 'Visitas por mês': cl.f || '', 'Atendimento (min)': cl.t || P().tPadrao, 'Dia da semana': DIA_L[r.d] }); });
+      rotas.push({ Setor: s.nome, Colaborador: c ? c.nome : '', Semana: r.w, Dia: DIA_L[r.d], Visitas: r.m.n, 'KM ida': +r.m.kmIda.toFixed(2), 'KM entre visitas': +r.m.kmEntre.toFixed(2), 'KM volta': +r.m.kmVolta.toFixed(2), 'KM total': +r.m.km.toFixed(2), 'Deslocamento (min)': Math.round(r.m.tDesl), 'Atendimento (min)': Math.round(r.m.tAtend), 'Total (min)': Math.round(r.m.total), 'Ocupação da jornada': +r.m.ocup.toFixed(3), 'Fonte do KM': r.m.real ? (r.m.src === 'google' ? 'Google (ruas)' : r.m.src === 'valhalla' ? 'Ruas (Valhalla / OpenStreetMap)' : 'Ruas (OSRM / OpenStreetMap)') : 'Estimado (linha reta × fator)', 'Formato da rota': r.m.real ? rotaTxt(r.m.o) : '', 'Sem alternativa': r.m.real ? rotaAviso(r.m) : '' });
+    }
+    for (const [id, s] of sortedSetores()) { const rs = [...st.routes.values()].filter(r => r.s === id); const sm = sumRoutes(rs); const c = colabOfSetor(id); let n = 0; for (const it of st.itens.values()) if (it.s === id) n++; setores.push({ Setor: s.nome, Colaborador: s.colab || '', 'Nome do colaborador': c ? c.nome : '', Clientes: n, Rotas: rs.length, 'Visitas no ciclo': sm.n, 'KM no ciclo': +sm.km.toFixed(1), 'Horas no ciclo': +(sm.total / 60).toFixed(2), 'Ocupação média': +sm.ocMed.toFixed(3) }); }
+    const sem = []; for (const [sold, it] of st.itens.map) if (!itemKeys(it).length) { const cl = st.cli.get(sold) || {}; sem.push({ SOLD: sold, Cliente: cl.nome || '', Setor: (setorOf(it.s) || {}).nome || '', 'Situação': it.s ? 'Sem dia/semana' : 'Sem setor' }); }
+    const sh = [['Roteiro', visitas], ['Resumo das rotas', rotas], ['Setores', setores]]; if (sem.length) sh.push(['Não roteirizados', sem]);
+    saveFile(`roteiro_${slug(a.nome)}_${dstamp()}.xlsx`, xlsxBlob(sh));
+  }
+}
+async function doBackup() {
+  const estudos = [];
+  for (const a of st.amb.values()) {
+    let items;
+    if (a.id === st.cur) items = st.itens.map; else { const b = new BucketStore('itens/' + a.id + '/b'); await b.load(); items = b.map; b.detach(); }
+    estudos.push({ meta: a, itens: Object.fromEntries(items) });
+  }
+  const data = { app: 'roteirizador', versao: 1, empresa: st.empresa.id, exportado: new Date().toISOString(), clientes: [...st.cli.values()], colaboradores: [...st.col.values()], estudos };
+  saveFile(`backup_roteirizador_${slug(st.empresa.nome)}_${dstamp()}.json`, new Blob([JSON.stringify(data)], { type: 'application/json' }));
+}
+function restoreForm() {
+  openModal(`<div class="dh"><h2>Restaurar backup</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db"><label class="field"><span class="lbl">Arquivo .json exportado por este sistema</span><input type="file" id="rsFile" accept=".json,application/json"></label>
+  <p class="muted" style="margin:0">Clientes e colaboradores são mesclados pelo código. Estudos do backup entram como estudos novos se ainda não existirem.</p><div id="rsAviso"></div></div>
+  <div class="df"><button class="btn" data-close>Cancelar</button></div>`, 'sm');
+  $('#rsFile').onchange = async e => {
+    try {
+      const d = JSON.parse(await e.target.files[0].text()); if (d.app !== 'roteirizador') throw new Error('arquivo não reconhecido');
+      const deOutro = d.empresa && d.empresa !== st.empresa.id ? EMPRESAS.find(x => x.id === d.empresa) : null;
+      if (deOutro) {
+        $('#rsAviso').innerHTML = `<div class="banner"><span>Este backup é do ambiente <b>${esc(deOutro.nome)}</b>. Restaurar aqui mistura os dados dele com os de <b>${esc(st.empresa.nome)}</b>.</span><button class="btn sm danger" type="button" id="rsMesmo">Restaurar mesmo assim</button></div>`;
+        $('#rsMesmo').onclick = () => aplicarBackup(d);
+        return;
+      }
+      await aplicarBackup(d);
+    } catch (err) { toast('Não foi possível restaurar: ' + (err.message || err)); }
+  };
+}
+async function aplicarBackup(d) {
+  try {
+      (d.clientes || []).forEach(c => c && c.sold && st.cli.put(String(c.sold), c));
+      (d.colaboradores || []).forEach(c => c && c.codigo && st.col.put(String(c.codigo), c));
+      let n = 0;
+      for (const e2 of d.estudos || []) { if (!e2.meta || st.amb.has(e2.meta.id)) continue; st.amb.put(e2.meta.id, e2.meta); const b = new BucketStore('itens/' + e2.meta.id + '/b'); b.replaceAll(new Map(Object.entries(e2.itens || {}))); await b.flush(); b.detach(); n++; }
+      closeModal(); renderAll(); toast(`Backup restaurado · ${n} estudo(s) novos`);
+  } catch (err) { toast('Não foi possível restaurar: ' + (err.message || err)); }
+}
+
+/* ================= Ações automáticas de estudo ================= */
+function runAutoSet() {
+  const a = amb(); const esc_ = $('#aEsc').value; const k = Math.max(1, +$('#aK').value || 1); const by = $('#aBy').value;
+  const cods = $$('[data-acol]:checked').map(x => x.dataset.acol);
+  const colabs = cods.map(c => st.col.get(c)).filter(Boolean);
+  pushUndo('Setorização automática');
+  if (esc_ === 'encaixe') return encaixar();
+  const cls = [...st.itens.map.keys()].map(cliPt).filter(Boolean);
+  if (!cls.length) { toast('O estudo não tem clientes com coordenadas'); st.undo.pop(); return; }
+  const res = E.buildStudy(cls, colabs, k, P(), { by, seed: (Date.now() % 997) + 1 });
+  // mantém clientes sem coordenada como "sem setor"
+  const m = new Map(); for (const sold of st.itens.map.keys()) m.set(sold, res.itens.get(sold) || { s: '', d: [], w: [], q: {} });
+  touchAmb(x => { x.setores = res.setores; }); if (st.geo) st.geo.replaceAll(new Map()); st.pathCache.clear();
+  st.itens.replaceAll(m); st.hidden.clear(); st.hiddenSet.clear();
+  rebuild(); renderAll(); toast(`${Object.keys(res.setores).length} setores criados e roteirizados`);
+  if ($('#aRoad') && $('#aRoad').checked && roadOk()) roadJob([...st.routes.keys()], true, 'Estudo roteirizado pelas ruas');
+}
+function encaixar() {
+  const a = amb(); const sets = sortedSetores(); if (!sets.length) { toast('Crie setores antes de encaixar'); st.undo.pop(); return; }
+  const cent = new Map(); for (const [sold, it] of st.itens.map) { if (!it.s || !setorOf(it.s)) continue; const p = cliPt(sold); if (!p) continue; const c = cent.get(it.s) || { lat: 0, lng: 0, n: 0 }; c.lat += p.lat; c.lng += p.lng; c.n++; cent.set(it.s, c); }
+  for (const c of cent.values()) { c.lat /= c.n; c.lng /= c.n; }
+  const W = P().semanas; const touched = new Set(); let n = 0;
+  for (const [sold, it] of st.itens.map) {
+    if (it.s && setorOf(it.s)) continue; const p = cliPt(sold); if (!p) continue;
+    let best = null, bd = Infinity; for (const [sid, c] of cent) { const d = E.hav(p, c); if (d < bd) { bd = d; best = sid; } }
+    if (!best) continue;
+    // dia do vizinho roteirizado mais próximo do mesmo setor
+    let nd = null, ndd = Infinity; for (const [s2, it2] of st.itens.map) { if (it2.s !== best || !(it2.d || []).length) continue; const p2 = cliPt(s2); if (!p2) continue; const d = E.hav(p, p2); if (d < ndd) { ndd = d; nd = it2; } }
+    const d = nd ? [nd.d[0]] : [P().dias[0]];
+    const load = {}; for (const r of st.routes.values()) if (r.s === best && r.d === d[0]) load[r.w] = r.m.total;
+    const nv = { s: best, d, w: weeksByFreq(p.f, W, load), q: {} };
+    st.itens.put(sold, nv); touched.add(best + '|' + d[0]); n++;
+  }
+  resequence(touched); rebuild(); renderAll(); toast(`${n} cliente(s) encaixados no setor mais próximo`);
+}
+function runAutoRoute() {
+  pushUndo('Roteirização automática');
+  for (const [sid] of sortedSetores()) {
+    const solds = [...st.itens.map].filter(([, it]) => it.s === sid).map(([s]) => s);
+    const res = E.autoRoute(solds.map(cliPt).filter(Boolean), baseOf(sid), P(), { seed: 3 });
+    for (const [sold, v] of res) st.itens.put(sold, { ...st.itens.get(sold), d: v.d, w: v.w, q: v.q });
+  }
+  rebuild(); renderAll(); toast('Setores roteirizados em dias e semanas');
+  if ($('#aRoad') && $('#aRoad').checked && roadOk()) roadJob([...st.routes.keys()], true, 'Estudo roteirizado pelas ruas');
+}
+async function runCmp() {
+  const out = [];
+  for (const a of st.amb.values()) {
+    let items, geo; if (a.id === st.cur) { items = st.itens.map; geo = st.geo.map; } else { const b = new BucketStore('itens/' + a.id + '/b'), g = new BucketStore('geo/' + a.id + '/b'); await Promise.all([b.load(), g.load()]); items = b.map; geo = g.map; b.detach(); g.detach(); }
+    const routes = buildRoutes(a, items, geo); out.push({ id: a.id, nome: a.nome, ...ambStats(a, items, routes) });
+  }
+  st.cmp = out.sort((x, y) => x.km - y.km); renderPage();
+}
+async function dupAmb() {
+  const a = amb(); await st.itens.flush(); await st.geo.flush();
+  const id = uid('a'); const meta = { ...clone(a), id, nome: a.nome + ' (cenário)', criado: Date.now(), alterado: Date.now() };
+  st.amb.put(id, meta);
+  const b = new BucketStore('itens/' + id + '/b'); b.replaceAll(new Map(st.itens.map)); await b.flush(); b.detach();
+  const g = new BucketStore('geo/' + id + '/b'); g.replaceAll(new Map(st.geo.map)); await g.flush(); g.detach();
+  await openAmb(id, false); toast('Cenário criado — as alterações agora valem só para ele');
+}
+async function delAmb() {
+  const a = amb(); const old = st.itens, oldG = st.geo; st.amb.del(a.id); homeCache.delete(a.id); st.itens = null; st.geo = null; await old.destroy(); if (oldG) await oldG.destroy();
+  st.cmp = null; const next = [...st.amb.values()][0]; await openAmb(next ? next.id : null); toast('Estudo excluído');
+}
+async function loadSample() {
+  const { clientes, colabs } = E.sample(42);
+  clientes.forEach(c => st.cli.put(c.sold, c)); colabs.forEach(c => st.col.put(c.codigo, c));
+  const p = { ...DEF_P };
+  const vend = colabs.filter(c => c.funcao === 'Vendedor');
+  const mk = (nome, k, seed, desc) => {
+    const id = uid('a'); const res = E.buildStudy(clientes, vend.slice(0, k), k, p, { seed });
+    st.amb.put(id, { id, nome, desc, criado: Date.now(), alterado: Date.now(), params: p, setores: res.setores, pend: { cli: [], col: [] }, exemplo: true });
+    const b = new BucketStore('itens/' + id + '/b'); b.replaceAll(res.itens); return [id, b];
+  };
+  const [id1, b1] = mk('Exemplo · Zona Sul SP · 4 setores', 4, 1, 'Dados fictícios para conhecer o sistema');
+  const [, b2] = mk('Exemplo · Zona Sul SP · 3 setores', 3, 2, 'Cenário alternativo com um vendedor a menos');
+  await Promise.all([b1.flush(), b2.flush()]); b1.detach(); b2.detach();
+  await openAmb(id1); toast('Dados de exemplo gerados');
+}
+async function delExamples() {
+  for (const c of [...st.cli.values()]) if (c.exemplo) st.cli.del(c.sold);
+  for (const c of [...st.col.values()]) if (c.exemplo) st.col.del(c.codigo);
+  for (const a of [...st.amb.values()]) if (a.exemplo) { st.amb.del(a.id); const b = a.id === st.cur ? st.itens : new BucketStore('itens/' + a.id + '/b'); if (a.id === st.cur) { st.itens = null; if (st.geo) { await st.geo.destroy(); st.geo = null; } } else await new BucketStore('geo/' + a.id + '/b').destroy(); await b.destroy(); }
+  st.cmp = null; const next = [...st.amb.values()][0]; await openAmb(next ? next.id : null, false); toast('Dados de exemplo removidos');
+}
+/* ================= Coordenadas pelo endereço (geocodificação) ================= */
+// Clientes sem coordenada ficam todos num único ponto no mar (config.js → pontoMar) até serem ajustados
+const SEA = CFG.pontoMar && isNum(+CFG.pontoMar.lat) && isNum(+CFG.pontoMar.lng) ? { lat: +CFG.pontoMar.lat, lng: +CFG.pontoMar.lng } : { lat: -24.4, lng: -45.4 };
+const hasXY = o => !!o && isNum(o.lat) && isNum(o.lng);
+const addrTxt = o => [o.endereco, o.bairro, [o.cidade, o.uf].filter(Boolean).join(' - '), o.cep].filter(Boolean).join(', ');
+const NIVEL = { exato: 'endereço exato', rua: 'rua, sem o número', bairro: 'só o bairro ou o CEP', cidade: 'só a cidade' };
+const RANK = { exato: 0, rua: 1, bairro: 2, cidade: 3 };
+const PAIR = /^\s*(-?\d{1,3}[.,]\d+)\s*[,;\s]\s*(-?\d{1,3}[.,]\d+)\s*$/; // "-23.5891, -46.6349" copiado do Google Maps
+const geoQ = { list: [], set: new Set(), busy: false, cancel: false, cancelled: false, done: 0, total: 0, ok: 0, fail: 0, err: '', src: 'osm', usedGoogle: false };
+try { geoQ.src = localStorage.getItem('rt1:geosrc') === 'google' ? 'google' : 'osm'; } catch (e) { /* ignora */ }
+function setGeoSrc(v) { geoQ.src = v === 'google' ? 'google' : 'osm'; try { localStorage.setItem('rt1:geosrc', geoQ.src); } catch (e) { /* ignora */ } }
+function geoSrcSel() { return `<select id="geoSrc" aria-label="Serviço de busca de endereços"><option value="osm"${geoQ.src === 'osm' ? ' selected' : ''}>Buscar pelo OpenStreetMap (gratuito)</option><option value="google"${geoQ.src === 'google' ? ' selected' : ''}>Buscar pelo Google (mais preciso, usa a chave)</option></select>`; }
+const qKey = (k, id) => k + ':' + id;
+const geoQueued = sold => geoQ.set.has(qKey('cli', sold));
+function seaList() { return st.cli ? [...st.cli.values()].filter(c => !hasXY(c) && !geoQueued(c.sold)) : []; }
+
+function ensureGoogle() {
+  return new Promise(res => {
+    if (gReady()) { res(true); return; }
+    if (st.g === 'fail') { res(false); return; }
+    startGoogle(); let n = 0;
+    const t = setInterval(() => { if (gReady() || st.g === 'fail' || ++n > 100) { clearInterval(t); res(gReady()); } }, 200);
+  });
+}
+function sameCity(a, b) { const x = norm(a), y = norm(b); return !x || !y || x === y || x.includes(y) || y.includes(x); }
+// Aceita só resultado no nível de endereço ou rua, na cidade informada; o resto vira sugestão para o ajuste manual
+function judge(cands, o) {
+  const ok = c => sameCity(c.cid, o.cidade);
+  const good = cands.find(c => RANK[c.nivel] <= 1 && ok(c));
+  if (good) return { ok: true, lat: good.lat, lng: good.lng, nivel: good.nivel };
+  const s = [...cands].sort((x, y) => (ok(y) - ok(x)) || RANK[x.nivel] - RANK[y.nivel])[0];
+  if (!s) return { ok: false, msg: 'endereço não encontrado' };
+  return { ok: false, msg: ok(s) ? 'encontrado ' + NIVEL[s.nivel] : `encontrado em outra cidade (${s.cid})`, sug: { lat: s.lat, lng: s.lng, nivel: s.nivel } };
+}
+function nivelOSM(x) {
+  const ts = [x.type, x.addresstype].filter(Boolean), c = x.category || x.class || '', has = l => ts.some(t => l.includes(t));
+  if (has(['house', 'building', 'house_number']) || ['building', 'amenity', 'shop', 'office', 'craft', 'tourism', 'leisure', 'healthcare'].includes(c)) return 'exato';
+  if (c === 'highway' || has(['road'])) return 'rua';
+  if (has(['suburb', 'neighbourhood', 'quarter', 'city_block', 'borough', 'city_district', 'postcode', 'hamlet', 'residential', 'isolated_dwelling'])) return 'bairro';
+  return 'cidade';
+}
+let lastGeo = 0;
+async function osmSearch(params, tries = 0) {
+  const w = 1100 - (Date.now() - lastGeo); if (w > 0) await sleep(w); lastGeo = Date.now();
+  let r;
+  try { r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=3&countrycodes=br&accept-language=pt-BR&' + params); }
+  catch (e) { throw { code: 'net', message: inClaude() ? 'a janela do Claude bloqueia serviços externos — abra o arquivo no navegador' : 'sem conexão com o serviço de endereços do OpenStreetMap' }; }
+  if ((r.status === 429 || r.status >= 500) && tries < 3) { await sleep(4000 * (tries + 1)); return osmSearch(params, tries + 1); }
+  if (!r.ok) throw { code: 'bad', message: 'o serviço de endereços respondeu ' + r.status };
+  const j = await r.json();
+  return (Array.isArray(j) ? j : []).map(x => { const a = x.address || {}; return { lat: +(+x.lat).toFixed(6), lng: +(+x.lon).toFixed(6), nivel: nivelOSM(x), cid: a.city || a.town || a.village || a.municipality || '' }; });
+}
+async function geoOSM(o) {
+  const qs = [], join = (...p) => p.filter(Boolean).join(', ');
+  if (o.endereco) { qs.push('q=' + encodeURIComponent(join(o.endereco, o.bairro, o.cidade, o.uf, 'Brasil'))); if (o.bairro) qs.push('q=' + encodeURIComponent(join(o.endereco, o.cidade, o.uf, 'Brasil'))); }
+  const cep = String(o.cep || '').replace(/\D/g, '');
+  if (cep.length === 8) qs.push('postalcode=' + cep.slice(0, 5) + '-' + cep.slice(5) + '&country=Brasil');
+  let all = [];
+  for (const q of qs) { const c = await osmSearch(q); const j = judge(c, o); if (j.ok) return j; all = all.concat(c); }
+  return judge(all, o);
+}
+function nivelG(x) {
+  const lt = x.geometry && x.geometry.location_type, ty = x.types || [];
+  if (lt === 'ROOFTOP' || lt === 'RANGE_INTERPOLATED' || ty.some(t => ['street_address', 'premise', 'subpremise', 'establishment', 'point_of_interest'].includes(t))) return 'exato';
+  if (ty.includes('route')) return 'rua';
+  if (ty.some(t => /sublocality|neighborhood|postal_code/.test(t))) return 'bairro';
+  return 'cidade';
+}
+async function geoGoogle(o) {
+  const gc = new google.maps.Geocoder(), q = [o.endereco, o.bairro, o.cidade, o.uf, o.cep, 'Brasil'].filter(Boolean).join(', ');
+  for (let a = 0; ; a++) {
+    try {
+      const { results } = await gc.geocode({ address: q, region: 'br', componentRestrictions: { country: 'BR' } });
+      await sleep(60);
+      return judge((results || []).slice(0, 3).map(x => {
+        const ac = x.address_components || [], cc = ac.find(c => c.types.includes('administrative_area_level_2')) || ac.find(c => c.types.includes('locality'));
+        return { lat: +x.geometry.location.lat().toFixed(6), lng: +x.geometry.location.lng().toFixed(6), nivel: nivelG(x), cid: cc ? cc.long_name : '' };
+      }), o);
+    } catch (e) {
+      const c = String((e && (e.code || e.message)) || '');
+      if (/ZERO_RESULTS/i.test(c)) return { ok: false, msg: 'endereço não encontrado' };
+      if (/OVER_QUERY_LIMIT/i.test(c) && a < 3) { await sleep(1500 * (a + 1)); continue; }
+      throw { code: /REQUEST_DENIED/i.test(c) ? 'denied' : 'bad', message: gErr(e) };
+    }
+  }
+}
+async function geocodeAddr(o, google) {
+  if (!o.endereco && !o.cep) return { ok: false, msg: 'sem endereço' };
+  const r = google ? await geoGoogle(o) : await geoOSM(o);
+  return { ...r, src: google ? 'google' : 'nominatim' };
+}
+function applyGeo(store, id, r) {
+  const cur = store.get(id); if (!cur || hasXY(cur)) return;
+  const n = { ...cur };
+  if (r.ok) { n.lat = r.lat; n.lng = r.lng; n.geo = r.src; n.geoNivel = r.nivel; delete n.geoPend; }
+  else { n.lat = null; n.lng = null; n.geoPend = { msg: r.msg, sug: r.sug || null }; }
+  store.put(id, n);
+}
+
+/* Fila em segundo plano: o sistema continua utilizável enquanto busca */
+function geoEnqueue(items) {
+  if (!geoQ.busy && !geoQ.list.length) Object.assign(geoQ, { done: 0, total: 0, ok: 0, fail: 0, err: '', cancelled: false });
+  let n = 0;
+  for (const [k, id] of items) { const key = qKey(k, id); if (geoQ.set.has(key)) continue; geoQ.set.add(key); geoQ.list.push([k, id]); geoQ.total++; n++; }
+  if (n) { renderGeoBar(); geoRun(); }
+  return n;
+}
+async function geoRun() {
+  if (geoQ.busy) return; geoQ.busy = true; geoQ.cancel = false;
+  let google = geoQ.src === 'google' ? await ensureGoogle() : false;
+  if (geoQ.src === 'google' && !google) toast('O Google não está disponível agora — buscando pelo OpenStreetMap (gratuito)', 5000);
+  geoQ.usedGoogle = google; renderGeoBar();
+  let since = 0;
+  try {
+    while (geoQ.list.length && !geoQ.cancel) {
+      const [k, id] = geoQ.list[0];
+      const store = k === 'col' ? st.col : st.cli, o = store.get(id);
+      if (o && !hasXY(o)) {
+        let r;
+        try { r = await geocodeAddr(o, google); }
+        catch (e) {
+          if (google && e.code === 'denied') { google = false; geoQ.usedGoogle = false; toast('O Google recusou a busca de endereços (' + e.message + '). Continuando pelo OpenStreetMap.', 7000); continue; }
+          geoQ.err = e.message || String(e); break;
+        }
+        applyGeo(store, id, r);
+        if (r.ok) geoQ.ok++; else geoQ.fail++;
+      }
+      geoQ.list.shift(); geoQ.set.delete(qKey(k, id)); geoQ.done++;
+      renderGeoBar();
+      if (++since >= 20) { since = 0; geoRefresh(); }
+    }
+  } finally {
+    if (geoQ.list.length) { geoQ.cancelled = geoQ.cancel; geoQ.list.forEach(([k, id]) => geoQ.set.delete(qKey(k, id))); geoQ.list = []; }
+    geoQ.busy = false; geoRefresh(); renderGeoBar();
+    if ($('#adjDlg')) adjustForm();
+  }
+}
+function geoRefresh() {
+  rebuild();
+  const ae = document.activeElement; // não redesenha a página enquanto a pessoa digita nela
+  if (ae && ae.closest && ae.closest('#pageView') && ae.matches('input,textarea,select')) { if (st.screen === 'planner' && st.view === 'mapa') renderMap(); return; }
+  renderAll();
+}
+let geoBarT;
+function renderGeoBar() {
+  const el = $('#geoBar'), q = geoQ;
+  if (q.busy || q.list.length) {
+    clearTimeout(geoBarT);
+    const sec = (q.total - q.done) * (q.usedGoogle ? 0.25 : 1.6), eta = sec < 90 ? `cerca de ${Math.max(1, Math.ceil(sec))} s` : `cerca de ${Math.ceil(sec / 60)} min`;
+    el.innerHTML = `<div class="gt"><b>Buscando coordenadas pelo ${q.usedGoogle ? 'Google' : 'OpenStreetMap'}</b><button class="btn sm" data-geo="cancel">Cancelar</button></div>
+      <div class="gbar"><i style="width:${(100 * q.done / Math.max(1, q.total)).toFixed(1)}%"></i></div>
+      <div class="muted num">${q.done} de ${q.total} · ${q.ok} encontrados · ${q.fail} para ajustar · ${eta}</div>`;
+    el.hidden = false; return;
+  }
+  if (!q.total) { el.hidden = true; return; }
+  const rest = q.total - q.done;
+  el.innerHTML = `<div class="gt"><b>${q.err ? 'Busca interrompida' : q.cancelled ? 'Busca cancelada' : 'Busca de coordenadas concluída'}</b><button class="iconbtn" data-geo="close" aria-label="Fechar">${ICON.close}</button></div>
+    <div class="muted">${q.ok} encontrados · ${q.fail} ficaram no mar para ajustar${rest ? ` · ${rest} não buscados` : ''}${q.err ? ` · ${esc(q.err)}` : ''}</div>
+    ${q.fail || rest ? '<div class="row"><button class="btn sm primary" data-geo="adj">Ajustar endereços</button></div>' : ''}`;
+  el.hidden = false; clearTimeout(geoBarT); geoBarT = setTimeout(geoBarClose, q.fail || rest ? 25000 : 8000);
+}
+function geoBarClose() { clearTimeout(geoBarT); $('#geoBar').hidden = true; if (!geoQ.busy && !geoQ.list.length) Object.assign(geoQ, { done: 0, total: 0, ok: 0, fail: 0, err: '', cancelled: false }); }
+function geoAgain() {
+  const n = geoEnqueue(seaList().filter(c => c.endereco || c.cep).map(c => ['cli', c.sold]));
+  toast(n ? `${n} endereço(s) na fila de busca` : 'Nenhum cliente no mar tem endereço preenchido — corrija o endereço ou marque no mapa');
+  renderView();
+}
+
+/* ----- Ajuste dos endereços não encontrados ----- */
+const adjS = { q: '', page: 0 };
+function adjustForm() {
+  const all = seaList(), q = norm(adjS.q);
+  const rows = q ? all.filter(c => norm(c.sold + ' ' + (c.nome || '') + ' ' + addrTxt(c)).includes(q)) : all;
+  const PER = 50, pages = Math.max(1, Math.ceil(rows.length / PER)); adjS.page = Math.max(0, Math.min(adjS.page, pages - 1));
+  const tb = rows.slice(adjS.page * PER, adjS.page * PER + PER).map(c => {
+    const g = c.geoPend || {}, s = esc(c.sold);
+    return `<tr><td class="num">${s}</td><td class="wrap"><b>${esc(c.nome || '')}</b><div class="muted" style="font-size:12px">${esc(addrTxt(c) || 'sem endereço')}</div></td>
+      <td class="wrap" style="min-width:150px">${esc(g.msg || 'ainda sem coordenada')}</td>
+      <td><div class="row" style="flex-wrap:nowrap">${g.sug ? `<button class="btn sm" data-adj="sug" data-sold="${s}" title="Grava a coordenada aproximada encontrada (${esc(NIVEL[g.sug.nivel] || '')})">Usar sugestão</button>` : ''}<button class="btn sm primary" data-adj="place" data-sold="${s}" title="Abre o mapa: clique no local do cliente">Marcar no mapa</button>${c.endereco || c.cep ? `<button class="btn sm" data-adj="retry" data-sold="${s}">Buscar</button>` : ''}<button class="btn sm" data-editcli="${s}" title="Corrigir endereço ou colar a coordenada">Editar</button></div></td></tr>`;
+  }).join('');
+  const nBusca = all.filter(c => c.endereco || c.cep).length;
+  openModal(`<div class="dh" id="adjDlg"><div><h2>Endereços a ajustar · ${all.length}</h2><div class="muted" style="font-size:12.5px">Estes clientes estão no mar e ficam fora dos cálculos de KM até ganharem coordenada.</div></div><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db">
+    <div class="toolbar"><div class="grow"><input type="search" id="adjQ" placeholder="Buscar por SOLD, nome ou endereço" value="${esc(adjS.q)}"></div>${geoSrcSel()}<button class="btn sm" data-adj="all"${nBusca && !geoQ.busy && !st.ro ? '' : ' disabled'}>Buscar todos de novo (${nBusca})</button><button class="btn sm" data-adj="sea"${all.length ? '' : ' disabled'}>Ver no mar</button></div>
+    ${geoQ.busy ? `<div class="banner info">Busca em andamento: ${geoQ.list.length} endereço(s) na fila. A lista se atualiza ao terminar.</div>` : ''}
+    ${rows.length ? `<div class="tblwrap"><table class="t"><thead><tr><th>SOLD</th><th>Cliente e endereço</th><th>Situação</th><th></th></tr></thead><tbody>${tb}</tbody></table>
+      ${pages > 1 ? `<div class="pager"><span>Página ${adjS.page + 1} de ${pages}</span><button class="btn sm" data-adj="pg" data-n="-1"${adjS.page ? '' : ' disabled'}>Anterior</button><button class="btn sm" data-adj="pg" data-n="1"${adjS.page < pages - 1 ? '' : ' disabled'}>Próxima</button></div>` : ''}</div>`
+      : `<div class="empty"><h3>${all.length ? 'Nada com esse filtro' : 'Tudo localizado'}</h3><p>${all.length ? 'Limpe a busca para ver todos.' : 'Nenhum cliente da base está sem coordenada.'}</p></div>`}
+    <p class="muted" style="margin:0;font-size:12.5px">Outras formas de ajustar: no mapa, arraste o pino do mar até o local certo; ou em “Editar”, cole a coordenada copiada do Google Maps (botão direito no local).</p>
+  </div><div class="df"><button class="btn" data-close>Fechar</button></div>`, 'lg');
+  const dlg = $('#modal .dlg');
+  dlg.addEventListener('click', async e => {
+    const b = e.target.closest('[data-adj]'); if (!b) return;
+    const act = b.dataset.adj, c = b.dataset.sold && st.cli.get(b.dataset.sold);
+    if (act === 'pg') { adjS.page += +b.dataset.n; adjustForm(); }
+    else if (act === 'sea') { closeModal(); goSea(); }
+    else if (act === 'all') geoAgain();
+    else if (act === 'place' && c) startPlace(c.sold);
+    else if (act === 'sug' && c && c.geoPend && c.geoPend.sug) { const g = c.geoPend.sug; placeClient(c.sold, g, 'sugestao', g.nivel); toast('Coordenada aproximada gravada para ' + (c.nome || c.sold)); adjustForm(); }
+    else if (act === 'retry' && c) {
+      b.disabled = true; b.textContent = 'Buscando…';
+      try { const r = await geocodeAddr(c, geoQ.src === 'google' && await ensureGoogle()); applyGeo(st.cli, c.sold, r); rebuild(); renderAll(); toast(r.ok ? `${c.nome || c.sold}: encontrado (${NIVEL[r.nivel]})` : `${c.nome || c.sold}: ${r.msg}`); }
+      catch (err) { toast('Não foi possível buscar: ' + (err.message || err), 5000); }
+      if ($('#adjDlg')) adjustForm();
+    }
+  });
+  let t; $('#adjQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { adjS.q = e.target.value; adjS.page = 0; adjustForm(); const n = $('#adjQ'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); };
+}
+// Botão “Buscar pelo endereço” e colagem de "lat, lng" nos formulários de cliente e colaborador
+function bindFormGeo(f) {
+  const el = n => f.elements[n], out = f.querySelector('.fgeo-msg');
+  el('lat').addEventListener('input', () => { const m = String(el('lat').value).match(PAIR); if (m) { el('lat').value = m[1]; el('lng').value = m[2]; f.dataset.gsrc = 'manual'; } });
+  const b = f.querySelector('[data-fgeo]'); if (!b) return;
+  b.onclick = async () => {
+    const v = n => (el(n) ? el(n).value.trim() : '');
+    const o = { endereco: v('endereco'), bairro: v('bairro'), cidade: v('cidade'), uf: v('uf'), cep: v('cep') };
+    if (!o.endereco && !o.cep) { out.textContent = 'Preencha o endereço ou o CEP.'; return; }
+    const put = (p, src) => { el('lat').value = p.lat; el('lng').value = p.lng; f.dataset.gsrc = src; f.dataset.gniv = p.nivel || ''; };
+    b.disabled = true; out.textContent = 'Buscando…';
+    try {
+      const r = await geocodeAddr(o, geoQ.src === 'google' && await ensureGoogle());
+      if (r.ok) { put(r, r.src); out.textContent = `Encontrado: ${NIVEL[r.nivel]}. Salve para gravar.`; }
+      else if (r.sug) { out.innerHTML = `${esc(r.msg)}. <button type="button" class="btn sm" id="fgeoSug">Usar mesmo assim</button>`; $('#fgeoSug').onclick = () => { put(r.sug, 'sugestao'); out.textContent = 'Coordenada aproximada preenchida. Salve para gravar.'; }; }
+      else out.textContent = r.msg + '. Corrija o endereço, cole a coordenada ou use “Marcar no mapa”.';
+    } catch (e) { out.textContent = 'Não foi possível buscar: ' + (e.message || e); }
+    b.disabled = false;
+  };
+}
+
+/* ----- Modelos de importação ----- */
+// [coluna, 0 opcional | 1 obrigatório | 2 recomendado, descrição, exemplo 1, exemplo 2]
+const MODELOS = {
+  clientes: {
+    titulo: 'Base de clientes', aba: 'Clientes', arq: 'modelo_clientes.xlsx',
+    desc: 'Basta o SOLD e o endereço. Na importação o sistema busca as coordenadas; o que não for encontrado fica no mar para você ajustar.',
+    cols: [
+      ['SOLD', 1, 'Código único do cliente', '700101', '700102'],
+      ['Nome', 0, 'Razão social ou nome fantasia', 'Mercado Exemplo', 'Padaria Exemplo'],
+      ['Endereço', 1, 'Logradouro e número', 'Rua Vergueiro, 1000', 'Av. Jabaquara, 500'],
+      ['Bairro', 2, 'Melhora a precisão da busca', 'Vila Mariana', 'Saúde'],
+      ['Cidade', 2, 'Município; também confere se o resultado é da cidade certa', 'São Paulo', 'São Paulo'],
+      ['UF', 2, 'Sigla do estado', 'SP', 'SP'],
+      ['CEP', 0, 'Usado quando o endereço não é encontrado', '04101-000', '04046-000'],
+      ['Visitas por mês', 0, '1 mensal · 2 quinzenal · 4 semanal · 8 duas por semana · 12 três por semana. Vazio = 4', 4, 2],
+      ['Atendimento (min)', 0, 'Tempo dentro do cliente. Vazio = padrão do estudo', 20, 15],
+      ['Latitude', 0, 'Deixe em branco para o sistema buscar pelo endereço', '', ''],
+      ['Longitude', 0, 'Deixe em branco para o sistema buscar pelo endereço', '', ''],
+      ['Setor', 0, 'Preenchido, os setores já são carregados no estudo ao importar. Vazio = cliente sem setor', 'Setor 01', 'Setor 02'],
+      ['SOLD vendedor', 0, 'Colaborador responsável pelo setor (o código da base de colaboradores)', 'V101', 'V102']
+    ],
+    dicas: ['O SOLD identifica o cliente: importar de novo o mesmo SOLD atualiza o cadastro.', 'Se o endereço mudar e a planilha não trouxer coordenada, a coordenada é buscada de novo.', 'Endereços não encontrados (ou encontrados só pela cidade) ficam num ponto no mar. Ajuste em Importação → Ajustar endereços, arrastando o pino no mapa ou clicando no local.', 'Para colar uma coordenada do Google Maps: clique com o botão direito no local e copie os números.']
+  },
+  colaboradores: {
+    titulo: 'Base de colaboradores', aba: 'Colaboradores', arq: 'modelo_colaboradores.xlsx',
+    desc: 'Vendedores e demais colaboradores. A base de saída (casa ou depósito) é localizada pelo endereço e é o início e o fim das rotas.',
+    cols: [
+      ['SOLD vendedor', 1, 'Código do colaborador — o mesmo usado na coluna SOLD vendedor do roteiro', 'V101', 'V102'],
+      ['Nome', 2, 'Nome do colaborador', 'Vendedor 1', 'Vendedor 2'],
+      ['Função', 0, 'Vendedor, Promotor, Supervisor, Motorista, Técnico ou Outro', 'Vendedor', 'Vendedor'],
+      ['Endereço da base', 2, 'Logradouro e número do ponto de saída', 'Rua Domingos de Morais, 2000', 'Av. Cupecê, 1200'],
+      ['Bairro', 0, '', 'Vila Mariana', 'Jardim Prudência'],
+      ['Cidade', 2, '', 'São Paulo', 'São Paulo'],
+      ['UF', 2, '', 'SP', 'SP'],
+      ['CEP', 0, '', '', ''],
+      ['Jornada (min)', 0, 'Minutos de trabalho por dia. Vazio = padrão do estudo (480)', 480, 440],
+      ['Latitude', 0, 'Deixe em branco para o sistema buscar pelo endereço', '', ''],
+      ['Longitude', 0, 'Deixe em branco para o sistema buscar pelo endereço', '', '']
+    ],
+    dicas: ['Importe os colaboradores antes do roteiro: assim cada setor já nasce com a base de saída.', 'Sem a base localizada não há KM de ida e volta; abra o colaborador para buscar de novo ou informar a coordenada.']
+  },
+  roteiro: {
+    titulo: 'Roteiro', aba: 'Roteiro', arq: 'modelo_roteiro.xlsx',
+    desc: 'Uma linha por cliente e dia de visita. Quem não estiver na base de clientes é cadastrado com o endereço da linha e localizado automaticamente.',
+    cols: [
+      ['SOLD cliente', 1, 'Código do cliente', '700101', '700102'],
+      ['SOLD vendedor', 1, 'Código do colaborador que atende. Cada vendedor vira um setor', 'V101', 'V101'],
+      ['Dia', 1, '2 = segunda, 3 = terça, 4 = quarta, 5 = quinta, 6 = sexta, 7 = sábado (1 = domingo). Mais de um dia: 2,5 ou 25', '2', '3'],
+      ['Semana', 1, 'Mensal: um número de 1 a 4 · Quinzenal: 1,3 ou 2,4 · Semanal: 1234', '1234', '1,3'],
+      ['Endereço', 2, 'Logradouro e número do cliente (usado se ele não estiver na base ou estiver sem coordenada)', 'Rua Vergueiro, 1000', 'Av. Jabaquara, 500'],
+      ['Bairro', 0, '', 'Vila Mariana', 'Saúde'],
+      ['Cidade', 2, '', 'São Paulo', 'São Paulo'],
+      ['UF', 2, '', 'SP', 'SP'],
+      ['CEP', 0, '', '', ''],
+      ['Nome do cliente', 0, 'Usado para cadastrar clientes novos', 'Mercado Exemplo', 'Padaria Exemplo'],
+      ['Sequência', 0, 'Ordem de visita no dia. Vazio = o sistema calcula a melhor ordem', 1, ''],
+      ['Latitude', 0, 'Coordenada do cliente, se já tiver (ex.: -23,5891). Com ela, o endereço não precisa ser buscado', '-23.5891', ''],
+      ['Longitude', 0, 'Coordenada do cliente, se já tiver (ex.: -46,6349)', '-46.6349', '']
+    ],
+    dicas: ['Ordem recomendada: importe colaboradores, depois clientes e por último o roteiro.', 'Para usar setores com outro nome, acrescente uma coluna “Setor”; sem ela, cada SOLD vendedor vira um setor.', 'Vendedores que não existirem na base viram pendência no estudo, para cadastrar depois.', 'Ciclo de 4 semanas. Cada algarismo da coluna Semana é uma semana do ciclo: 1 (ou 2, 3, 4) = mensal naquela semana; 1,3 ou 2,4 = quinzenal; 1234 = semanal.', 'A frequência do cliente na base é atualizada pelo roteiro: semanas × dias (ex.: 1,3 com dia 2 = quinzenal às segundas).', 'Os dias também podem ser escritos por extenso (Seg, Terça…).']
+  }
+};
+function downloadModelo(kind) {
+  const m = MODELOS[kind]; if (!m) return;
+  if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([m.cols.map(c => c[0]), m.cols.map(c => c[3]), m.cols.map(c => c[4])]);
+  ws['!cols'] = m.cols.map(c => ({ wch: Math.max(12, c[0].length + 3, String(c[3]).length + 2) }));
+  XLSX.utils.book_append_sheet(wb, ws, m.aba);
+  const ins = XLSX.utils.aoa_to_sheet([['Coluna', 'Preenchimento', 'O que colocar'], ...m.cols.map(c => [c[0], ['Opcional', 'Obrigatório', 'Recomendado'][c[1]], c[2]]), [], ['Dicas'], ...m.dicas.map(d => [d]), [], ['Apague as linhas de exemplo antes de importar. A importação lê a primeira aba.']]);
+  ins['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 100 }];
+  XLSX.utils.book_append_sheet(wb, ins, 'Instruções');
+  saveFile(m.arq, new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+}
+function pageImportar() {
+  const nSea = seaList().length, nBusca = seaList().filter(c => c.endereco || c.cep).length;
+  const semBase = st.col ? [...st.col.values()].filter(c => !hasXY(c)).length : 0;
+  const card = (k, n) => { const m = MODELOS[k]; return `<div class="card"><div class="ch"><h2>${n} · ${esc(m.titulo)}</h2></div><div class="cb">
+    <p>${esc(m.desc)}</p>
+    <ul class="cols-list">${m.cols.map(c => `<li><span>${esc(c[0])}</span><span>${['opcional', '<b style="color:var(--ink)">obrigatório</b>', 'recomendado'][c[1]]}</span></li>`).join('')}</ul>
+    <div class="row end"><button class="btn" data-modelo="${k}">Baixar modelo (.xlsx)</button><button class="btn primary" data-imp="${k}"${st.ro ? ' disabled' : ''}>Importar planilha</button></div></div></div>`; };
+  return `<div class="page">
+    <div class="ph"><div><h1>Importação e modelos</h1><p>Baixe o modelo, preencha no Excel e importe. Cada modelo traz exemplos e uma aba “Instruções”. A ordem recomendada é colaboradores, clientes e, por fim, o roteiro.</p></div></div>
+    <div class="impgrid">${card('colaboradores', 1)}${card('clientes', 2)}${card('roteiro', 3)}</div>
+    <div class="card"><div class="ch"><h2>Endereços a ajustar</h2>${nSea ? `<span class="pill warn">${nSea} no mar</span>` : geoQ.busy ? `<span class="pill idle">buscando…</span>` : '<span class="pill ok">nenhum</span>'}</div><div class="cb stack">
+      <p class="muted" style="margin:0">Clientes cujo endereço não foi encontrado ficam empilhados num único ponto no mar e não entram nos cálculos de KM. Para corrigir: arraste o pino do mar até o local, use “Marcar no mapa”, aceite a sugestão aproximada ou corrija o endereço e busque de novo.</p>
+      ${geoQ.busy ? `<div class="banner info">Busca em andamento: ${geoQ.done} de ${geoQ.total}. Você pode continuar usando o sistema.</div>` : ''}
+      <div class="row"><button class="btn primary" data-act="adj"${nSea ? '' : ' disabled'}>Ajustar endereços (${nSea})</button><button class="btn" data-act="gosea"${nSea ? '' : ' disabled'}>Ver no mar</button><button class="btn" data-act="geo"${nBusca && !geoQ.busy && !st.ro ? '' : ' disabled'}>Buscar de novo os que têm endereço (${nBusca})</button>${geoSrcSel()}</div>
+      ${semBase ? `<p class="muted" style="margin:0">${semBase} colaborador(es) sem a base localizada. <button class="btn sm" data-go="colaboradores">Ver colaboradores</button></p>` : ''}
+    </div></div>
+  </div>`;
+}
+
+/* ----- Configurações ----- */
+function pageConfig() {
+  const e = st.empresa, u = st.usuario;
+  const status = v => (v === 'ok' ? '<span class="pill ok">Conectado</span>' : v === 'fail' ? '<span class="pill bad">Indisponível</span>' : '<span class="pill idle">Verificando…</span>');
+  const bases = [...$('#baseSel').options].map(o => `<option value="${esc(o.value)}"${o.value === st.baseKind ? ' selected' : ''}>${esc(o.textContent)}</option>`).join('');
+  const temEx = [...st.cli.values()].some(c => c.exemplo) || [...st.col.values()].some(c => c.exemplo) || [...st.amb.values()].some(a => a.exemplo);
+  return `<div class="page">
+    <div class="ph"><div><h1>Configurações</h1><p>Ajustes deste ambiente neste navegador. Os parâmetros de cada estudo, como jornada e formato da rota, ficam em Estudos e setores.</p></div></div>
+    <div class="cgrid">
+      <div class="card"><div class="ch"><h2>Conta e ambiente</h2></div><div class="cb stack">
+        <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(e.nome)}</b><div class="muted">${esc(u.nome)} · ${u.papel === 'admin' ? 'Administrador' : 'Usuário'}</div></div></div>
+        <div class="row"><button class="btn" data-act="conta">Abrir Minha conta</button></div>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Mapa e endereços</h2></div><div class="cb stack">
+        <label class="field"><span class="lbl">Mapa de fundo</span><select id="cfgBase">${bases}</select></label>
+        <label class="field"><span class="lbl">Busca de endereços</span>${geoSrcSel()}</label>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Servidores de rota</h2></div><div class="cb stack">
+        <label class="field"><span class="row" style="justify-content:space-between"><span class="lbl">OSRM · rota mais rápida</span>${status(st.road)}</span><input type="text" id="pOsrm" value="${esc(osrmUrl())}"><span class="hint">Padrão: servidor público gratuito</span></label>
+        <div class="field"><span class="row" style="justify-content:space-between"><span class="lbl">Valhalla · demais formatos de rota</span>${status(st.vh)}</span><span class="muted mono" style="font-size:12.5px;overflow-wrap:anywhere">${esc(VH_DEF)}</span><span class="hint">Definido em js/config.js</span></div>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Dados</h2></div><div class="cb stack">
+        <div class="field"><span class="lbl">Backup deste ambiente</span><div class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button></div></div>
+        <div class="field"><span class="lbl">Dados de exemplo</span><div class="row"><button class="btn sm" data-act="sample">Gerar dados de exemplo</button>${temEx ? '<button class="btn sm danger" data-act="delex">Remover dados de exemplo</button>' : ''}</div></div>
+      </div></div>
+    </div>
+  </div>`;
+}
+
+/* ================= Eventos ================= */
+function bindEvents() {
+  $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) setView(b.dataset.view); });
+  $('#goHome').onclick = () => setScreen('home');
+  $('#openPlanner').onclick = openPlannerChooser;
+  $('#acctBtn').onclick = contaForm;
+  const tip = $('#tip'), showTip = (t, x, y) => { tip.textContent = t.dataset.tip; tip.hidden = false; tip.style.left = Math.max(8, Math.min(x, innerWidth - tip.offsetWidth - 8)) + 'px'; tip.style.top = Math.min(y, innerHeight - tip.offsetHeight - 8) + 'px'; };
+  document.addEventListener('mouseover', e => { const t = e.target.closest('[data-tip]'); if (t) showTip(t, e.clientX + 14, e.clientY + 16); });
+  document.addEventListener('mousemove', e => { const t = e.target.closest('[data-tip]'); if (t) showTip(t, e.clientX + 14, e.clientY + 16); else tip.hidden = true; });
+  document.addEventListener('focusin', e => { const t = e.target.closest('[data-tip]'); if (t) { const r = t.getBoundingClientRect(); showTip(t, r.left + 8, r.bottom + 6); } });
+  document.addEventListener('focusout', () => { tip.hidden = true; });
+  $('#ambSel').addEventListener('change', e => { openAmb(e.target.value); });
+  $('#btnLayers').onclick = () => { st.panelL = true; applyPanels(); renderLayersPanel(); };
+  $('#btnSel').onclick = () => { st.panelR = true; applyPanels(); renderSelPanel(); };
+  $('#layersPanel header .iconbtn').onclick = () => { st.panelL = false; applyPanels(); };
+  $('#selPanel header .iconbtn').onclick = () => { st.panelR = false; applyPanels(); };
+  $('#baseSel').value = st.baseKind; $('#baseSel').onchange = e => { st.baseKind = e.target.value; saveUI(); $('#mapNote').hidden = true; setBase(); };
+  $('#toolbar').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.tool) setTool(b.dataset.tool);
+    const a = b.dataset.act;
+    if (a === 'zin') map.zoomIn(); if (a === 'zout') map.zoomOut(); if (a === 'fit') fitVisible(); if (a === 'full') toggleFull(); if (a === 'undo') doUndo();
+  });
+  $('#layersPanel').addEventListener('click', e => {
+    const b = e.target.closest('button, input'); if (!b) return;
+    if (b.dataset.colorby) { st.colorBy = b.dataset.colorby; st.colorAntes = null; saveUI(); renderMap(); }
+    else if (b.dataset.visao) setVisao(b.dataset.visao);
+    else if (b.dataset.bzcor) { st.baseCor = b.dataset.bzcor; renderMap(); }
+    else if (b.dataset.act === 'bzlimpa') { st.baseF.cidades.clear(); st.baseF.soldes.clear(); st.baseF.q = ''; st.baseF.cq = ''; renderMap(); setTimeout(fitVisible, 30); }
+    else if (b.dataset.act === 'bzlimpasold') { st.baseF.soldes.clear(); renderMap(); setTimeout(fitVisible, 30); }
+    else if (b.dataset.act === 'bzmarca') { st.bzRes.forEach(x => st.baseF.soldes.add(x)); renderMap(); setTimeout(fitVisible, 30); }
+    else if (b.dataset.act === 'rotastodas') { st.hidden.clear(); st.hiddenSet.clear(); applyQF(); abrirDetalheRotas(); renderMap(); setTimeout(fitVisible, 30); }
+    else if (b.dataset.act === 'rotasnenhuma') { st.hidden.clear(); sortedSetores().forEach(([id]) => st.hiddenSet.add(id)); renderMap(); }
+    else if (b.dataset.act === 'estudoBase') garantirEstudo().then(() => { rebuild(); renderAll(); toast('Estudo criado com toda a base'); });
+    else if (b.dataset.act === 'selsemdia' || b.dataset.act === 'selsetor') { st.sel = new Set([...st.itens.map].filter(([, it]) => it.s === b.dataset.sid && (b.dataset.act === 'selsetor' || !itemKeys(it).length)).map(([x]) => x)); afterSel(); }
+    else if (b.dataset.act === 'distsemdia') distribuirSetor(b.dataset.sid, false);
+    else if (b.dataset.act === 'redist') armButton(b, () => distribuirSetor(b.dataset.sid, true), 'Confirmar');
+    else if (b.dataset.qw !== undefined) toggleQF('w', +b.dataset.qw);
+    else if (b.dataset.qd !== undefined) toggleQF('d', +b.dataset.qd);
+    else if (b.dataset.rzcrit) setRotaParam('criterio', b.dataset.rzcrit);
+    else if (b.dataset.rk) {
+      if (e.shiftKey || e.altKey) { soloRoute(b.dataset.rk); return; }
+      const sid = b.dataset.rk.split('|')[0];
+      if (st.hiddenSet.has(sid)) { st.hiddenSet.delete(sid); for (const r of st.routes.values()) if (r.s === sid) st.hidden.add(r.k); st.hidden.delete(b.dataset.rk); }
+      else if (st.hidden.has(b.dataset.rk)) st.hidden.delete(b.dataset.rk); else st.hidden.add(b.dataset.rk);
+      abrirDetalheRotas(); renderMap();
+    } else if (b.dataset.solo) soloSetor(b.dataset.solo);
+    else if (b.dataset.act === 'showall') { st.qf = { w: [], d: [] }; verSetor(''); }
+    else if (b.dataset.act === 'hideall') { sortedSetores().forEach(([id]) => st.hiddenSet.add(id)); renderMap(); }
+    else if (b.dataset.act === 'fit') fitVisible();
+    else if (b.dataset.act === 'roadvis') roadJob((st.visRoutes || []).map(r => r.k), true, `Rotas roteirizadas (${rotaTxt(rotaKey(rotaOpt()))})`);
+    else if (b.dataset.act === 'distribuir') runAutoRoute();
+  });
+  $('#seaChip').addEventListener('click', e => { const b = e.target.closest('[data-sea]'); if (!b) return; if (b.dataset.sea === 'go') goSea(); else adjustForm(); });
+  $('#geoBar').addEventListener('click', e => {
+    const b = e.target.closest('[data-geo]'); if (!b) return;
+    if (b.dataset.geo === 'cancel') { geoQ.cancel = true; b.disabled = true; b.textContent = 'Cancelando…'; }
+    else if (b.dataset.geo === 'adj') { geoBarClose(); adjustForm(); }
+    else geoBarClose();
+  });
+  $('#layersPanel').addEventListener('change', e => {
+    const t = e.target;
+    if (t.dataset.setvis) {
+      if (t.checked) { st.hiddenSet.delete(t.dataset.setvis); if (st.visao === 'rotas') { for (const r of st.routes.values()) if (r.s === t.dataset.setvis && passaFiltro(r)) st.hidden.delete(r.k); abrirDetalheRotas(); setTimeout(fitVisible, 30); } }
+      else st.hiddenSet.add(t.dataset.setvis);
+      renderMap();
+    }
+    if (t.dataset.bzcid !== undefined) { const c = st.baseF.cidades; if (t.checked) c.add(t.dataset.bzcid); else c.delete(t.dataset.bzcid); renderMap(); setTimeout(fitVisible, 30); }
+    if (t.dataset.bzsold) { const c = st.baseF.soldes; if (t.checked) c.add(t.dataset.bzsold); else c.delete(t.dataset.bzsold); renderMap(); setTimeout(fitVisible, 30); }
+    if (t.dataset.opt) { st[t.dataset.opt] = t.checked; renderMap(); }
+    if (t.dataset.rzopt) setRotaParam(t.dataset.rzopt, t.checked);
+    if (t.dataset.rzcol !== undefined) { touchAmb(a => { a.setores[t.dataset.rzcol].colab = t.value; }); rebuild(); renderMap(); }
+    if (t.id === 'rzSet') { verSetor(t.value); if (t.value !== '__nenhum') setTimeout(fitVisible, 30); }
+  });
+  $('#layersPanel').addEventListener('input', e => {
+    const t = e.target;
+    if (t.id === 'bzQ') { st.baseF.q = t.value; $('#bzRes').innerHTML = bzResHtml(); }
+    else if (t.id === 'bzCidQ') { st.baseF.cq = t.value; const n = norm(t.value); $$('#bzCids [data-cid]').forEach(x => { x.hidden = !!n && !x.dataset.cid.includes(n); }); }
+  });
+  $('#layersPanel').addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.sec; if (k) st.rzSec[k] = e.target.open; }, true);
+  $('#selPanel').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.rkver) { st.rotaAntes = { hidden: new Set(st.hidden), hiddenSet: new Set(st.hiddenSet) }; soloRoute(b.dataset.rkver); return; }
+    if (b.dataset.rkvolta !== undefined) { const x = st.rotaAntes; st.rotaAntes = null; if (x) { st.hidden = x.hidden; st.hiddenSet = x.hiddenSet; renderMap(); setTimeout(fitVisible, 30); } return; }
+    if (b.dataset.fd !== undefined) { selChip('dias', b.dataset.fd); return; }
+    if (b.dataset.fw !== undefined) { selChip('sem', b.dataset.fw); return; }
+    if (b.dataset.rzcrit) { setRotaParam('criterio', b.dataset.rzcrit); return; }
+    if (b.dataset.rop) routeOp(b.dataset.rop, b.dataset.rk);
+    if (b.dataset.sop) {
+      if (b.dataset.sop === 'remove') armButton(b, () => selOp('remove'), 'Confirmar remoção');
+      else if (b.dataset.sop === 'go') aplicarSelecao(true);
+      else if (b.dataset.sop === 'salvar') aplicarSelecao(false);
+      else selOp(b.dataset.sop);
+    }
+  });
+  $('#selPanel').addEventListener('change', e => {
+    const t = e.target;
+    if (t.id === 'sSet') { st.selForm.setor = t.value; renderSelPanel(); }
+    else if (t.id === 'sCol') st.selForm.colab = t.value;
+    else if (t.dataset.rzopt) setRotaParam(t.dataset.rzopt, t.checked);
+  });
+  $('#selPanel').addEventListener('input', e => { if (e.target.id === 'sNome') st.selForm.nome = e.target.value; });
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('#ctx')) fecharCtx(); }, true);
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-go],[data-close],[data-imp],[data-exp],[data-modelo],[data-act],[data-openrk],[data-solo-set],[data-openamb],[data-enter],[data-editcli],[data-editcol],[data-newcli],[data-newcol],[data-sdel],[data-delcli],[data-delcol],[data-rmode],[data-cpage],[data-d]');
+    if (!t) return;
+    if (t.closest('#selPanel') || t.closest('#layersPanel') || t.closest('#toolbar')) { if (t.dataset.go) setView(t.dataset.go); return; }
+    if (e.target.closest('input[type=checkbox]')) return;
+    const ds = t.dataset;
+    if (ds.go) { closeModal(); setView(ds.go); }
+    else if (ds.close !== undefined) closeModal();
+    else if (ds.imp) openImport(ds.imp);
+    else if (ds.exp) doExport(ds.exp);
+    else if (ds.modelo) downloadModelo(ds.modelo);
+    else if (ds.openrk) { st.visao = 'rotas'; soloRoute(ds.openrk); setView('mapa'); }
+    else if (ds.soloSet) { soloSetor(ds.soloSet); setView('mapa'); }
+    else if (ds.openamb) { openAmb(ds.openamb, true); }
+    else if (ds.enter) { closeModal(); enterStudy(ds.enter); }
+    else if (ds.editcli) cliForm(st.cli.get(ds.editcli), false);
+    else if (ds.editcol) colForm(st.col.get(ds.editcol), false);
+    else if (ds.newcli) cliForm({ sold: ds.newcli, nome: ds.nome }, true);
+    else if (ds.newcol) colForm({ codigo: ds.newcol, nome: ds.nome }, true);
+    else if (ds.rmode) { st.pg.roteiros.mode = ds.rmode; renderPage(); }
+    else if (ds.cpage) { st.pg.clientes.page += +ds.cpage; renderPage(); $('#pageView').scrollTop = 0; }
+    else if (ds.d && t.closest('#pDias')) { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); const ds2 = $$('#pDias button[aria-pressed="true"]').map(x => +x.dataset.d); if (!ds2.length) { t.setAttribute('aria-pressed', 'true'); toast('Mantenha ao menos um dia'); return; } touchAmb(a => { a.params = { ...P(), dias: ds2 }; }); rebuild(); renderPage(); }
+    else if (ds.sdel) armButton(t, () => { pushUndo('Excluir setor'); touchAmb(a => { delete a.setores[ds.sdel]; }); for (const [s, it] of st.itens.map) if (it.s === ds.sdel) st.itens.put(s, { s: '', d: [], w: [], q: {} }); rebuild(); renderAll(); toast('Setor excluído — clientes ficaram sem setor'); }, 'Confirmar');
+    else if (ds.delcli) armButton(t, () => { st.cli.del(ds.delcli); if (st.itens) st.itens.del(ds.delcli); closeModal(); rebuild(); renderAll(); toast('Cliente excluído da base'); }, 'Confirmar exclusão');
+    else if (ds.delcol) armButton(t, () => { st.col.del(ds.delcol); closeModal(); rebuild(); renderAll(); toast('Colaborador excluído'); }, 'Confirmar exclusão');
+    else if (ds.act) pageAct(ds.act, t);
+  });
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (t.id === 'hFocus') { st.homeFocus = t.value; renderHome(); return; }
+    if (t.id === 'geoSrc') { setGeoSrc(t.value); if (t.value === 'google') ensureGoogle(); return; }
+    if (!t.closest('#pageView')) return;
+    const id = t.id;
+    if (id === 'aNome' || id === 'aDesc') { touchAmb(a => { a[id === 'aNome' ? 'nome' : 'desc'] = t.value.trim() || a.nome; }); renderAmbSel(); }
+    else if (id === 'pCrit' || id === 'pMotor') { touchAmb(a => { a.params = { ...P(), [id === 'pCrit' ? 'criterio' : 'motor']: t.value }; }); if (id === 'pMotor' && t.value === 'google') startGoogle(); renderPage(); }
+    else if (id === 'cfgBase') { st.baseKind = t.value; $('#baseSel').value = t.value; saveUI(); $('#mapNote').hidden = true; setBase(); }
+    else if (id === 'pPed' || id === 'pTer') { touchAmb(a => { a.params = { ...P(), [id === 'pPed' ? 'evitaPedagio' : 'evitaTerra']: t.checked }; }); renderPage(); }
+    else if (id === 'pOsrm') { try { const v = t.value.trim(); if (!v || v === OSRM_DEF) localStorage.removeItem('rt1:osrm'); else localStorage.setItem('rt1:osrm', v); } catch (e) { /* ok */ } probeRoads(); toast('Testando o servidor de rotas…'); }
+    else if (['pSem', 'pVel', 'pFat', 'pJor', 'pTpa'].includes(id)) {
+      const k = { pSem: 'semanas', pVel: 'vel', pFat: 'fator', pJor: 'jornada', pTpa: 'tPadrao' }[id]; const v = numBR(t.value); if (!isNum(v) || v <= 0) { toast('Valor inválido'); return; }
+      touchAmb(a => { a.params = { ...P(), [k]: v }; }); rebuild(); renderPage();
+    }
+    else if (t.dataset.scor) { touchAmb(a => { a.setores[t.dataset.scor].cor = t.value; }); rebuild(); }
+    else if (t.dataset.snome) { touchAmb(a => { a.setores[t.dataset.snome].nome = t.value.trim() || 'Setor'; }); rebuild(); }
+    else if (t.dataset.scol !== undefined) { touchAmb(a => { a.setores[t.dataset.scol].colab = t.value; }); rebuild(); renderPage(); }
+    else if (id === 'rSet') { st.pg.roteiros.setor = t.value; renderPage(); }
+    else if (t.dataset.chkrk) { const c = st.pg.roteiros.chk; t.checked ? c.add(t.dataset.chkrk) : c.delete(t.dataset.chkrk); renderPage(); }
+    else if (t.dataset.chkcli) { const c = st.pg.clientes.chk; t.checked ? c.add(t.dataset.chkcli) : c.delete(t.dataset.chkcli); renderPage(); }
+    else if (id === 'cCid') { st.pg.clientes.cidade = t.value; st.pg.clientes.page = 0; renderPage(); }
+    else if (id === 'cEst') { st.pg.clientes.noEstudo = t.value; st.pg.clientes.page = 0; renderPage(); }
+    else if (id === 'cSem') { st.pg.clientes.semCoord = t.checked; st.pg.clientes.page = 0; renderPage(); }
+  });
+  let qT;
+  document.addEventListener('input', e => {
+    const t = e.target;
+    if (t.id === 'cQ' || t.id === 'kQ') { clearTimeout(qT); qT = setTimeout(() => { const pg = t.id === 'cQ' ? st.pg.clientes : st.pg.colaboradores; pg.q = t.value; pg.page = 0; renderPage(); const n = $('#' + t.id); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 220); }
+  });
+  $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { if (!$('#ctx').hidden) { fecharCtx(); return; } if (!$('#modal').hidden) { closeModal(); return; } if (st.placing) { endPlace(); return; } if (st.tool === 'ruler') { st.ruler = { pts: [], active: false }; drawRuler(); return; } if (st.sel.size) { st.sel.clear(); afterSel(); } return; }
+    if (e.target.closest('input,select,textarea') || !$('#modal').hidden) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); doUndo(); return; }
+    if (st.screen !== 'planner' || st.view !== 'mapa' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    const tools = { h: 'pan', v: 'select', b: 'rect', l: 'lasso', m: 'ruler' };
+    if (tools[k]) setTool(tools[k]);
+    else if (k === 'f') toggleFull();
+    else if (k === 'e') fitVisible();
+    else if (k === 'enter' && st.tool === 'ruler') { st.ruler.active = false; drawRuler(); }
+  });
+  const mq = matchMedia('(prefers-color-scheme: dark)'); if (mq.addEventListener) mq.addEventListener('change', onTheme);
+  new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  addEventListener('resize', () => map && map.invalidateSize());
+}
+function toggleQF(k, v) { const a = st.qf[k]; st.qf[k] = !v ? [] : a.includes(v) ? a.filter(x => x !== v) : [...a, v]; applyQF(); }
+function applyQF() {
+  st.hidden.clear();
+  const { w, d } = st.qf;
+  for (const r of st.routes.values()) if ((w.length && !w.includes(r.w)) || (d.length && !d.includes(r.d))) st.hidden.add(r.k);
+  if (st.visao === 'setores') { if (w.length || d.length) st.showLines = true; else if (setorVisto() === '') st.showLines = false; }
+  renderMap();
+}
+function soloRoute(rk) { st.hiddenSet.clear(); st.hidden.clear(); for (const k of st.routes.keys()) if (k !== rk) st.hidden.add(k); if (st.visao === 'rotas') sortedSetores().forEach(([id]) => { if (id !== rk.split('|')[0]) st.hiddenSet.add(id); }); st.showUnassigned = false; st.verSemSetor = false; st.showLines = true; st.panelR = true; applyPanels(); renderMap(); setTimeout(fitVisible, 30); }
+/* '' = todos, __nenhum, __sem = só quem não tem setor, ou o id do setor a abrir. Um setor aberto é colorido por dia, para montar as rotas diárias */
+function verSetor(v) {
+  if (v === '__parte') return;
+  const sets = sortedSetores().map(([id]) => id);
+  st.visao = 'setores'; st.hiddenSet.clear(); st.showLines = sets.includes(v);
+  if (v === '') { st.verSemSetor = true; st.showUnassigned = true; st.showOut = true; }
+  else if (v === '__nenhum') { sets.forEach(id => st.hiddenSet.add(id)); st.verSemSetor = false; }
+  else if (v === '__sem') { sets.forEach(id => st.hiddenSet.add(id)); st.verSemSetor = true; st.showUnassigned = true; st.showOut = true; }
+  else { sets.forEach(id => { if (id !== v) st.hiddenSet.add(id); }); st.verSemSetor = false; st.showUnassigned = true; }
+  if (sets.includes(v)) { if (!st.colorAntes) st.colorAntes = st.colorBy; st.colorBy = 'dia'; }
+  else if (st.colorAntes) { st.colorBy = st.colorAntes; st.colorAntes = null; }
+  applyQF();
+}
+function soloSetor(sid) { verSetor(sid); setTimeout(fitVisible, 30); }
+function pageAct(act, btn) {
+  const pg = st.pg;
+  switch (act) {
+    case 'newamb': newAmbForm(); break;
+    case 'plannerOpen': openPlannerChooser(); break;
+    case 'listagens': openListagens(); break;
+    case 'conta': contaForm(); break;
+    case 'mapabase': closeModal(); setVisao('base'); enterPlanner('mapa'); break;
+    case 'clibase': {
+      const pc = pg.clientes; st.baseF.cidades.clear(); st.baseF.soldes.clear();
+      if (pc.chk.size) pc.chk.forEach(x => st.baseF.soldes.add(x));
+      else if (pc.cidade && !pc.q.trim() && !pc.semCoord && !pc.noEstudo) st.baseF.cidades.add(pc.cidade);
+      else if (pc.q.trim() || pc.cidade || pc.semCoord || pc.noEstudo) pc.ultimos.forEach(x => st.baseF.soldes.add(x));
+      setVisao('base'); enterPlanner('mapa'); break;
+    }
+    case 'plannerNew': newAmbForm({ vazio: true, go: true }); break;
+    case 'plannerImport': openImport('roteiro', { toPlanner: true }); break;    case 'sample': loadSample(); break;
+    case 'newcli': cliForm({}, true); break;
+    case 'newcol': colForm({}, true); break;
+    case 'incl': inclForm(); break;
+    case 'dupamb': dupAmb(); break;
+    case 'delamb': armButton(btn, delAmb, 'Confirmar exclusão'); break;
+    case 'autoset': runAutoSet(); break;
+    case 'autoroute': runAutoRoute(); break;
+    case 'reseqall': { pushUndo('Otimizar sequências'); const sd = new Set(); for (const it of st.itens.values()) sdKeys(it).forEach(k => sd.add(k)); const before = sumRoutes([...st.routes.values()]).km; resequence(sd); rebuild(); renderAll(); toast(`Sequências otimizadas: ${fkm(before)} → ${fkm(sumRoutes([...st.routes.values()]).km)} km no ciclo`); break; }
+    case 'newset': { const id = uid('s'); const n = sortedSetores().length + 1; touchAmb(a => { a.setores[id] = { nome: `Setor ${String(n).padStart(2, '0')}`, cor: E.PALETA[(n - 1) % E.PALETA.length], colab: '' }; }); renderPage(); break; }
+    case 'cmp': runCmp(); break;
+    case 'backup': doBackup(); break;
+    case 'restore': restoreForm(); break;
+    case 'roadchk': roadJob([...pg.roteiros.chk], true, 'Rotas roteirizadas pelas ruas'); break;
+    case 'roadall': armButton(btn, () => roadJob(sortedRoutes([...st.routes.values()]).filter(r => !pg.roteiros.setor || r.s === pg.roteiros.setor).map(r => r.k), true, 'Estudo roteirizado pelas ruas'), 'Confirmar'); break;
+    case 'openchk': { const ks = [...pg.roteiros.chk]; st.hiddenSet.clear(); st.hidden.clear(); for (const k of st.routes.keys()) if (!pg.roteiros.chk.has(k)) st.hidden.add(k); st.showUnassigned = false; st.verSemSetor = false; st.visao = 'rotas'; st.showLines = true; setView('mapa'); setTimeout(fitVisible, 60); break; }
+    case 'chkall': { const pc = pg.clientes; const q = pc.q.trim().toLowerCase(); for (const c of st.cli.values()) { if (q && !(c.sold + ' ' + (c.nome || '') + ' ' + (c.endereco || '') + ' ' + (c.bairro || '')).toLowerCase().includes(q)) continue; if (pc.cidade && c.cidade !== pc.cidade) continue; if (pc.semCoord && isNum(c.lat) && isNum(c.lng)) continue; if (pc.noEstudo === 'sim' && !(st.itens && st.itens.has(c.sold))) continue; if (pc.noEstudo === 'nao' && st.itens && st.itens.has(c.sold)) continue; pc.chk.add(c.sold); } renderPage(); break; }
+    case 'chknone': pg.clientes.chk.clear(); renderPage(); break;
+    case 'cliIncl': { pushUndo('Incluir clientes'); let n = 0; for (const s of pg.clientes.chk) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); break; }
+    case 'cliDel': armButton(btn, () => { for (const s of pg.clientes.chk) { st.cli.del(s); if (st.itens) st.itens.del(s); } const n = pg.clientes.chk.size; pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) excluídos da base`); }, 'Confirmar exclusão'); break;
+    case 'geo': geoAgain(); break;
+    case 'adj': adjustForm(); break;
+    case 'gosea': goSea(); break;
+    case 'delex': armButton(btn, delExamples, 'Confirmar remoção'); break;
+  }
+}
+
+/* ================= Página inicial ================= */
+const homeCache = new Map(); // id do estudo → { alt, s } (resumo dos estudos que não estão abertos)
+let homeBusy = false;
+const fdate = ts => (ts ? new Date(ts).toLocaleDateString('pt-BR') : '—');
+
+function studySummary(a, items, routes) {
+  const rs = [...routes.values()], t = sumRoutes(rs), base = ambStats(a, items, routes);
+  const cnt = new Map(); for (const it of items.values()) if (it.s) cnt.set(it.s, (cnt.get(it.s) || 0) + 1);
+  const setoresList = Object.entries(a.setores || {}).map(([id, s]) => {
+    const r2 = rs.filter(r => r.s === id), m = sumRoutes(r2);
+    return { id, nome: s.nome, cor: s.cor, colab: s.colab, clientes: cnt.get(id) || 0, rotas: r2.length, km: m.km, horas: m.total, oc: m.ocMed };
+  }).sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR', { numeric: true }));
+  const dias = {}, occ = [0, 0, 0, 0];
+  for (const r of rs) { dias[r.d] = (dias[r.d] || 0) + r.m.n; const o = r.m.ocup; occ[o > 1 ? 3 : o >= 0.9 ? 2 : o < 0.5 ? 0 : 1]++; }
+  const pts = [], stride = Math.max(1, Math.ceil(items.size / 3000)); let i = 0;
+  for (const [sold, it] of items) {
+    if (i++ % stride) continue;
+    const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) continue;
+    pts.push([c.lat, c.lng, it.s && a.setores && a.setores[it.s] ? a.setores[it.s].cor : '']);
+  }
+  return { id: a.id, nome: a.nome, desc: a.desc || '', exemplo: !!a.exemplo, alterado: a.alterado || a.criado || 0, semanas: P(a).semanas, diasP: P(a).dias, ...base, desl: t.tDesl, atend: t.tAtend, setoresList, dias, occ, pts };
+}
+function homeSummaries() { // null = ainda calculando
+  return [...st.amb.values()].map(a => {
+    if (a.id === st.cur && st.itens) return studySummary(a, st.itens.map, st.routes);
+    const c = homeCache.get(a.id); return c && c.alt === a.alterado ? c.s : null;
+  });
+}
+async function loadHomeMissing() {
+  if (homeBusy) return; homeBusy = true;
+  try {
+    for (const a of [...st.amb.values()]) {
+      if (a.id === st.cur) continue;
+      const c = homeCache.get(a.id); if (c && c.alt === a.alterado) continue;
+      const b = new BucketStore('itens/' + a.id + '/b'), g = new BucketStore('geo/' + a.id + '/b');
+      try { await Promise.all([b.load(), g.load()]); homeCache.set(a.id, { alt: a.alterado, s: studySummary(a, b.map, buildRoutes(a, b.map, g.map)) }); }
+      catch (e) { homeCache.set(a.id, { alt: a.alterado, s: studySummary(a, new Map(), new Map()) }); }
+      finally { b.detach(); g.detach(); }
+    }
+  } finally { homeBusy = false; }
+  if (st.screen === 'home') renderHome();
+}
+
+function kcard(k, v, s) { return `<div class="kc"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`; }
+function hbars(rows) {
+  const max = Math.max(0, ...rows.map(r => r.v)) || 1;
+  return `<div class="hbars">${rows.map(r => {
+    const tag = r.enter ? 'button type="button"' : 'div', end = r.enter ? 'button' : 'div';
+    return `<${tag} class="hb" tabindex="0" data-tip="${esc(r.tip)}"${r.enter ? ` data-enter="${esc(r.enter)}"` : ''}><span class="hl${r.strong ? ' strong' : ''}">${r.cor ? `<i class="sw" style="background:${esc(r.cor)}"></i>` : ''}<span>${esc(r.label)}</span></span><span class="ht"><i style="width:${r.v > 0 ? Math.max(2, r.v / max * 100) : 0}%${r.cor ? ';background:' + esc(r.cor) : ''}"></i></span><span class="hv num">${esc(r.fmt)}</span></${end}>`;
+  }).join('')}</div>`;
+}
+function vcols(cols) {
+  const max = Math.max(0, ...cols.map(c => c.v)) || 1;
+  return `<div class="vcols">${cols.map(c => `<div class="vc" tabindex="0" data-tip="${esc(c.tip)}"><span class="vv num">${nf0.format(c.v)}</span><span class="vb"><i style="height:${c.v > 0 ? Math.max(3, c.v / max * 100) : 0}%;background:${c.cor || 'var(--accent)'}"></i></span><span class="vl">${esc(c.label)}</span>${c.sub ? `<span class="vs">${esc(c.sub)}</span>` : ''}</div>`).join('')}</div>`;
+}
+function homeScatter(f) {
+  let pts = f && f.pts.length ? f.pts : null;
+  if (!pts) { const all = [...st.cli.values()].filter(c => isNum(c.lat) && isNum(c.lng)), stride = Math.max(1, Math.ceil(all.length / 3000)); pts = all.filter((c, i) => i % stride === 0).map(c => [c.lat, c.lng, '']); }
+  const bases = [...st.col.values()].filter(c => isNum(c.lat) && isNum(c.lng));
+  if (!pts.length && !bases.length) return '<div class="empty"><p>Nenhum cliente ou base com coordenadas ainda. Importe as planilhas em Importação: as coordenadas são buscadas pelo endereço.</p><button class="btn sm" data-go="importar">Abrir Importação</button></div>';
+  const q = (arr, p) => arr[Math.round(p * (arr.length - 1))];
+  const ys = pts.map(p => p[0]).sort((a, b) => a - b), xs = pts.map(p => p[1]).sort((a, b) => a - b), big = ys.length > 40;
+  let la0 = big ? q(ys, .01) : (ys[0] ?? Infinity), la1 = big ? q(ys, .99) : (ys[ys.length - 1] ?? -Infinity);
+  let ln0 = big ? q(xs, .01) : (xs[0] ?? Infinity), ln1 = big ? q(xs, .99) : (xs[xs.length - 1] ?? -Infinity);
+  for (const c of bases) { la0 = Math.min(la0, c.lat); la1 = Math.max(la1, c.lat); ln0 = Math.min(ln0, c.lng); ln1 = Math.max(ln1, c.lng); }
+  const W = 640, H = 340, pad = 18, kx = Math.cos((la0 + la1) / 2 * Math.PI / 180);
+  const dx = Math.max((ln1 - ln0) * kx, 1e-4), dy = Math.max(la1 - la0, 1e-4);
+  const sc = Math.min((W - 2 * pad) / dx, (H - 2 * pad) / dy), ox = (W - dx * sc) / 2, oy = (H - dy * sc) / 2;
+  const X = lng => (ox + (lng - ln0) * kx * sc).toFixed(1), Y = lat => (oy + (la1 - lat) * sc).toFixed(1);
+  const groups = new Map();
+  for (const [la, ln, cor] of pts) { if (la < la0 || la > la1 || ln < ln0 || ln > ln1) continue; const k = cor || ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(`<circle cx="${X(ln)}" cy="${Y(la)}" r="2.4"/>`); }
+  let grid = ''; for (let i = 1; i < 6; i++) grid += `M${(W / 6 * i).toFixed(0)} 0V${H}`; for (let i = 1; i < 4; i++) grid += `M0 ${(H / 4 * i).toFixed(0)}H${W}`;
+  return `<svg class="scatter" viewBox="0 0 ${W} ${H}" role="img" aria-label="Distribuição geográfica dos clientes e das bases dos colaboradores"><path d="${grid}" style="stroke:var(--line);fill:none" stroke-width="1" stroke-dasharray="2 5"/>
+    ${[...groups].map(([cor, cs]) => cor ? `<g fill="${esc(cor)}" fill-opacity=".9">${cs.join('')}</g>` : `<g style="fill:var(--muted)" fill-opacity=".5">${cs.join('')}</g>`).join('')}
+    ${bases.map(c => `<rect x="${(+X(c.lng) - 6).toFixed(1)}" y="${(+Y(c.lat) - 6).toFixed(1)}" width="12" height="12" rx="3" style="fill:${esc(c.cor || 'var(--ink)')};stroke:var(--surface);stroke-width:2" data-tip="${esc((c.nome || c.codigo) + '\n' + (c.endereco || 'Base de saída'))}"/>`).join('')}</svg>`;
+}
+
+function openPlannerChooser() {
+  const list = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0));
+  openModal(`<div class="dh"><div><h2>Abrir Planner</h2><div class="muted" style="font-size:12.5px">Como você quer começar?</div></div><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db"><div class="choose">
+    <section class="opt"><div class="oh"><span class="oi">${ICON.folder}</span><div><h3>Estudo existente</h3><p>Continue de onde parou ou compare um cenário.</p></div></div>
+      ${list.length ? `${list.length > 5 ? '<input type="search" id="pickQ" placeholder="Buscar estudo…" aria-label="Buscar estudo">' : ''}<div class="amblist pick" id="pickList">${list.map(x => `<button class="ambi" type="button" data-enter="${esc(x.id)}" data-nome="${esc(String(x.nome).toLowerCase())}"><span class="nm">${esc(x.nome)}</span><span class="mt">${Object.keys(x.setores || {}).length} setores · ${fdate(x.alterado || x.criado)}${x.id === st.cur ? ' · último aberto' : ''}</span></button>`).join('')}</div>` : '<p class="muted">Nenhum estudo criado ainda — comece por um planner vazio ou importe um roteiro.</p>'}
+    </section>
+    <button class="opt" type="button" data-act="plannerNew"><div class="oh"><span class="oi">${ICON.filePlus}</span><div><h3>Planner vazio e novo</h3><p>Cria um estudo do zero. Você inclui os clientes e desenha os setores no mapa.</p></div></div></button>
+    <button class="opt" type="button" data-act="plannerImport"><div class="oh"><span class="oi">${ICON.upload}</span><div><h3>Importar</h3><p>Traga um roteiro de uma planilha Excel ou CSV e abra direto no mapa.</p></div></div></button>
+  </div>
+  <div class="muted" style="font-size:12.5px">Tem um arquivo de backup? <button class="btn sm" type="button" data-act="restore">Restaurar backup (.json)</button></div></div>`, 'lg');
+  const q = $('#pickQ'); if (q) q.oninput = () => { const v = q.value.trim().toLowerCase(); $$('#pickList .ambi').forEach(b => { b.hidden = !!v && !b.dataset.nome.includes(v); }); };
+}
+
+function atalhosHome() {
+  const item = (icone, titulo, desc, attr) => `<button class="opt" type="button" ${attr}><div class="oh"><span class="oi">${icone}</span><div><h3>${titulo}</h3><p>${desc}</p></div></div></button>`;
+  return `<nav class="atalhos" aria-label="Seções">
+    ${item(ICON.list, 'Listagens', 'Clientes, colaboradores e roteiros', 'data-act="listagens"')}
+    ${item(ICON.folder, 'Estudos', 'Cenários, setores e parâmetros', 'data-go="estudos"')}
+    ${item(ICON.upload, 'Importações', 'Modelos de planilha e importação', 'data-go="importar"')}
+    ${item(ICON.gear, 'Configurações', 'Conta, mapa, servidores e backup', 'data-go="config"')}
+  </nav>`;
+}
+function openListagens() {
+  const item = (view, nome, info) => `<button class="ambi" type="button" data-go="${view}"><span class="nm">${nome}</span><span class="mt">${info}</span></button>`;
+  const a = amb();
+  openModal(`<div class="dh"><h2>Listagens</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db"><div class="amblist">
+    ${item('clientes', 'Clientes', `${nf0.format(st.cli.size)} na base`)}
+    ${item('colaboradores', 'Colaboradores', `${nf0.format(st.col.size)} na base`)}
+    ${item('roteiros', 'Roteiros', a ? `${nf0.format(st.routes.size)} rotas em ${esc(a.nome)}` : 'Nenhum estudo aberto')}
+    <button class="ambi" type="button" data-act="mapabase"><span class="nm">Mapa da base</span><span class="mt">Todos os clientes, com filtro por cidade ou cliente</span></button>
+  </div></div>`, 'sm');
+}
+function renderHome() {
+  const el = $('#homeView'); if (!el || !st.amb || !st.cli) return;
+  const tipEl = $('#tip'); if (tipEl) tipEl.hidden = true;
+  const keep = el.scrollTop;
+  const sums = homeSummaries(), ready = sums.filter(Boolean);
+  if (ready.length < sums.length) loadHomeMissing();
+  const byId = new Map(ready.map(s => [s.id, s]));
+  const recent = [...ready].sort((x, y) => y.alterado - x.alterado);
+  const f = byId.get(st.homeFocus) || byId.get(st.cur) || recent[0] || null;
+  const cur = amb();
+  const clis = [...st.cli.values()], cols = [...st.col.values()];
+  const comCoord = clis.filter(c => isNum(c.lat) && isNum(c.lng)).length;
+  const cidades = new Map(); for (const c of clis) if (c.cidade) cidades.set(c.cidade, (cidades.get(c.cidade) || 0) + 1);
+  const basesOk = cols.filter(c => isNum(c.lat) && isNum(c.lng)).length;
+  const comRotas = ready.filter(s => s.rotas > 0);
+  const melhor = [...comRotas].sort((x, y) => x.km - y.km)[0];
+
+  const hero = `<section class="hero card"><div><span class="lbl">Planejamento territorial · ${esc(st.empresa.nome)}</span><h1>Roteirizador <b>RRM</b></h1>
+    <p>Acompanhe os números dos estudos e abra o Planner para montar setores e rotas sobre o mapa, calcular KM e tempo e comparar cenários.</p></div>
+    <div class="row"><button class="btn primary lg" data-act="plannerOpen">Abrir Planner</button>${st.cli.size ? '<button class="btn lg" data-act="mapabase" title="Todos os clientes da base, com filtro por cidade">Mapa da base</button>' : ''}${cur ? `<button class="btn lg" data-enter="${esc(cur.id)}" title="Abrir o último estudo no mapa">Continuar: ${esc(cur.nome)}</button>` : ''}</div></section>`;
+
+  if (!st.amb.size && !st.cli.size) {
+    el.innerHTML = `<div class="page home">${hero}${atalhosHome()}<div class="card"><div class="empty"><h3>Vamos começar</h3><p>Ainda não há clientes nem estudos. Baixe os modelos de planilha e importe colaboradores, clientes e roteiro, abra o Planner para criar um estudo vazio, restaure um backup ou gere dados de exemplo para conhecer o sistema.</p>
+      <div class="row" style="justify-content:center"><button class="btn primary" data-go="importar">Importação e modelos</button><button class="btn" data-act="plannerOpen">Abrir Planner</button><button class="btn" data-act="sample">Gerar dados de exemplo</button><button class="btn" data-act="restore">Restaurar backup</button></div></div></div></div>`;
+    el.scrollTop = keep; return;
+  }
+
+  const overview = `<div class="kgrid">
+    ${kcard('Estudos', nf0.format(st.amb.size), `${comRotas.length} com rotas montadas`)}
+    ${kcard('Clientes na base', nf0.format(clis.length), clis.length ? `${fpct(comCoord / clis.length)} com coordenadas` : 'base vazia')}
+    ${kcard('Bases de saída', `${nf0.format(basesOk)}<span class="of">/${nf0.format(cols.length)}</span>`, `colaboradores com base localizada`)}
+    ${kcard('Cidades', nf0.format(cidades.size), cidades.size ? esc([...cidades].sort((x, y) => y[1] - x[1])[0][0]) + ' é a maior' : 'sem cidade informada')}
+    ${kcard('Menor KM no ciclo', melhor ? fkm(melhor.km) : '—', melhor ? esc(melhor.nome) : 'sem rotas calculadas')}
+    ${kcard('Última alteração', recent[0] ? fdate(recent[0].alterado) : '—', recent[0] ? esc(recent[0].nome) : '—')}</div>`;
+
+  let focusBlock = '';
+  if (f) {
+    const dias = [...new Set([...f.diasP, ...Object.keys(f.dias).map(Number)])].filter(d => d >= 1 && d <= 7).sort((x, y) => x - y);
+    const OCC = [['Com folga', '< 50%', 'var(--muted)'], ['Adequada', '50–90%', 'var(--ok)'], ['No limite', '90–100%', 'var(--warn)'], ['Excede', '> 100%', 'var(--bad)']];
+    const chart = (t, sub, body) => `<div class="card"><div class="ch"><h2>${t}</h2><span class="muted" style="font-size:12px">${sub}</span></div><div class="cb">${body}</div></div>`;
+    const none = msg => `<p class="muted" style="margin:0">${msg}</p>`;
+    const kmRows = [...comRotas].sort((x, y) => x.km - y.km).slice(0, 8).map(s => ({ label: s.nome, v: s.km, fmt: fkm(s.km) + ' km', enter: s.id, strong: s.id === f.id, tip: `${s.nome}\n${fkm(s.km)} km · ${fhm(s.horas)} · ${s.rotas} rotas\nOcupação média ${fpct(s.oc)}\nClique para abrir no Planner` }));
+    const setRows = [...f.setoresList].filter(s => s.rotas).sort((x, y) => y.km - x.km).map(s => ({ label: s.nome, cor: s.cor, v: s.km, fmt: fkm(s.km) + ' km', tip: `${s.nome}\n${s.clientes} clientes · ${s.rotas} rotas\n${fkm(s.km)} km · ${fhm(s.horas)}\nOcupação média ${fpct(s.oc)}` }));
+    focusBlock = `<div class="ph"><h2 class="sec">Indicadores do estudo</h2><label class="row"><span class="lbl">Estudo em foco</span><select id="hFocus">${recent.map(s => `<option value="${esc(s.id)}"${s.id === f.id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label></div>
+      <div class="kgrid">
+        ${kcard('Clientes', nf0.format(f.clientes), `${nf0.format(f.setorizados)} com setor`)}
+        ${kcard('Setores', nf0.format(f.setores), `${f.setoresList.filter(s => s.colab).length} com colaborador`)}
+        ${kcard('Rotas', nf0.format(f.rotas), `ciclo de ${f.semanas} semana${f.semanas > 1 ? 's' : ''}`)}
+        ${kcard('KM no ciclo', fkm(f.km), f.rotas ? `${fkm(f.km / f.rotas)} km por rota` : 'sem rotas')}
+        ${kcard('Tempo no ciclo', fhm(f.horas), `${fhm(f.desl)} desloc. · ${fhm(f.atend)} atend.`)}
+        ${kcard('Ocupação média', f.rotas ? fpct(f.oc) : '—', f.rotas ? `maior rota: ${fpct(f.ocMax)}` : 'sem rotas')}</div>
+      ${f.rotas ? '' : `<div class="banner info">Este estudo ainda não tem rotas montadas. <button class="btn sm" data-enter="${esc(f.id)}">Abrir no Planner</button></div>`}
+      <div class="cgrid">
+        ${chart('KM no ciclo por estudo', 'menor = menos deslocamento', kmRows.length ? hbars(kmRows) : none('Monte rotas em um estudo para compará-lo aqui.'))}
+        ${chart('KM por setor', esc(f.nome), setRows.length ? hbars(setRows) : none('Este estudo não tem setores com rotas.'))}
+        ${chart('Ocupação da jornada nas rotas', `${f.rotas} rotas`, f.rotas ? vcols(OCC.map(([n, r, cor], i) => ({ label: n, sub: r, v: f.occ[i], cor, tip: `${n} (${r} da jornada)\n${f.occ[i]} rota(s)` }))) : none('Sem rotas para medir.'))}
+        ${chart('Visitas por dia da semana', 'no ciclo', f.rotas ? vcols(dias.map(d => ({ label: DIA_C[d], v: f.dias[d] || 0, tip: `${DIA_L[d]}\n${nf0.format(f.dias[d] || 0)} visitas no ciclo` }))) : none('Sem rotas para medir.'))}
+      </div>`;
+  }
+
+  const cityRows = [...cidades].sort((x, y) => y[1] - x[1]).slice(0, 6).map(([c, n]) => ({ label: c, v: n, fmt: nf0.format(n), tip: `${c}\n${nf0.format(n)} clientes` }));
+  const legend = f ? f.setoresList.slice(0, 12).map(s => `<span class="li"><i class="sw" style="background:${esc(s.cor)}"></i>${esc(s.nome)}</span>`).join('') : '';
+  const colRows = [...cols].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).slice(0, 10).map(c => {
+    const s = f && f.setoresList.find(x => x.colab === c.codigo);
+    return `<tr><td><span class="sw" style="background:${esc(c.cor || 'var(--muted)')}"></span></td><td><b>${esc(c.nome)}</b> <span class="muted">${esc(c.codigo)}</span></td><td>${esc(c.funcao || '')}</td><td class="wrap">${esc(c.endereco || '—')}</td><td>${isNum(c.lat) && isNum(c.lng) ? '<span class="pill ok">localizada</span>' : '<span class="pill warn">sem coordenadas</span>'}</td><td>${s ? esc(s.nome) : '<span class="muted">—</span>'}</td><td class="n">${s ? fkm(s.km) : '—'}</td></tr>`;
+  }).join('');
+  const studyRows = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0)).map(a => {
+    const s = byId.get(a.id), tag = (a.exemplo ? ' <span class="pill idle">exemplo</span>' : '') + (a.id === st.cur ? ' <span class="pill ok">último aberto</span>' : '');
+    const nm = `<td class="wrap"><b>${esc(a.nome)}</b>${tag}${a.desc ? `<div class="muted" style="font-size:12px">${esc(a.desc)}</div>` : ''}</td>`;
+    return `<tr class="clk" data-enter="${esc(a.id)}">${nm}${s ? `<td class="n">${s.setores}</td><td class="n">${nf0.format(s.clientes)}</td><td class="n">${s.rotas}</td><td class="n">${fkm(s.km)}</td><td class="n">${fhm(s.horas)}</td><td>${s.rotas ? ocPill(s.oc) : '—'}</td>` : '<td class="muted" colspan="6">calculando…</td>'}<td>${fdate(a.alterado || a.criado)}</td><td><button class="btn sm primary" type="button" data-enter="${esc(a.id)}">Abrir</button></td></tr>`;
+  }).join('');
+
+  el.innerHTML = `<div class="page home">${hero}${atalhosHome()}
+    <div class="ph"><h2 class="sec">Visão geral</h2></div>${overview}
+    ${focusBlock}
+    <div class="ph"><h2 class="sec">Bases</h2></div>
+    <div class="cols-b">
+      <div class="card"><div class="ch"><h2>Cobertura geográfica</h2><button class="btn sm" data-enter="${f ? esc(f.id) : ''}"${f ? '' : ' hidden'}>Ver no mapa</button></div><div class="cb stack">${homeScatter(f)}
+        <div class="legend-row"><span class="li"><i class="sw" style="background:var(--muted);opacity:.6"></i>Clientes${f ? ' fora de setor' : ''}</span>${legend}<span class="li"><i class="sw sq" style="background:var(--ink)"></i>Base do colaborador</span></div></div></div>
+      <div class="card"><div class="ch"><h2>Bases de dados</h2></div><div class="cb stack">
+        <div class="dbrow"><div><div class="lbl">Clientes</div><b class="num">${nf0.format(clis.length)}</b> <span class="muted">· ${nf0.format(clis.length - comCoord)} sem coordenadas</span></div><button class="btn sm" data-go="clientes">Gerenciar</button></div>
+        <div class="dbrow"><div><div class="lbl">Colaboradores</div><b class="num">${nf0.format(cols.length)}</b> <span class="muted">· ${nf0.format(cols.length - basesOk)} sem base localizada</span></div><button class="btn sm" data-go="colaboradores">Gerenciar</button></div>
+        <div class="dbrow"><div><div class="lbl">Importação e modelos</div><span class="muted">Modelos de planilha para clientes, colaboradores e roteiro${seaList().length ? ` · <b style="color:var(--warn)">${nf0.format(seaList().length)} endereço(s) a ajustar</b>` : ''}</span></div><button class="btn sm primary" data-go="importar">Abrir</button></div>
+        <div><div class="lbl" style="margin-bottom:6px">Clientes por cidade</div>${cityRows.length ? hbars(cityRows) : '<p class="muted" style="margin:0">Nenhuma cidade informada nos clientes.</p>'}</div></div></div>
+    </div>
+    <div class="card"><div class="ch"><h2>Bases de saída dos colaboradores</h2><span class="muted" style="font-size:12px">${f ? 'setor no estudo: ' + esc(f.nome) : ''}</span></div>
+      ${colRows ? `<div style="overflow-x:auto"><table class="t"><thead><tr><th></th><th>Colaborador</th><th>Função</th><th>Endereço da base</th><th>Localização</th><th>Setor</th><th class="n">KM/ciclo</th></tr></thead><tbody>${colRows}</tbody></table></div>${cols.length > 10 ? `<div class="pager">Mostrando 10 de ${cols.length} · <button class="btn sm" data-go="colaboradores">Ver todos</button></div>` : ''}` : '<div class="cb muted">Nenhum colaborador cadastrado. Importe a planilha em Colaboradores, dentro do Planner.</div>'}
+    </div>
+    <div class="ph"><h2 class="sec">Estudos</h2><div class="row"><button class="btn" data-act="plannerImport">Importar roteiro</button><button class="btn primary" data-act="plannerNew">Novo planner vazio</button></div></div>
+    <div class="tblwrap"><table class="t"><thead><tr><th>Estudo</th><th class="n">Setores</th><th class="n">Clientes</th><th class="n">Rotas</th><th class="n">KM no ciclo</th><th class="n">Horas no ciclo</th><th>Ocupação</th><th>Alterado</th><th></th></tr></thead><tbody>${studyRows}</tbody></table></div>
+    <div class="card"><div class="cb row" style="justify-content:space-between"><span class="muted">Os dados ficam neste navegador. Guarde um backup para levar bases e estudos a outro computador.</span><span class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button><button class="btn sm" data-act="sample">Gerar dados de exemplo</button></span></div></div>
+  </div>`;
+  el.scrollTop = keep;
+}
+
+/* ================= Acesso: ambientes e usuários =================
+   Sem servidor, as contas ficam no mesmo armazenamento dos dados: isso separa as empresas e evita o acesso casual,
+   mas não substitui um login validado em servidor. Senhas e códigos são guardados só como hash (PBKDF2). */
+const EMPRESAS = CFG.empresas || [];
+const SES_KEY = 'rt1:sessao', ULT_KEY = 'rt1:ultimoAmbiente', MANTER_DIAS = 30, SENHA_MIN = 8;
+const lg = { step: 'empresa', emp: null, ctx: {} };
+const LOGO = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/><path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3"/></svg>';
+
+const hexOf = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+async function derivar(txt, salt) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(txt), 'PBKDF2', false, ['deriveBits']);
+  return hexOf(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(salt), iterations: 150000 }, k, 256));
+}
+async function segredo(txt) { const salt = hexOf(crypto.getRandomValues(new Uint8Array(16))); return { salt, hash: await derivar(txt, salt) }; }
+const confere = async (txt, s) => !!s && (await derivar(txt, s.salt)) === s.hash;
+function novoCodigo() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; return [...crypto.getRandomValues(new Uint8Array(12))].map(x => A[x % A.length]).join('').match(/.{4}/g).join('-'); }
+const normCodigo = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const normLogin = v => String(v || '').trim().toLowerCase();
+const colUsuarios = emp => emp.id + '_usuarios';
+const usuariosDe = async emp => (await st.base.list(colUsuarios(emp))).map(d => d.data);
+const salvarUsuario = (emp, u) => st.base.set(colUsuarios(emp), u.id, u);
+function validaSenha(a, b) { if (String(a).length < SENHA_MIN) return `A senha precisa ter ao menos ${SENHA_MIN} caracteres.`; if (a !== b) return 'As duas senhas não são iguais.'; return ''; }
+
+function limparSessao() { for (const n of ['localStorage', 'sessionStorage']) { try { window[n].removeItem(SES_KEY); } catch (e) { /* ignora */ } } }
+function salvarSessao(emp, u, manter) {
+  limparSessao();
+  const v = JSON.stringify({ emp: emp.id, uid: u.id, ate: manter ? Date.now() + MANTER_DIAS * 864e5 : 0 });
+  try { (manter ? localStorage : sessionStorage).setItem(SES_KEY, v); localStorage.setItem(ULT_KEY, emp.id); } catch (e) { /* a sessão dura até recarregar a página */ }
+}
+function lerSessao() {
+  for (const n of ['sessionStorage', 'localStorage']) {
+    try { const v = JSON.parse(window[n].getItem(SES_KEY)); if (v && (!v.ate || v.ate > Date.now())) return v; } catch (e) { /* ignora */ }
+  }
+  return null;
+}
+
+/* Dados de antes da separação por ambiente ficavam sem prefixo; ao entrar, oferece trazê-los para um ambiente ainda vazio */
+const COLS_BASE = ['clientes', 'colaboradores', 'ambientes'];
+async function contarBase(pre) { const out = {}; for (const c of COLS_BASE) out[c] = (await st.base.list(pre + c)).reduce((n, d) => n + Object.keys((d.data && d.data.items) || {}).length, 0); return out; }
+async function dadosAntigos(emp) {
+  const v = await contarBase(''); if (!v.clientes && !v.colaboradores && !v.ambientes) return null;
+  const n = await contarBase(emp.id + '_'); return n.clientes || n.colaboradores || n.ambientes ? null : v;
+}
+async function moverDadosAntigos(emp) {
+  const pre = emp.id + '_', cols = [...COLS_BASE], feitos = [];
+  for (const d of await st.base.list('ambientes')) for (const id of Object.keys((d.data && d.data.items) || {})) cols.push(`itens/${id}/b`, `geo/${id}/b`);
+  try {
+    for (const c of cols) for (const d of await st.base.list(c)) { await st.base.set(pre + c, d.id, d.data); await st.base.del(c, d.id); feitos.push([c, d]); }
+  } catch (e) { // armazenamento cheio: devolve o que já tinha sido movido
+    for (const [c, d] of feitos.reverse()) { try { await st.base.del(pre + c, d.id); await st.base.set(c, d.id, d.data); } catch (e2) { /* ignora */ } }
+    throw e;
+  }
+  try { const ui = localStorage.getItem('rt1:ui'); if (ui) { localStorage.setItem('rt1:' + pre + 'ui', ui); localStorage.removeItem('rt1:ui'); } } catch (e) { /* ignora */ }
+}
+
+const senhaCampo = (id, rotulo, ac) => `<label class="field"><span class="lbl">${rotulo}</span><span class="pwrap"><input type="password" name="${id}" autocomplete="${ac}" required><button type="button" data-ver aria-label="Mostrar senha">Mostrar</button></span></label>`;
+const textoCampo = (id, rotulo, ac, extra = '') => `<label class="field"><span class="lbl">${rotulo}</span><input type="text" name="${id}" autocomplete="${ac}" required ${extra}></label>`;
+const manterCampo = `<label class="chk"><input type="checkbox" name="manter"> Manter conectado</label>`;
+const LG_TELAS = {
+  empresa() {
+    let ult = null; try { ult = localStorage.getItem(ULT_KEY); } catch (e) { /* ignora */ }
+    return `<h1>Escolha o ambiente</h1><p class="sub">Cada empresa tem seus próprios usuários, clientes, colaboradores e estudos.</p>
+      <div class="lg-emps">${EMPRESAS.map(e => `<button class="opt" type="button" data-emp="${esc(e.id)}"><div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><h3>${esc(e.nome)}</h3>${e.id === ult ? '<p>Último acesso</p>' : ''}</div></div></button>`).join('')}</div>`;
+  },
+  login() {
+    return `<h1>Entrar</h1><form id="fLogin">${textoCampo('login', 'Usuário ou e-mail', 'username')}${senhaCampo('senha', 'Senha', 'current-password')}
+      <div class="lg-row">${manterCampo}<button class="lg-link" type="button" data-lg="esqueci">Esqueci minha senha</button></div>
+      <button class="btn primary lg-go" type="submit">Entrar</button></form>`;
+  },
+  primeiro() {
+    return `<h1>Primeiro acesso</h1><p class="sub">Este ambiente ainda não tem usuários neste navegador. Crie o administrador: depois ele cadastra os demais.</p>
+      <form id="fPrimeiro">${textoCampo('nome', 'Nome', 'name')}${textoCampo('login', 'Usuário ou e-mail', 'username')}${senhaCampo('senha', 'Senha', 'new-password')}${senhaCampo('senha2', 'Repita a senha', 'new-password')}
+      <div class="lg-row">${manterCampo}</div><button class="btn primary lg-go" type="submit">Criar acesso</button></form>`;
+  },
+  esqueci() {
+    return `<h1>Redefinir senha</h1><p class="sub">Use o código de recuperação que apareceu quando a sua senha foi criada. Sem ele, um administrador do ambiente pode redefinir a senha em Minha conta.</p>
+      <form id="fEsqueci">${textoCampo('login', 'Usuário ou e-mail', 'username')}${textoCampo('codigo', 'Código de recuperação', 'off', 'placeholder="XXXX-XXXX-XXXX"')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}
+      <div class="lg-row"><button class="lg-link" type="button" data-lg="login">Voltar para o login</button></div><button class="btn primary lg-go" type="submit">Redefinir senha</button></form>`;
+  },
+  trocar() {
+    return `<h1>Crie a sua senha</h1><p class="sub">Você entrou com uma senha provisória. Escolha a sua para continuar.</p>
+      <form id="fTrocar">${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}<button class="btn primary lg-go" type="submit">Salvar e entrar</button></form>`;
+  },
+  codigo() {
+    return `<h1>Guarde o seu código de recuperação</h1><p class="sub">Ele aparece só agora e permite redefinir a senha se você a esquecer. Guarde fora deste computador.</p>
+      <div class="lg-code">${esc(lg.ctx.codigo)}</div><div class="lg-row"><button class="btn" type="button" data-copiar="${esc(lg.ctx.codigo)}">Copiar código</button><button class="btn primary" type="button" data-lg="seguir">Já guardei, continuar</button></div>`;
+  },
+  legado() {
+    const v = lg.ctx.leg;
+    return `<h1>Dados salvos antes dos ambientes</h1><p class="sub">Este navegador tem ${nf0.format(v.clientes)} cliente(s), ${nf0.format(v.colaboradores)} colaborador(es) e ${nf0.format(v.ambientes)} estudo(s) salvos antes da separação por empresa. Eles pertencem a <b>${esc(lg.emp.nome)}</b>?</p>
+      <div class="lg-row"><button class="btn" type="button" data-lg="naolegado">Agora não</button><button class="btn primary" type="button" data-lg="simlegado">Trazer para ${esc(lg.emp.nome)}</button></div>
+      <p class="sub" style="font-size:12.5px">Com “Agora não”, nada é apagado: a pergunta volta no próximo login.</p>`;
+  }
+};
+function renderLogin() {
+  const e = lg.emp, comEnv = e && lg.step !== 'empresa';
+  const trocar = ['login', 'primeiro', 'esqueci'].includes(lg.step);
+  $('#loginView').innerHTML = `<div class="lg"><div class="lg-brand">${LOGO}<span>Roteirizador <b>RRM</b></span></div>
+    <div class="card lg-card">${comEnv ? `<div class="lg-env"><span class="oi sg">${esc(e.sigla)}</span><b>${esc(e.nome)}</b>${trocar ? '<button class="btn sm" type="button" data-lg="empresa">Trocar de ambiente</button>' : ''}</div>` : ''}
+      <div id="lgMsg" role="alert"></div>${LG_TELAS[lg.step]()}</div>
+    <p class="lg-foot">Os acessos e os dados ficam guardados neste navegador.</p></div>`;
+  const f = $('#loginView input:not([type=checkbox])'); if (f) f.focus();
+  if (!window.crypto || !crypto.subtle) lgMsg('Este endereço não permite o login com segurança. Abra o sistema por https ou por 127.0.0.1 (Live Server).');
+}
+function lgMsg(txt, cls = 'bad') { $('#lgMsg').innerHTML = txt ? `<div class="banner ${cls}">${esc(txt)}</div>` : ''; }
+async function escolherEmpresa(id) {
+  lg.emp = EMPRESAS.find(x => x.id === id); if (!lg.emp) return;
+  lg.step = (await usuariosDe(lg.emp)).length ? 'login' : 'primeiro';
+  renderLogin();
+}
+async function entrar(u, manter) {
+  salvarSessao(lg.emp, u, manter); st.empresa = lg.emp; st.usuario = u;
+  const leg = await dadosAntigos(lg.emp);
+  if (leg) { lg.step = 'legado'; lg.ctx = { leg }; renderLogin(); return; }
+  await boot();
+}
+const LG_FORMS = {
+  async fLogin(f) {
+    const us = await usuariosDe(lg.emp), u = us.find(x => x.login === normLogin(f.get('login'))), manter = !!f.get('manter');
+    if (!u || !(await confere(f.get('senha'), u.senha))) { lgMsg('Usuário ou senha incorretos.'); return; }
+    if (u.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u, manter }; renderLogin(); return; }
+    await entrar(u, manter);
+  },
+  async fPrimeiro(f) {
+    const login = normLogin(f.get('login')), nome = f.get('nome').trim(), manter = !!f.get('manter'), erro = validaSenha(f.get('senha'), f.get('senha2'));
+    if (erro) { lgMsg(erro); return; }
+    if ((await usuariosDe(lg.emp)).length) { lg.step = 'login'; renderLogin(); return; }
+    const codigo = novoCodigo();
+    const u = { id: uid('u'), nome, login, papel: 'admin', senha: await segredo(f.get('senha')), rec: await segredo(normCodigo(codigo)), criado: Date.now() };
+    await salvarUsuario(lg.emp, u);
+    lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => entrar(u, manter) }; renderLogin();
+  },
+  async fEsqueci(f) {
+    const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
+    const u = (await usuariosDe(lg.emp)).find(x => x.login === normLogin(f.get('login')));
+    if (!u || !(await confere(normCodigo(f.get('codigo')), u.rec))) { lgMsg('Usuário ou código de recuperação incorretos.'); return; }
+    const codigo = novoCodigo(), novo = { ...u, senha: await segredo(f.get('senha')), rec: await segredo(normCodigo(codigo)) }; delete novo.trocarSenha;
+    await salvarUsuario(lg.emp, novo);
+    lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => { lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg('Senha redefinida. Entre com a nova senha.', 'info'); } }; renderLogin();
+  },
+  async fTrocar(f) {
+    const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
+    const { u, manter } = lg.ctx, codigo = novoCodigo(), novo = { ...u, senha: await segredo(f.get('senha')), rec: await segredo(normCodigo(codigo)) }; delete novo.trocarSenha;
+    await salvarUsuario(lg.emp, novo);
+    lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => entrar(novo, manter) }; renderLogin();
+  }
+};
+function bindLogin() {
+  const v = $('#loginView');
+  v.addEventListener('submit', async e => {
+    e.preventDefault();
+    const b = e.target.querySelector('[type=submit]'); b.disabled = true; lgMsg('');
+    try { await LG_FORMS[e.target.id](new FormData(e.target)); }
+    catch (err) { lgMsg((err && err.message) || 'Não foi possível concluir. Tente de novo.'); }
+    finally { if (b.isConnected) b.disabled = false; }
+  });
+  v.addEventListener('click', async e => {
+    const t = e.target.closest('button'); if (!t) return;
+    const ds = t.dataset;
+    if (ds.ver !== undefined) { const i = t.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; t.textContent = ver ? 'Ocultar' : 'Mostrar'; }
+    else if (ds.copiar) copiarTexto(ds.copiar, t);
+    else if (ds.emp) await escolherEmpresa(ds.emp);
+    else if (ds.lg === 'empresa') { lg.step = 'empresa'; lg.emp = null; renderLogin(); }
+    else if (ds.lg === 'login' || ds.lg === 'esqueci') { lg.step = ds.lg; renderLogin(); }
+    else if (ds.lg === 'seguir') await lg.ctx.seguir();
+    else if (ds.lg === 'naolegado') await boot();
+    else if (ds.lg === 'simlegado') {
+      t.disabled = true;
+      try { await moverDadosAntigos(lg.emp); await boot(); }
+      catch (err) { t.disabled = false; lgMsg('Não foi possível mover os dados: ' + ((err && err.message) || 'erro') + ' Nada foi perdido.'); }
+    }
+  });
+}
+async function copiarTexto(txt, btn) {
+  try { await navigator.clipboard.writeText(txt); btn.textContent = 'Copiado'; }
+  catch (e) { btn.textContent = 'Selecione e copie'; }
+}
+
+/* ----- Minha conta ----- */
+function renderAcct() {
+  const e = st.empresa, u = st.usuario, b = $('#acctBtn');
+  b.innerHTML = `<span class="sg">${esc(e.sigla)}</span><span class="an">${esc(e.nome)}</span>`;
+  b.title = `${e.nome} · ${u.nome}`;
+}
+function mostraSegredo(titulo, texto, valor) {
+  openModal(`<div class="dh"><h2>${esc(titulo)}</h2></div><div class="db"><p class="muted" style="margin:0">${esc(texto)}</p><div class="lg-code">${esc(valor)}</div></div>
+    <div class="df"><button class="btn" type="button" id="sgCopia">Copiar</button><button class="btn primary" type="button" id="sgFim">Continuar</button></div>`, 'sm');
+  $('#sgCopia').onclick = e => copiarTexto(valor, e.target);
+  $('#sgFim').onclick = contaForm;
+}
+function contaForm() {
+  const e = st.empresa, u = st.usuario, admin = u.papel === 'admin';
+  openModal(`<div class="dh"><h2>Minha conta</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db">
+    <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(u.nome)}</b> <span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span><div class="muted">${esc(u.login)} · Ambiente ${esc(e.nome)}</div></div></div>
+    <section class="acct-sec"><h3>Alterar senha</h3><form id="ctSenha"><div class="fgrid">${senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div><div class="row"><button class="btn sm primary" type="submit">Salvar senha</button></div></form></section>
+    <section class="acct-sec"><h3>Código de recuperação</h3><p class="muted" style="margin:0">Permite redefinir a senha em “Esqueci minha senha”. Gerar um novo invalida o anterior.</p><div class="row"><button class="btn sm" type="button" id="ctCodigo">Gerar novo código</button></div></section>
+    ${admin ? `<section class="acct-sec"><h3>Usuários do ambiente</h3><div id="ctUsuarios" class="muted">Carregando…</div>
+      <form id="ctNovo"><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off"></label><label class="field"><span class="lbl">Usuário ou e-mail</span><input type="text" name="login" required autocomplete="off"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div><div class="row"><button class="btn sm primary" type="submit">Criar usuário</button><span class="muted" style="font-size:12px">A pessoa troca a senha no primeiro login.</span></div></form></section>` : ''}
+    <div id="ctMsg" role="alert"></div>
+  </div>
+  <div class="df"><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
+  const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
+  $$('#modal [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  $('#ctSair').onclick = sair;
+  $('#ctSenha').onsubmit = async ev => {
+    ev.preventDefault(); const f = new FormData(ev.target);
+    const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { msg(erro); return; }
+    if (!(await confere(f.get('atual'), st.usuario.senha))) { msg('A senha atual está incorreta.'); return; }
+    st.usuario = { ...st.usuario, senha: await segredo(f.get('senha')) };
+    await salvarUsuario(e, st.usuario); ev.target.reset(); msg('Senha alterada.', 'info');
+  };
+  $('#ctCodigo').onclick = async () => {
+    const codigo = novoCodigo(); st.usuario = { ...st.usuario, rec: await segredo(normCodigo(codigo)) };
+    await salvarUsuario(e, st.usuario);
+    mostraSegredo('Novo código de recuperação', 'Ele aparece só agora. O código anterior deixou de valer.', codigo);
+  };
+  if (admin) {
+    listaUsuarios(msg);
+    $('#ctNovo').onsubmit = async ev => {
+      ev.preventDefault(); const f = new FormData(ev.target), login = normLogin(f.get('login'));
+      if (String(f.get('senha')).length < SENHA_MIN) { msg(`A senha provisória precisa ter ao menos ${SENHA_MIN} caracteres.`); return; }
+      if ((await usuariosDe(e)).some(x => x.login === login)) { msg('Já existe um usuário com esse login neste ambiente.'); return; }
+      await salvarUsuario(e, { id: uid('u'), nome: f.get('nome').trim(), login, papel: f.get('papel'), senha: await segredo(f.get('senha')), trocarSenha: true, criado: Date.now() });
+      contaForm(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 5000);
+    };
+  }
+}
+async function listaUsuarios(msg) {
+  const e = st.empresa, us = (await usuariosDe(e)).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+  const el = $('#ctUsuarios'); if (!el) return;
+  el.classList.remove('muted');
+  el.innerHTML = `<div style="overflow-x:auto"><table class="t"><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th></th></tr></thead><tbody>${us.map(u => `<tr><td>${esc(u.nome)}${u.id === st.usuario.id ? ' <span class="pill ok">você</span>' : ''}${u.trocarSenha ? ' <span class="pill warn">senha provisória</span>' : ''}</td><td>${esc(u.login)}</td><td>${u.papel === 'admin' ? 'Administrador' : 'Usuário'}</td><td>${u.id === st.usuario.id ? '' : `<button class="btn sm" type="button" data-ureset="${esc(u.id)}">Redefinir senha</button> <button class="btn sm danger" type="button" data-udel="${esc(u.id)}">Excluir</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+  el.onclick = ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    const u = us.find(x => x.id === (b.dataset.ureset || b.dataset.udel)); if (!u) return;
+    if (b.dataset.ureset) armButton(b, async () => {
+      const prov = novoCodigo(), novo = { ...u, senha: await segredo(prov), trocarSenha: true }; delete novo.rec;
+      await salvarUsuario(e, novo);
+      mostraSegredo(`Senha provisória de ${u.nome}`, 'Passe esta senha para a pessoa. Ela escolhe a própria senha no próximo login.', prov);
+    }, 'Confirmar');
+    else armButton(b, async () => { await st.base.del(colUsuarios(e), u.id); listaUsuarios(msg); msg(`Usuário ${u.nome} excluído.`, 'info'); }, 'Confirmar exclusão');
+  };
+}
+async function sair() {
+  for (const s of Save.stores) { clearTimeout(s.t); s.t = null; if (s.dirty.size) await s.flush(); }
+  if (Save.err) { toast('Há alterações que não foram salvas: ' + (Save.err.message || 'erro')); return; }
+  limparSessao(); location.reload();
+}
+
+/* ================= Início ================= */
+async function init() {
+  let db = null, user = null;
+  if (window.claude && typeof window.claude.use === 'function') {
+    try { [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } catch (e) { db = null; }
+  }
+  st.base = db ? CloudBackend(db) : LocalBackend;
+  if (user && user.can) { try { const c = await user.can('data.write'); if (c === false) st.ro = true; } catch (e) { /* ok */ } }
+  bindLogin();
+  const ses = lerSessao(), emp = ses && EMPRESAS.find(x => x.id === ses.emp);
+  if (emp) {
+    let u = null; try { u = (await usuariosDe(emp)).find(x => x.id === ses.uid); } catch (e) { /* vai para o login */ }
+    if (u && !u.trocarSenha) { st.empresa = emp; st.usuario = u; await boot(); return; }
+  }
+  limparSessao(); renderLogin();
+}
+async function boot() {
+  const e = st.empresa;
+  Object.assign(DEF_P, e.padroes || {}); if (e.pontoMar) Object.assign(SEA, e.pontoMar);
+  st.backend = { kind: st.base.kind, list: c => st.base.list(e.id + '_' + c), set: (c, i, d) => st.base.set(e.id + '_' + c, i, d), del: (c, i) => st.base.del(e.id + '_' + c, i) };
+  loadUI();
+  document.title = 'Roteirizador RRM · ' + e.nome;
+  document.body.classList.remove('screen-login');
+  renderAcct();
+  bindEvents();
+  initMap();
+  probeRoads();
+  applyPanels();
+  st.cli = new BucketStore('clientes'); st.col = new BucketStore('colaboradores'); st.amb = new BucketStore('ambientes');
+  try { await Promise.all([st.cli.load(), st.col.load(), st.amb.load()]); }
+  catch (e2) { toast('Não foi possível carregar os dados salvos: ' + (e2.message || e2.code || e2)); }
+  const ids = [...st.amb.values()].sort((a, b) => (b.alterado || 0) - (a.alterado || 0)).map(a => a.id);
+  const first = ids.includes(st.lastAmb) ? st.lastAmb : ids[0];
+  if (innerWidth < 900) { st.panelL = false; applyPanels(); }
+  await openAmb(first || null, false);
+  setScreen('home');
+  $('#loading').hidden = true;
+  addEventListener('beforeunload', ev => {
+    for (const s of Save.stores) if (s.dirty.size) s.flush();
+    if (geoQ.busy) { ev.preventDefault(); ev.returnValue = ''; } // a busca de coordenadas para se a página fechar
+  });
+}
+init();
+})();

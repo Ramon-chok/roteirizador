@@ -1,0 +1,3 @@
+﻿SOLD cliente;SOLD vendedor;Dia;Semana;Endereço;Bairro;Cidade;UF;CEP;Nome do cliente;Sequência;Latitude;Longitude
+700101;V101;2;1234;Rua Vergueiro, 1000;Vila Mariana;São Paulo;SP;04101-000;Mercado Exemplo;1;-23,5891;-46,6349
+700102;V101;3;1,3;Av. Jabaquara, 500;Saúde;São Paulo;SP;;Padaria Exemplo;;;

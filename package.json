@@ -1,0 +1,10 @@
+{
+  "name": "roteirizador-territorial",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Planejamento territorial, setorização e roteirização pelas ruas",
+  "scripts": {
+    "start": "npx --yes serve -l 5500 .",
+    "build": "python ferramentas/build.py"
+  }
+}
