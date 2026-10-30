@@ -79,6 +79,126 @@ function CloudBackend(db) {
     async del(coll, id) { await db.collection(coll).doc(id).delete(); }
   };
 }
+/* ================= Supabase: dados =================
+   O sistema trabalha com coleções em baldes (BucketStore); aqui cada item vira uma linha das tabelas de supabase/schema.sql.
+   Só o que mudou é enviado, comparando com a última versão recebida ou gravada. */
+const SB_PAGINA = 1000, SB_LOTE = 500, SB_LOTE_APAGAR = 200;
+const nulo = v => (v === undefined || v === '' ? null : v);
+const coordOk = (v, lim) => (isNum(v) && Math.abs(v) <= lim ? v : null);
+const numOk = v => (isNum(v) ? v : null);
+const emISO = ms => (ms ? new Date(ms).toISOString() : new Date().toISOString());
+const deISO = t => (t ? Date.parse(t) : Date.now());
+const semVazios = o => { for (const k in o) if (o[k] === null || o[k] === undefined) delete o[k]; return o; };
+const SB_MAPA = {
+  clientes: {
+    tab: 'clientes', pk: ['sold'],
+    linha: (k, c) => ({ sold: k, nome: nulo(c.nome), endereco: nulo(c.endereco), bairro: nulo(c.bairro), cidade: nulo(c.cidade), uf: nulo(c.uf), cep: nulo(c.cep), lat: coordOk(c.lat, 90), lng: coordOk(c.lng, 180), visitas_mes: numOk(c.f) ?? 4, atendimento_min: numOk(c.t), geo_origem: nulo(c.geo), geo_nivel: nulo(c.geoNivel), geo_pendencia: c.geoPend || null, exemplo: !!c.exemplo }),
+    item: r => [r.sold, { ...semVazios({ sold: r.sold, nome: r.nome, endereco: r.endereco, bairro: r.bairro, cidade: r.cidade, uf: r.uf, cep: r.cep, f: r.visitas_mes, t: r.atendimento_min, geo: r.geo_origem, geoNivel: r.geo_nivel, geoPend: r.geo_pendencia, exemplo: r.exemplo || null }), lat: r.lat, lng: r.lng }]
+  },
+  colaboradores: {
+    tab: 'colaboradores', pk: ['codigo'],
+    linha: (k, c) => ({ codigo: k, nome: c.nome || k, funcao: nulo(c.funcao), endereco: nulo(c.endereco), bairro: nulo(c.bairro), cidade: nulo(c.cidade), uf: nulo(c.uf), cep: nulo(c.cep), lat: coordOk(c.lat, 90), lng: coordOk(c.lng, 180), jornada_min: numOk(c.jornada), cor: nulo(c.cor), geo_origem: nulo(c.geo), geo_nivel: nulo(c.geoNivel), geo_pendencia: c.geoPend || null, exemplo: !!c.exemplo }),
+    item: r => [r.codigo, { ...semVazios({ codigo: r.codigo, nome: r.nome, funcao: r.funcao, endereco: r.endereco, bairro: r.bairro, cidade: r.cidade, uf: r.uf, cep: r.cep, jornada: r.jornada_min, cor: r.cor, geo: r.geo_origem, geoNivel: r.geo_nivel, geoPend: r.geo_pendencia, exemplo: r.exemplo || null }), lat: r.lat, lng: r.lng }]
+  }
+};
+function SupabaseBackend(sb, emp, antesDosFilhos) {
+  const enviados = new Map(), setores = new Map();
+  const cache = c => { if (!enviados.has(c)) enviados.set(c, new Map()); return enviados.get(c); };
+  const erro = e => {
+    const msg = (e && e.message) || 'erro no banco de dados';
+    if (/fetch|network|timeout/i.test(msg) || (e && +e.status >= 500)) return { code: 'unavailable', message: 'sem conexão com o banco de dados' };
+    if (e && e.code === '42501') return { code: 'sem_permissao', message: 'sem permissão neste ambiente' };
+    return { code: (e && e.code) || 'erro', message: msg };
+  };
+  const pede = async p => { const { data, error } = await p; if (error) throw erro(error); return data; };
+  const tudo = async (tab, ordem, filtro) => {
+    const out = [];
+    for (let de = 0; ; de += SB_PAGINA) {
+      let q = sb.from(tab).select('*').eq('empresa_id', emp); if (filtro) q = filtro(q);
+      for (const o of ordem) q = q.order(o);
+      const lote = await pede(q.range(de, de + SB_PAGINA - 1));
+      out.push(...lote); if (lote.length < SB_PAGINA) return out;
+    }
+  };
+  const emLotes = async (linhas, tam, fn) => { for (let i = 0; i < linhas.length; i += tam) await fn(linhas.slice(i, i + tam)); };
+  const grava = (tab, linhas, conflito) => emLotes(linhas, SB_LOTE, l => pede(sb.from(tab).upsert(l, { onConflict: conflito })));
+
+  const metaDe = (r, sets) => {
+    const setoresObj = {}; for (const x of sets) setoresObj[x.id] = { nome: x.nome, cor: x.cor, colab: x.colaborador_codigo || '' };
+    return semVazios({ id: r.id, nome: r.nome, desc: r.descricao ?? '', criado: deISO(r.criado_em), alterado: deISO(r.atualizado_em), setores: setoresObj, pend: r.pendencias || { cli: [], col: [] }, exemplo: r.exemplo || null,
+      params: { semanas: r.semanas, dias: r.dias, vel: +r.velocidade_kmh, fator: +r.fator_rota, jornada: +r.jornada_min, tPadrao: +r.atendimento_min, criterio: r.criterio, motor: r.motor, evitaPedagio: r.evita_pedagio, evitaTerra: r.evita_terra } });
+  };
+  const estudoLinha = m => { const p = m.params || {}; return { empresa_id: emp, id: m.id, nome: m.nome || 'Estudo', descricao: nulo(m.desc), semanas: p.semanas || 4, dias: (p.dias || [1, 2, 3, 4, 5]).filter(d => d >= 1 && d <= 7), velocidade_kmh: p.vel || 25, fator_rota: p.fator || 1.35, jornada_min: p.jornada || 480, atendimento_min: p.tPadrao ?? 20, criterio: p.criterio === 'distancia' ? 'distancia' : 'tempo', evita_pedagio: !!p.evitaPedagio, evita_terra: !!p.evitaTerra, motor: p.motor === 'google' ? 'google' : 'osrm', pendencias: m.pend || { cli: [], col: [] }, exemplo: !!m.exemplo, criado_em: emISO(m.criado), atualizado_em: emISO(m.alterado) }; };
+
+  const COLECOES = {
+    async lerAmb() {
+      const [es, ss] = [await tudo('estudos', ['id']), await tudo('setores', ['estudo_id', 'id'])];
+      const items = {}; setores.clear();
+      for (const r of es) { const sets = ss.filter(x => x.estudo_id === r.id); items[r.id] = metaDe(r, sets); setores.set(r.id, new Set(sets.map(x => x.id))); }
+      return items;
+    },
+    async gravaAmb(novos, sumidos, antes) {
+      if (novos.length) await grava('estudos', novos.map(([, m]) => estudoLinha(m)), 'empresa_id,id');
+      for (const [id, m] of novos) {
+        const sets = m.setores || {}, ids = Object.keys(sets);
+        if (ids.length) await grava('setores', ids.map(x => ({ empresa_id: emp, estudo_id: id, id: x, nome: sets[x].nome || 'Setor', cor: sets[x].cor || '#7d8a84', colaborador_codigo: nulo(sets[x].colab) })), 'empresa_id,estudo_id,id');
+        const velho = antes.get(id); const fora = velho ? Object.keys(JSON.parse(velho).setores || {}).filter(x => !sets[x]) : [];
+        if (fora.length) await pede(sb.from('setores').delete().eq('empresa_id', emp).eq('estudo_id', id).in('id', fora));
+        setores.set(id, new Set(ids));
+      }
+      if (sumidos.length) await pede(sb.from('estudos').delete().eq('empresa_id', emp).in('id', sumidos));
+    }
+  };
+  const ler = async coll => {
+    if (coll === 'ambientes') return COLECOES.lerAmb();
+    const items = {}; const m = SB_MAPA[coll];
+    if (m) { for (const r of await tudo(m.tab, m.pk)) { const [k, v] = m.item(r); items[k] = v; } return items; }
+    const [, estudo] = coll.split('/');
+    if (coll.startsWith('itens/')) { for (const r of await tudo('estudo_clientes', ['sold'], q => q.eq('estudo_id', estudo))) items[r.sold] = { s: r.setor_id || '', d: r.dias || [], w: r.semanas || [], q: r.sequencia || {} }; return items; }
+    for (const r of await tudo('rotas_calculadas', ['setor_id', 'semana', 'dia'], q => q.eq('estudo_id', estudo))) items[`${r.setor_id}|${r.semana}|${r.dia}`] = semVazios({ sig: r.assinatura, km: +r.km, kmIda: +r.km_ida, kmEntre: +r.km_entre, kmVolta: +r.km_volta, min: +r.minutos, p: r.polilinha, src: r.fonte, o: r.formato, toll: r.tem_pedagio || null, terra: r.km_terra === null ? null : +r.km_terra, em: deISO(r.calculado_em) });
+    return items;
+  };
+  const escreve = async (coll, novos, sumidos, antes) => {
+    if (coll === 'ambientes') return COLECOES.gravaAmb(novos, sumidos, antes);
+    const m = SB_MAPA[coll];
+    if (m) {
+      if (novos.length) await grava(m.tab, novos.map(([k, v]) => ({ empresa_id: emp, ...m.linha(k, v) })), `empresa_id,${m.pk[0]}`);
+      await emLotes(sumidos, SB_LOTE_APAGAR, l => pede(sb.from(m.tab).delete().eq('empresa_id', emp).in(m.pk[0], l)));
+      return;
+    }
+    const [, estudo] = coll.split('/');
+    // Estudo e setores precisam estar no banco antes dos itens que apontam para eles
+    if (antesDosFilhos) await antesDosFilhos();
+    const conhecidos = setores.get(estudo) || new Set();
+    if (coll.startsWith('itens/')) {
+      if (novos.length) await grava('estudo_clientes', novos.map(([k, it]) => ({ empresa_id: emp, estudo_id: estudo, sold: k, setor_id: conhecidos.has(it.s) ? it.s : null, dias: (it.d || []).filter(d => d >= 1 && d <= 7), semanas: it.w || [], sequencia: it.q || {} })), 'empresa_id,estudo_id,sold');
+      await emLotes(sumidos, SB_LOTE_APAGAR, l => pede(sb.from('estudo_clientes').delete().eq('empresa_id', emp).eq('estudo_id', estudo).in('sold', l)));
+      return;
+    }
+    const linhas = [];
+    for (const [k, g] of novos) { const [sid, w, d] = k.split('|'); if (conhecidos.has(sid)) linhas.push({ empresa_id: emp, estudo_id: estudo, setor_id: sid, semana: +w, dia: +d, assinatura: g.sig, km: g.km, km_ida: g.kmIda || 0, km_entre: g.kmEntre || 0, km_volta: g.kmVolta || 0, minutos: g.min || 0, polilinha: nulo(g.p), fonte: g.src || 'osrm', formato: g.o || 'rapida', tem_pedagio: !!g.toll, km_terra: numOk(g.terra), calculado_em: emISO(g.em) }); }
+    if (linhas.length) await grava('rotas_calculadas', linhas, 'empresa_id,estudo_id,setor_id,semana,dia');
+    for (const k of sumidos) { const [sid, w, d] = k.split('|'); await pede(sb.from('rotas_calculadas').delete().eq('empresa_id', emp).eq('estudo_id', estudo).eq('setor_id', sid).eq('semana', +w).eq('dia', +d)); }
+  };
+  return {
+    kind: 'cloud',
+    async list(coll) {
+      const items = await ler(coll), c = cache(coll); c.clear();
+      for (const k in items) c.set(k, JSON.stringify(items[k]));
+      return Object.keys(items).length ? [{ id: 'todos', data: { items } }] : [];
+    },
+    async set(coll, balde, data) {
+      const c = cache(coll), items = (data && data.items) || {}, novos = [], sumidos = [];
+      for (const k in items) { if (c.get(k) !== JSON.stringify(items[k])) novos.push([k, items[k]]); }
+      for (const k of c.keys()) if (bucketOf(k) === balde && !(k in items)) sumidos.push(k);
+      if (!novos.length && !sumidos.length) return;
+      await escreve(coll, novos, sumidos, c);
+      for (const [k, v] of novos) c.set(k, JSON.stringify(v));
+      for (const k of sumidos) c.delete(k);
+    },
+    async del(coll, balde) { await this.set(coll, balde, { items: {} }); }
+  };
+}
 async function withRetry(fn) {
   for (let a = 0; ; a++) {
     try { return await fn(); } catch (e) {
@@ -2630,7 +2750,7 @@ function pageConfig() {
   const bases = [...$('#baseSel').options].map(o => `<option value="${esc(o.value)}"${o.value === st.baseKind ? ' selected' : ''}>${esc(o.textContent)}</option>`).join('');
   const temEx = [...st.cli.values()].some(c => c.exemplo) || [...st.col.values()].some(c => c.exemplo) || [...st.amb.values()].some(a => a.exemplo);
   return `<div class="page">
-    <div class="ph"><div><h1>Configurações</h1><p>Ajustes deste ambiente neste navegador. Os parâmetros de cada estudo, como jornada e formato da rota, ficam em Estudos e setores.</p></div></div>
+    <div class="ph"><div><h1>Configurações</h1><p>Ajustes deste ambiente${st.sb ? '' : ' neste navegador'}. Os parâmetros de cada estudo, como jornada e formato da rota, ficam em Estudos e setores.</p></div></div>
     <div class="cgrid">
       <div class="card"><div class="ch"><h2>Conta e ambiente</h2></div><div class="cb stack">
         <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(e.nome)}</b><div class="muted">${esc(u.nome)} · ${u.papel === 'admin' ? 'Administrador' : 'Usuário'}</div></div></div>
@@ -2645,6 +2765,7 @@ function pageConfig() {
         <div class="field"><span class="row" style="justify-content:space-between"><span class="lbl">Valhalla · demais formatos de rota</span>${status(st.vh)}</span><span class="muted mono" style="font-size:12.5px;overflow-wrap:anywhere">${esc(VH_DEF)}</span><span class="hint">Definido em js/config.js</span></div>
       </div></div>
       <div class="card"><div class="ch"><h2>Dados</h2></div><div class="cb stack">
+        <div class="field"><span class="lbl">Onde os dados ficam</span><span>${st.sb ? 'Banco de dados (Supabase)' : 'Neste navegador'}</span></div>
         <div class="field"><span class="lbl">Backup deste ambiente</span><div class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button></div></div>
         <div class="field"><span class="lbl">Dados de exemplo</span><div class="row"><button class="btn sm" data-act="sample">Gerar dados de exemplo</button>${temEx ? '<button class="btn sm danger" data-act="delex">Remover dados de exemplo</button>' : ''}</div></div>
       </div></div>
@@ -3096,7 +3217,7 @@ function renderHome() {
     </div>
     <div class="ph"><h2 class="sec">Estudos</h2><div class="row"><button class="btn" data-act="plannerImport">Importar roteiro</button><button class="btn primary" data-act="plannerNew">Novo planner vazio</button></div></div>
     <div class="tblwrap"><table class="t"><thead><tr><th>Estudo</th><th class="n">Setores</th><th class="n">Clientes</th><th class="n">Rotas</th><th class="n">KM no ciclo</th><th class="n">Horas no ciclo</th><th>Ocupação</th><th>Alterado</th><th></th></tr></thead><tbody>${studyRows}</tbody></table></div>
-    <div class="card"><div class="cb row" style="justify-content:space-between"><span class="muted">Os dados ficam neste navegador. Guarde um backup para levar bases e estudos a outro computador.</span><span class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button><button class="btn sm" data-act="sample">Gerar dados de exemplo</button></span></div></div>
+    <div class="card"><div class="cb row" style="justify-content:space-between"><span class="muted">${st.sb ? 'Os dados ficam no banco de dados da empresa. O backup guarda bases e estudos em um arquivo.' : 'Os dados ficam neste navegador. Guarde um backup para levar bases e estudos a outro computador.'}</span><span class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button><button class="btn sm" data-act="sample">Gerar dados de exemplo</button></span></div></div>
   </div>`;
   el.scrollTop = keep;
 }
@@ -3107,6 +3228,83 @@ function renderHome() {
 const EMPRESAS = CFG.empresas || [];
 const SES_KEY = 'rt1:sessao', ULT_KEY = 'rt1:ultimoAmbiente', MANTER_DIAS = 30, SENHA_MIN = 8;
 const lg = { step: 'empresa', emp: null, ctx: {} };
+/* ----- Supabase: login. "Manter conectado" decide se a sessão fica no navegador ou só nesta aba ----- */
+let sbManter = false;
+try { sbManter = !!localStorage.getItem('rt1:sessao'); } catch (e) { /* ignora */ }
+const sbArmazem = {
+  getItem: k => { try { return localStorage.getItem(k) ?? sessionStorage.getItem(k); } catch (e) { return null; } },
+  setItem: (k, v) => { try { (sbManter ? localStorage : sessionStorage).setItem(k, v); } catch (e) { /* ignora */ } },
+  removeItem: k => { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) { /* ignora */ } }
+};
+const sbConfigurado = () => !!(CFG.supabaseUrl && CFG.supabaseKey);
+function criaSupabase() { return supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { storage: sbArmazem, persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); }
+async function sbMembro(emp, user) {
+  const { data, error } = await st.sb.from('membros_empresa').select('nome,papel').eq('empresa_id', emp.id).eq('user_id', user.id).maybeSingle();
+  if (error) throw error;
+  return data ? { id: user.id, nome: data.nome, login: user.email, papel: data.papel, trocarSenha: !!(user.user_metadata && user.user_metadata.trocar_senha) } : null;
+}
+const sbMensagem = e => {
+  const m = (e && e.message) || '';
+  if (/invalid login/i.test(m)) return 'E-mail ou senha incorretos.';
+  if (/not confirmed/i.test(m)) return 'Este e-mail ainda não foi confirmado. Abra o link enviado para ele.';
+  if (/rate limit|too many/i.test(m) || (e && e.status === 429)) return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.';
+  if (/fetch|network/i.test(m)) return 'Sem conexão com o banco de dados. Verifique a internet e tente de novo.';
+  if (/different from the old/i.test(m)) return 'A nova senha precisa ser diferente da atual.';
+  if (/not authorized/i.test(m)) return 'O Supabase não envia e-mail para este endereço sem um servidor de e-mail próprio. Crie a conta em Authentication → Users e inclua de novo aqui.';
+  return m || 'Não foi possível concluir. Tente de novo.';
+};
+async function sbLogin(f) {
+  const email = String(f.get('login')).trim(), manter = !!f.get('manter');
+  sbManter = manter;
+  try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignora */ }
+  const { data, error } = await st.sb.auth.signInWithPassword({ email, password: f.get('senha') });
+  if (error) { lgMsg(sbMensagem(error)); return; }
+  const u = await sbMembro(lg.emp, data.user);
+  if (!u) { await st.sb.auth.signOut({ scope: 'local' }); lgMsg(`Este usuário não tem acesso a ${lg.emp.nome}. Peça a um administrador do ambiente para incluir o seu e-mail.`); return; }
+  if (u.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u, manter }; renderLogin(); return; }
+  await entrar(u, manter);
+}
+async function sbEsqueci(f) {
+  const { error } = await st.sb.auth.resetPasswordForEmail(String(f.get('login')).trim(), { redirectTo: location.origin + location.pathname });
+  if (error) { lgMsg(sbMensagem(error)); return; }
+  lg.step = 'login'; lg.ctx = {}; renderLogin();
+  lgMsg('Se houver uma conta com esse e-mail, o link para criar uma nova senha chega em instantes. Confira também o spam.', 'info');
+}
+async function sbTrocar(f) {
+  const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
+  const { error } = await st.sb.auth.updateUser({ password: f.get('senha'), data: { trocar_senha: false } });
+  if (error) { lgMsg(sbMensagem(error)); return; }
+  const { u, manter } = lg.ctx; await entrar({ ...u, trocarSenha: false }, manter);
+}
+async function sbNovaSenha(f) {
+  const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
+  const { error } = await st.sb.auth.updateUser({ password: f.get('senha') });
+  if (error) { lgMsg(sbMensagem(error)); return; }
+  await st.sb.auth.signOut({ scope: 'local' });
+  lg.step = 'empresa'; lg.emp = null; lg.ctx = {}; renderLogin();
+  lgMsg('Senha alterada. Escolha o ambiente e entre com a nova senha.', 'info');
+}
+/* Dados que estão só neste navegador podem subir para um ambiente ainda vazio. Nada é apagado daqui */
+const sbMarca = pre => `rt1:enviado_${pre || 'antigos'}`;
+async function sbDadosLocais(emp) {
+  const { count, error } = await st.sb.from('clientes').select('sold', { count: 'exact', head: true }).eq('empresa_id', emp.id);
+  if (error || count) return null;
+  const { count: nEst } = await st.sb.from('estudos').select('id', { count: 'exact', head: true }).eq('empresa_id', emp.id);
+  if (nEst) return null;
+  for (const pre of [emp.id + '_', '']) {
+    let enviado = null; try { enviado = localStorage.getItem(sbMarca(pre)); } catch (e) { /* ignora */ }
+    if (enviado) continue;
+    const v = await contarBase(pre, LocalBackend);
+    if (v.clientes || v.colaboradores || v.ambientes) return { ...v, pre };
+  }
+  return null;
+}
+async function sbEnviarLocais(emp, pre) {
+  const dest = SupabaseBackend(st.sb, emp.id), cols = ['colaboradores', 'clientes', 'ambientes'];
+  for (const d of await LocalBackend.list(pre + 'ambientes')) for (const id of Object.keys((d.data && d.data.items) || {})) cols.push(`itens/${id}/b`, `geo/${id}/b`);
+  for (const c of cols) for (const d of await LocalBackend.list(pre + c)) await dest.set(c, d.id, d.data);
+  try { localStorage.setItem(sbMarca(pre), String(Date.now())); } catch (e) { /* ignora */ }
+}
 const LOGO = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/><path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3"/></svg>';
 
 const hexOf = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
@@ -3139,7 +3337,7 @@ function lerSessao() {
 
 /* Dados de antes da separação por ambiente ficavam sem prefixo; ao entrar, oferece trazê-los para um ambiente ainda vazio */
 const COLS_BASE = ['clientes', 'colaboradores', 'ambientes'];
-async function contarBase(pre) { const out = {}; for (const c of COLS_BASE) out[c] = (await st.base.list(pre + c)).reduce((n, d) => n + Object.keys((d.data && d.data.items) || {}).length, 0); return out; }
+async function contarBase(pre, base = st.base) { const out = {}; for (const c of COLS_BASE) out[c] = (await base.list(pre + c)).reduce((n, d) => n + Object.keys((d.data && d.data.items) || {}).length, 0); return out; }
 async function dadosAntigos(emp) {
   const v = await contarBase(''); if (!v.clientes && !v.colaboradores && !v.ambientes) return null;
   const n = await contarBase(emp.id + '_'); return n.clientes || n.colaboradores || n.ambientes ? null : v;
@@ -3166,7 +3364,7 @@ const LG_TELAS = {
       <div class="lg-emps">${EMPRESAS.map(e => `<button class="opt" type="button" data-emp="${esc(e.id)}"><div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><h3>${esc(e.nome)}</h3>${e.id === ult ? '<p>Último acesso</p>' : ''}</div></div></button>`).join('')}</div>`;
   },
   login() {
-    return `<h1>Entrar</h1><form id="fLogin">${textoCampo('login', 'Usuário ou e-mail', 'username')}${senhaCampo('senha', 'Senha', 'current-password')}
+    return `<h1>Entrar</h1><form id="fLogin">${textoCampo('login', st.sb ? 'E-mail' : 'Usuário ou e-mail', 'username')}${senhaCampo('senha', 'Senha', 'current-password')}
       <div class="lg-row">${manterCampo}<button class="lg-link" type="button" data-lg="esqueci">Esqueci minha senha</button></div>
       <button class="btn primary lg-go" type="submit">Entrar</button></form>`;
   },
@@ -3176,6 +3374,9 @@ const LG_TELAS = {
       <div class="lg-row">${manterCampo}</div><button class="btn primary lg-go" type="submit">Criar acesso</button></form>`;
   },
   esqueci() {
+    if (st.sb) return `<h1>Redefinir senha</h1><p class="sub">Informe o seu e-mail. Enviaremos um link para você criar uma nova senha.</p>
+      <form id="fEsqueci">${textoCampo('login', 'E-mail', 'username')}
+      <div class="lg-row"><button class="lg-link" type="button" data-lg="login">Voltar para o login</button></div><button class="btn primary lg-go" type="submit">Enviar o link</button></form>`;
     return `<h1>Redefinir senha</h1><p class="sub">Use o código de recuperação que apareceu quando a sua senha foi criada. Sem ele, um administrador do ambiente pode redefinir a senha em Minha conta.</p>
       <form id="fEsqueci">${textoCampo('login', 'Usuário ou e-mail', 'username')}${textoCampo('codigo', 'Código de recuperação', 'off', 'placeholder="XXXX-XXXX-XXXX"')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}
       <div class="lg-row"><button class="lg-link" type="button" data-lg="login">Voltar para o login</button></div><button class="btn primary lg-go" type="submit">Redefinir senha</button></form>`;
@@ -3184,12 +3385,18 @@ const LG_TELAS = {
     return `<h1>Crie a sua senha</h1><p class="sub">Você entrou com uma senha provisória. Escolha a sua para continuar.</p>
       <form id="fTrocar">${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}<button class="btn primary lg-go" type="submit">Salvar e entrar</button></form>`;
   },
+  novaSenha() {
+    return `<h1>Crie uma nova senha</h1><form id="fNovaSenha">${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}<button class="btn primary lg-go" type="submit">Salvar nova senha</button></form>`;
+  },
   codigo() {
     return `<h1>Guarde o seu código de recuperação</h1><p class="sub">Ele aparece só agora e permite redefinir a senha se você a esquecer. Guarde fora deste computador.</p>
       <div class="lg-code">${esc(lg.ctx.codigo)}</div><div class="lg-row"><button class="btn" type="button" data-copiar="${esc(lg.ctx.codigo)}">Copiar código</button><button class="btn primary" type="button" data-lg="seguir">Já guardei, continuar</button></div>`;
   },
   legado() {
     const v = lg.ctx.leg;
+    if (st.sb) return `<h1>Enviar os dados deste navegador?</h1><p class="sub">Este navegador tem ${nf0.format(v.clientes)} cliente(s), ${nf0.format(v.colaboradores)} colaborador(es) e ${nf0.format(v.ambientes)} estudo(s), e o banco de <b>${esc(lg.emp.nome)}</b> está vazio.</p>
+      <div class="lg-row"><button class="btn" type="button" data-lg="naolegado">Agora não</button><button class="btn primary" type="button" data-lg="simlegado">Enviar para ${esc(lg.emp.nome)}</button></div>
+      <p class="sub" style="font-size:12.5px">Os dados continuam neste navegador. Com “Agora não”, a pergunta volta no próximo login.</p>`;
     return `<h1>Dados salvos antes dos ambientes</h1><p class="sub">Este navegador tem ${nf0.format(v.clientes)} cliente(s), ${nf0.format(v.colaboradores)} colaborador(es) e ${nf0.format(v.ambientes)} estudo(s) salvos antes da separação por empresa. Eles pertencem a <b>${esc(lg.emp.nome)}</b>?</p>
       <div class="lg-row"><button class="btn" type="button" data-lg="naolegado">Agora não</button><button class="btn primary" type="button" data-lg="simlegado">Trazer para ${esc(lg.emp.nome)}</button></div>
       <p class="sub" style="font-size:12.5px">Com “Agora não”, nada é apagado: a pergunta volta no próximo login.</p>`;
@@ -3201,24 +3408,26 @@ function renderLogin() {
   $('#loginView').innerHTML = `<div class="lg"><div class="lg-brand">${LOGO}<span>Roteirizador <b>RRM</b></span></div>
     <div class="card lg-card">${comEnv ? `<div class="lg-env"><span class="oi sg">${esc(e.sigla)}</span><b>${esc(e.nome)}</b>${trocar ? '<button class="btn sm" type="button" data-lg="empresa">Trocar de ambiente</button>' : ''}</div>` : ''}
       <div id="lgMsg" role="alert"></div>${LG_TELAS[lg.step]()}</div>
-    <p class="lg-foot">Os acessos e os dados ficam guardados neste navegador.</p></div>`;
+    <p class="lg-foot">${st.sb ? 'Acesso protegido. Os dados ficam no banco de dados da empresa.' : 'Os acessos e os dados ficam guardados neste navegador.'}</p></div>`;
   const f = $('#loginView input:not([type=checkbox])'); if (f) f.focus();
-  if (!window.crypto || !crypto.subtle) lgMsg('Este endereço não permite o login com segurança. Abra o sistema por https ou por 127.0.0.1 (Live Server).');
+  if (st.sbFalhou) lgMsg('Não foi possível carregar a conexão com o banco de dados. Verifique a internet e recarregue a página.');
+  else if (!st.sb && (!window.crypto || !crypto.subtle)) lgMsg('Este endereço não permite o login com segurança. Abra o sistema por https ou por 127.0.0.1 (Live Server).');
 }
 function lgMsg(txt, cls = 'bad') { $('#lgMsg').innerHTML = txt ? `<div class="banner ${cls}">${esc(txt)}</div>` : ''; }
 async function escolherEmpresa(id) {
   lg.emp = EMPRESAS.find(x => x.id === id); if (!lg.emp) return;
-  lg.step = (await usuariosDe(lg.emp)).length ? 'login' : 'primeiro';
+  lg.step = st.sb || (await usuariosDe(lg.emp)).length ? 'login' : 'primeiro';
   renderLogin();
 }
 async function entrar(u, manter) {
   salvarSessao(lg.emp, u, manter); st.empresa = lg.emp; st.usuario = u;
-  const leg = await dadosAntigos(lg.emp);
+  const leg = st.sb ? await sbDadosLocais(lg.emp) : await dadosAntigos(lg.emp);
   if (leg) { lg.step = 'legado'; lg.ctx = { leg }; renderLogin(); return; }
   await boot();
 }
 const LG_FORMS = {
   async fLogin(f) {
+    if (st.sb) return sbLogin(f);
     const us = await usuariosDe(lg.emp), u = us.find(x => x.login === normLogin(f.get('login'))), manter = !!f.get('manter');
     if (!u || !(await confere(f.get('senha'), u.senha))) { lgMsg('Usuário ou senha incorretos.'); return; }
     if (u.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u, manter }; renderLogin(); return; }
@@ -3234,6 +3443,7 @@ const LG_FORMS = {
     lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => entrar(u, manter) }; renderLogin();
   },
   async fEsqueci(f) {
+    if (st.sb) return sbEsqueci(f);
     const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
     const u = (await usuariosDe(lg.emp)).find(x => x.login === normLogin(f.get('login')));
     if (!u || !(await confere(normCodigo(f.get('codigo')), u.rec))) { lgMsg('Usuário ou código de recuperação incorretos.'); return; }
@@ -3241,7 +3451,9 @@ const LG_FORMS = {
     await salvarUsuario(lg.emp, novo);
     lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => { lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg('Senha redefinida. Entre com a nova senha.', 'info'); } }; renderLogin();
   },
+  fNovaSenha: sbNovaSenha,
   async fTrocar(f) {
+    if (st.sb) return sbTrocar(f);
     const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
     const { u, manter } = lg.ctx, codigo = novoCodigo(), novo = { ...u, senha: await segredo(f.get('senha')), rec: await segredo(normCodigo(codigo)) }; delete novo.trocarSenha;
     await salvarUsuario(lg.emp, novo);
@@ -3269,7 +3481,7 @@ function bindLogin() {
     else if (ds.lg === 'naolegado') await boot();
     else if (ds.lg === 'simlegado') {
       t.disabled = true;
-      try { await moverDadosAntigos(lg.emp); await boot(); }
+      try { if (st.sb) { t.textContent = 'Enviando…'; await sbEnviarLocais(lg.emp, lg.ctx.leg.pre); } else await moverDadosAntigos(lg.emp); await boot(); }
       catch (err) { t.disabled = false; lgMsg('Não foi possível mover os dados: ' + ((err && err.message) || 'erro') + ' Nada foi perdido.'); }
     }
   });
@@ -3291,7 +3503,72 @@ function mostraSegredo(titulo, texto, valor) {
   $('#sgCopia').onclick = e => copiarTexto(valor, e.target);
   $('#sgFim').onclick = contaForm;
 }
+/* ----- Minha conta com Supabase: as contas ficam no Supabase Auth, o sistema só vincula ao ambiente ----- */
+function contaFormSb() {
+  const e = st.empresa, u = st.usuario, admin = u.papel === 'admin';
+  openModal(`<div class="dh"><h2>Minha conta</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db">
+    <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(u.nome)}</b> <span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span><div class="muted">${esc(u.login)} · Ambiente ${esc(e.nome)}</div></div></div>
+    <section class="acct-sec"><h3>Alterar senha</h3><form id="ctSenha"><div class="fgrid">${senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div><div class="row"><button class="btn sm primary" type="submit">Salvar senha</button></div></form></section>
+    ${admin ? `<section class="acct-sec"><h3>Usuários do ambiente</h3><div id="ctUsuarios" class="muted">Carregando…</div>
+      <form id="ctNovo"><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off"></label><label class="field"><span class="lbl">E-mail</span><input type="text" name="email" required autocomplete="off"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"><span class="hint">Usada só se a pessoa ainda não tiver conta</span></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div><div class="row"><button class="btn sm primary" type="submit">Incluir usuário</button></div></form></section>` : ''}
+    <div id="ctMsg" role="alert"></div>
+  </div>
+  <div class="df"><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
+  const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
+  $$('#modal [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  $('#ctSair').onclick = sair;
+  $('#ctSenha').onsubmit = async ev => {
+    ev.preventDefault(); const f = new FormData(ev.target);
+    const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { msg(erro); return; }
+    const ent = await st.sb.auth.signInWithPassword({ email: st.usuario.login, password: f.get('atual') });
+    if (ent.error) { msg(/invalid login/i.test(ent.error.message) ? 'A senha atual está incorreta.' : sbMensagem(ent.error)); return; }
+    const { error } = await st.sb.auth.updateUser({ password: f.get('senha') });
+    if (error) { msg(sbMensagem(error)); return; }
+    ev.target.reset(); msg('Senha alterada.', 'info');
+  };
+  if (admin) {
+    listaMembros(msg);
+    $('#ctNovo').onsubmit = async ev => {
+      ev.preventDefault(); const f = new FormData(ev.target), email = String(f.get('email')).trim(), b = ev.target.querySelector('[type=submit]');
+      if (String(f.get('senha')).length < SENHA_MIN) { msg(`A senha provisória precisa ter ao menos ${SENHA_MIN} caracteres.`); return; }
+      b.disabled = true;
+      try {
+        const vincula = async () => { const { data, error } = await st.sb.rpc('adicionar_membro', { e: e.id, mail: email, nome_membro: String(f.get('nome')).trim(), papel_membro: f.get('papel') }); if (error) throw error; return data; };
+        if ((await vincula()) === 'ok') { contaFormSb(); toast('Essa pessoa já tinha conta: foi incluída neste ambiente com a senha atual dela.', 6000); return; }
+        // Cliente separado: criar a conta não pode trocar a sessão de quem está logado
+        const temp = supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'rt1-temp' } });
+        const { error } = await temp.auth.signUp({ email, password: f.get('senha'), options: { data: { trocar_senha: true } } });
+        if (error) throw error;
+        if ((await vincula()) !== 'ok') throw new Error('A conta foi criada, mas não pôde ser incluída no ambiente. Tente de novo.');
+        contaFormSb(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 6000);
+      } catch (err) { msg(sbMensagem(err)); }
+      finally { b.disabled = false; }
+    };
+  }
+}
+async function listaMembros(msg) {
+  const e = st.empresa, { data, error } = await st.sb.from('membros_empresa').select('user_id,nome,papel,email').eq('empresa_id', e.id).order('nome');
+  const el = $('#ctUsuarios'); if (!el) return;
+  if (error) { el.textContent = 'Não foi possível carregar os usuários.'; return; }
+  el.classList.remove('muted');
+  el.innerHTML = `<div style="overflow-x:auto"><table class="t"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th></th></tr></thead><tbody>${data.map(u => `<tr><td>${esc(u.nome)}${u.user_id === st.usuario.id ? ' <span class="pill ok">você</span>' : ''}</td><td>${esc(u.email || '—')}</td><td>${u.papel === 'admin' ? 'Administrador' : 'Usuário'}</td><td>${u.user_id === st.usuario.id ? '' : `<button class="btn sm" type="button" data-ureset="${esc(u.user_id)}"${u.email ? '' : ' disabled'}>Enviar redefinição</button> <button class="btn sm danger" type="button" data-udel="${esc(u.user_id)}">Tirar do ambiente</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+  el.onclick = ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    const u = data.find(x => x.user_id === (b.dataset.ureset || b.dataset.udel)); if (!u) return;
+    if (b.dataset.ureset) armButton(b, async () => {
+      const { error: er } = await st.sb.auth.resetPasswordForEmail(u.email, { redirectTo: location.origin + location.pathname });
+      msg(er ? sbMensagem(er) : `Link de nova senha enviado para ${u.email}.`, er ? 'bad' : 'info');
+    }, 'Confirmar');
+    else armButton(b, async () => {
+      const { error: er } = await st.sb.from('membros_empresa').delete().eq('empresa_id', e.id).eq('user_id', u.user_id);
+      if (er) { msg(sbMensagem(er)); return; }
+      listaMembros(msg); msg(`${u.nome} saiu do ambiente. A conta continua existindo no Supabase.`, 'info');
+    }, 'Confirmar');
+  };
+}
 function contaForm() {
+  if (st.sb) { contaFormSb(); return; }
   const e = st.empresa, u = st.usuario, admin = u.papel === 'admin';
   openModal(`<div class="dh"><h2>Minha conta</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
   <div class="db">
@@ -3348,6 +3625,7 @@ async function listaUsuarios(msg) {
 async function sair() {
   for (const s of Save.stores) { clearTimeout(s.t); s.t = null; if (s.dirty.size) await s.flush(); }
   if (Save.err) { toast('Há alterações que não foram salvas: ' + (Save.err.message || 'erro')); return; }
+  if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {});
   limparSessao(); location.reload();
 }
 
@@ -3358,8 +3636,26 @@ async function init() {
     try { [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } catch (e) { db = null; }
   }
   st.base = db ? CloudBackend(db) : LocalBackend;
+  const recuperacao = /type=recovery/.test(location.hash), linkVencido = /error_description=/.test(location.hash);
+  if (sbConfigurado()) { if (window.supabase) st.sb = criaSupabase(); else st.sbFalhou = true; }
   if (user && user.can) { try { const c = await user.can('data.write'); if (c === false) st.ro = true; } catch (e) { /* ok */ } }
   bindLogin();
+  if (sbConfigurado()) {
+    if (st.sb) {
+      const { data: { session } } = await st.sb.auth.getSession();
+      if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+      if (recuperacao && session) { lg.step = 'novaSenha'; renderLogin(); return; }
+      const ses = lerSessao(), emp = ses && EMPRESAS.find(x => x.id === ses.emp);
+      if (session && emp) {
+        let u = null; try { u = await sbMembro(emp, session.user); } catch (e) { /* vai para o login */ }
+        if (u && !u.trocarSenha) { st.empresa = emp; st.usuario = u; await boot(); return; }
+      }
+      if (session) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {});
+    }
+    limparSessao(); renderLogin();
+    if (linkVencido) lgMsg('Este link de senha já venceu ou foi usado. Peça um novo em “Esqueci minha senha”.');
+    return;
+  }
   const ses = lerSessao(), emp = ses && EMPRESAS.find(x => x.id === ses.emp);
   if (emp) {
     let u = null; try { u = (await usuariosDe(emp)).find(x => x.id === ses.uid); } catch (e) { /* vai para o login */ }
@@ -3370,7 +3666,9 @@ async function init() {
 async function boot() {
   const e = st.empresa;
   Object.assign(DEF_P, e.padroes || {}); if (e.pontoMar) Object.assign(SEA, e.pontoMar);
-  st.backend = { kind: st.base.kind, list: c => st.base.list(e.id + '_' + c), set: (c, i, d) => st.base.set(e.id + '_' + c, i, d), del: (c, i) => st.base.del(e.id + '_' + c, i) };
+  // Itens de um estudo dependem do estudo e dos setores já gravados
+  const ambPronto = async () => { const a = st.amb; if (!a) return; clearTimeout(a.t); a.t = null; if (a.dirty.size) await a.flush(); while (a.busy) await sleep(30); };
+  st.backend = st.sb ? SupabaseBackend(st.sb, e.id, ambPronto) : { kind: st.base.kind, list: c => st.base.list(e.id + '_' + c), set: (c, i, d) => st.base.set(e.id + '_' + c, i, d), del: (c, i) => st.base.del(e.id + '_' + c, i) };
   loadUI();
   document.title = 'Roteirizador RRM · ' + e.nome;
   document.body.classList.remove('screen-login');
@@ -3391,6 +3689,7 @@ async function boot() {
   addEventListener('beforeunload', ev => {
     for (const s of Save.stores) if (s.dirty.size) s.flush();
     if (geoQ.busy) { ev.preventDefault(); ev.returnValue = ''; } // a busca de coordenadas para se a página fechar
+    if (st.sb && [...Save.stores].some(s => s.dirty.size || s.busy || s.t)) { ev.preventDefault(); ev.returnValue = ''; } // gravação no banco em andamento
   });
 }
 init();

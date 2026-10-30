@@ -1,7 +1,7 @@
 # Roteirizador RRM
 
 Sistema web de planejamento territorial, setorização e roteirização, inspirado no Omnitracs Roadnet / Territory Planner.
-Roda no navegador, sem servidor próprio e sem banco de dados para instalar.
+Roda no navegador e guarda os dados no Supabase, sem servidor próprio para instalar.
 
 ## Como rodar no VS Code (recomendado)
 
@@ -30,7 +30,7 @@ Alternativa sem extensão (precisa do Node.js instalado): no terminal do VS Code
 - **Manter conectado:** mantém o login neste navegador por 30 dias. Sem marcar, o login vale até fechar a aba.
 - **Dados antigos:** se o navegador tiver dados de antes da separação por ambiente, o login pergunta se eles pertencem àquele ambiente e os move. Com "Agora não", nada é apagado e a pergunta volta no próximo login.
 
-> **Limite importante:** não há servidor. Contas e dados ficam neste navegador, com senhas guardadas só como hash. Isso separa as empresas e evita o acesso casual, mas quem tem acesso ao computador e conhecimento técnico consegue ler os dados, e as contas não acompanham a pessoa em outro computador. Para acesso real pela equipe, é preciso um servidor (veja os próximos passos). Os quatro ambientes também dividem o limite de cerca de 5 MB do navegador.
+> **Sem o Supabase configurado:** contas e dados ficam no navegador, com senhas guardadas só como hash. Isso separa as empresas e evita o acesso casual, mas não protege contra quem tem acesso ao computador, e os quatro ambientes dividem o limite de cerca de 5 MB do navegador.
 
 ## Visões do mapa
 
@@ -68,19 +68,15 @@ A informação de pavimento vem do OpenStreetMap e pode faltar em vias rurais. O
 
 ## Banco de dados (Supabase)
 
-`supabase/schema.sql` guarda tudo o que o sistema usa, por empresa: ambientes, membros, clientes, colaboradores, estudos, setores, clientes em cada estudo e percursos calculados. Cada usuário só acessa as empresas em que é membro, por regras no próprio banco (Row Level Security).
+O sistema grava no Supabase: clientes, colaboradores, estudos, setores, roteiros e percursos ficam no banco, por empresa, e cada usuário só acessa as empresas em que é membro (Row Level Security). O projeto é definido em `js/config.js` (`supabaseUrl` e `supabaseKey`, a chave pública). Sem esses dois valores, o sistema volta a guardar tudo no navegador, com login local.
 
-**O sistema ainda não grava no Supabase:** continua usando o navegador. Por enquanto o banco serve para validar a estrutura e consultar os dados.
+- **Acesso:** o login usa as contas do Supabase Auth. O administrador inclui pessoas em **Minha conta**. Quem ainda não tem conta recebe uma senha provisória e a troca no primeiro login.
+- **Confirmação de e-mail:** com "Confirm email" ligado no Supabase, a pessoa precisa abrir o link antes de entrar, e o envio padrão do Supabase só atende endereços da equipe do projeto. Para os demais, crie a conta em **Authentication → Users** e inclua o e-mail em **Minha conta**, ou configure um servidor de e-mail em **Authentication → Emails**.
+- **Esqueci minha senha:** envia um link por e-mail. Para ele voltar ao sistema, cadastre o endereço em **Authentication → URL Configuration** (por exemplo `http://127.0.0.1:5500/**`).
+- **Dados do navegador:** no login, se o banco do ambiente estiver vazio e o navegador tiver dados, o sistema oferece enviá-los. Eles continuam no navegador.
+- **Várias pessoas ao mesmo tempo:** cada alteração é gravada linha a linha, e a última gravação vale. O que outra pessoa alterou aparece ao recarregar a página.
 
-Para testar:
-
-1. Crie um projeto no Supabase, abra o **SQL Editor**, cole `supabase/schema.sql` e execute.
-2. Crie seu usuário em **Authentication → Users** e dê acesso a ele com o comando que está no fim do arquivo.
-3. No sistema, use **Configurações → Exportar backup** em cada ambiente.
-4. Converta com `python ferramentas/backup_para_sql.py backup.json`. Rode o `.sql` gerado no SQL Editor. Para bases grandes, se o editor recusar o tamanho, use o `psql` com a conexão do projeto.
-5. Consulte no **Table Editor**, ou com `select * from v_rotas;`, `v_visitas` e `v_setores_resumo`.
-
-O backup não leva os percursos pelas ruas, então `km` fica vazio em `v_rotas` até o sistema gravar direto no banco. Senhas ficam só no Supabase Auth: as contas locais não são copiadas.
+Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do arquivo. Quem já tinha o schema roda também `supabase/migracao_02_usuarios.sql`. Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
 
 ## Importação pelo endereço
 
@@ -122,7 +118,7 @@ Bibliotecas usadas (carregadas por CDN, nada para instalar): Leaflet 1.9.4 (mapa
 
 ## Onde ficam os dados
 
-No navegador (localStorage), separados por ambiente, por navegador e por endereço. Para levar os dados para outro computador ou endereço, use **Estudos e setores → Exportar backup / Restaurar backup** (arquivo JSON). O backup leva os dados do ambiente aberto, mas não os usuários, e pede confirmação se for restaurado em outro ambiente.
+No Supabase, por ambiente (veja acima). Sem o Supabase configurado, ficam no navegador (localStorage), separados por ambiente, por navegador e por endereço. Em qualquer caso, para guardar uma cópia ou levar os dados, use **Estudos e setores → Exportar backup / Restaurar backup** (arquivo JSON). O backup leva os dados do ambiente aberto, mas não os usuários, e pede confirmação se for restaurado em outro ambiente.
 
 ## Atalhos do mapa
 
@@ -131,5 +127,4 @@ No navegador (localStorage), separados por ambiente, por navegador e por endere�
 ## Próximos passos sugeridos
 
 - Hospedar (Vercel, Netlify, servidor da empresa) para a equipe acessar por um link.
-- Ligar o sistema ao schema do Supabase (`supabase/schema.sql`) para dados compartilhados entre usuários, login validado em servidor e redefinição de senha por e-mail.
 - Servidores OSRM e Valhalla próprios com o mapa do Sudeste, para roteirizar estudos grandes sem limite de consultas.
