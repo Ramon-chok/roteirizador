@@ -2984,7 +2984,7 @@ function renderWz() {
   const steps = `<div class="steps"><span class="${wz.step === 1 ? 'on' : ''}">1 · Arquivo</span>›<span class="${wz.step === 2 ? 'on' : ''}">2 · Colunas</span>›<span class="${wz.step === 3 ? 'on' : ''}">3 · Resultado</span></div>`;
   let body = '', foot = '';
   if (wz.step === 1) {
-    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 7 = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.' }[wz.kind];
+    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.' }[wz.kind];
     body = `<p class="muted" style="margin:0">${help}</p>
       <div class="row"><button class="btn sm" type="button" data-modelo="${wz.kind}">Baixar modelo (.xlsx)</button><span class="muted" style="font-size:12px">Planilha pronta com as colunas, exemplos e uma aba de instruções.</span></div>
       <label class="field"><span class="lbl">Planilha (.xlsx, .xls, .csv)</span><input type="file" id="wzFile" accept=".xlsx,.xls,.xlsm,.csv,.txt"></label>
@@ -3171,7 +3171,9 @@ async function runImport() {
       const it = clone(ex); it.s = sid;
       // na 1ª linha do cliente nesta planilha, dias e semanas são substituídos; nas seguintes, somados
       const soma = ex.s === sid && vistos.has(sold); vistos.add(sold);
-      const ds = parseDias(cell(r, 'dia')); const ws = parseSemanas(cell(r, 'semana'), W);
+      // Dia: 2 segunda … 6 sexta; 7 ou vazio = sábado. Semana: cada algarismo é uma semana (1, 1,3, 2,4, 1234…)
+      const diaTxt = String(cell(r, 'dia') ?? '').trim();
+      const ds = wz.map.dia >= 0 && !diaTxt ? [6] : parseDias(diaTxt); const ws = parseSemanas(cell(r, 'semana'), W);
       if (ds.length) it.d = [...new Set([...(soma ? it.d : []), ...ds])].sort((x, y) => x - y); else if (ex.s !== sid) it.d = [];
       if (ws.length) it.w = [...new Set([...(soma ? it.w : []), ...ws])].sort((x, y) => x - y);
       else if (!(it.w || []).length) { const c = st.cli.get(sold); it.w = weeksByFreq((c && c.f) || 4, W, {}); }
@@ -3647,7 +3649,7 @@ const MODELOS = {
     cols: [
       ['SOLD cliente', 1, 'Código do cliente', '700101', '700102'],
       ['SOLD vendedor', 1, 'Código do colaborador que atende. Cada vendedor vira um setor', 'V101', 'V101'],
-      ['Dia', 1, '2 = segunda, 3 = terça, 4 = quarta, 5 = quinta, 6 = sexta, 7 = sábado (1 = domingo). Mais de um dia: 2,5 ou 25', '2', '3'],
+      ['Dia', 1, '2 = segunda, 3 = terça, 4 = quarta, 5 = quinta, 6 = sexta, 7 ou vazio = sábado (1 = domingo). Mais de um dia: 2,5 ou 25', '2', '3'],
       ['Semana', 1, 'Mensal: um número de 1 a 4 · Quinzenal: 1,3 ou 2,4 · Semanal: 1234', '1234', '1,3'],
       ['Endereço', 2, 'Logradouro e número do cliente (usado se ele não estiver na base ou estiver sem coordenada)', 'Rua Vergueiro, 1000', 'Av. Jabaquara, 500'],
       ['Bairro', 0, '', 'Vila Mariana', 'Saúde'],
