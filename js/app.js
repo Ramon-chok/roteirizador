@@ -40,6 +40,8 @@ const ICON = {
   fit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.5"/></svg>',
   full: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>',
   unfull: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"/></svg>',
+  redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>',
+  hist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>',
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
   solo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
@@ -96,6 +98,11 @@ const SB_MAPA = {
     linha: (k, c) => ({ sold: k, nome: nulo(c.nome), endereco: nulo(c.endereco), bairro: nulo(c.bairro), cidade: nulo(c.cidade), uf: nulo(c.uf), cep: nulo(c.cep), lat: coordOk(c.lat, 90), lng: coordOk(c.lng, 180), visitas_mes: numOk(c.f) ?? 4, atendimento_min: numOk(c.t), geo_origem: nulo(c.geo), geo_nivel: nulo(c.geoNivel), geo_pendencia: c.geoPend || null, exemplo: !!c.exemplo }),
     item: r => [r.sold, { ...semVazios({ sold: r.sold, nome: r.nome, endereco: r.endereco, bairro: r.bairro, cidade: r.cidade, uf: r.uf, cep: r.cep, f: r.visitas_mes, t: r.atendimento_min, geo: r.geo_origem, geoNivel: r.geo_nivel, geoPend: r.geo_pendencia, exemplo: r.exemplo || null }), lat: r.lat, lng: r.lng }]
   },
+  importacoes: {
+    tab: 'importacoes', pk: ['id'],
+    linha: (k, x) => ({ id: k, tipo: x.tipo || 'roteiro', arquivo: nulo(x.arquivo), estudo_id: nulo(x.estudo), estudo_nome: nulo(x.estudoNome), usuario: nulo(x.usuario), usuario_login: nulo(x.login), importado_em: emISO(x.em), linhas: x.linhas || 0, alteracoes: x.alteracoes || 0, novos: x.novos || 0, atualizados: x.atualizados || 0, ignorados: x.ignorados || 0, pendencias: x.pend || 0, resumo: x.resumo || [], mensagem: nulo(x.msg) }),
+    item: r => [r.id, semVazios({ id: r.id, tipo: r.tipo, arquivo: r.arquivo, estudo: r.estudo_id, estudoNome: r.estudo_nome, usuario: r.usuario, login: r.usuario_login, em: deISO(r.importado_em), linhas: r.linhas, alteracoes: r.alteracoes, novos: r.novos, atualizados: r.atualizados, ignorados: r.ignorados, pend: r.pendencias, resumo: r.resumo || [], msg: r.mensagem })]
+  },
   colaboradores: {
     tab: 'colaboradores', pk: ['codigo'],
     linha: (k, c) => ({ codigo: k, nome: c.nome || k, funcao: nulo(c.funcao), endereco: nulo(c.endereco), bairro: nulo(c.bairro), cidade: nulo(c.cidade), uf: nulo(c.uf), cep: nulo(c.cep), lat: coordOk(c.lat, 90), lng: coordOk(c.lng, 180), jornada_min: numOk(c.jornada), cor: nulo(c.cor), geo_origem: nulo(c.geo), geo_nivel: nulo(c.geoNivel), geo_pendencia: c.geoPend || null, exemplo: !!c.exemplo }),
@@ -150,7 +157,10 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
       if (sumidos.length) await pede(sb.from('estudos').delete().eq('empresa_id', emp).in('id', sumidos));
     }
   };
-  const ler = async coll => {
+  const semTabela = e => !!e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist/i.test(e.message || ''));
+  const ler = async coll => { try { return await ler0(coll); } catch (e) { if (coll === 'importacoes' && semTabela(e)) { st.impSemTabela = true; return {}; } throw e; } };
+  const escreve = async (...a) => { try { return await escreve0(...a); } catch (e) { if (a[0] === 'importacoes' && semTabela(e)) { st.impSemTabela = true; return; } throw e; } };
+  const ler0 = async coll => {
     if (coll === 'ambientes') return COLECOES.lerAmb();
     const items = {}; const m = SB_MAPA[coll];
     if (m) { for (const r of await tudo(m.tab, m.pk)) { const [k, v] = m.item(r); items[k] = v; } return items; }
@@ -159,7 +169,7 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
     for (const r of await tudo('rotas_calculadas', ['setor_id', 'semana', 'dia'], q => q.eq('estudo_id', estudo))) items[`${r.setor_id}|${r.semana}|${r.dia}`] = semVazios({ sig: r.assinatura, km: +r.km, kmIda: +r.km_ida, kmEntre: +r.km_entre, kmVolta: +r.km_volta, min: +r.minutos, p: r.polilinha, src: r.fonte, o: r.formato, toll: r.tem_pedagio || null, terra: r.km_terra === null ? null : +r.km_terra, em: deISO(r.calculado_em) });
     return items;
   };
-  const escreve = async (coll, novos, sumidos, antes) => {
+  const escreve0 = async (coll, novos, sumidos, antes) => {
     if (coll === 'ambientes') return COLECOES.gravaAmb(novos, sumidos, antes);
     const m = SB_MAPA[coll];
     if (m) {
@@ -278,8 +288,8 @@ const st = {
   showLines: true, showBases: true, showSeq: true, showOut: true, showUnassigned: true, verSemSetor: true, colorAntes: null, selForm: {}, showSea: true, placing: null,
   sel: new Set(), tool: 'select', routes: new Map(), visRoutes: [],
   panelL: true, panelR: false, mk: new Map(), ruler: { pts: [], active: false },
-  undo: [], baseKind: 'auto', tileOk: 0, tileErr: 0, autoResequence: true,
-  pg: { clientes: { q: '', page: 0, cidade: '', semCoord: false, noEstudo: '', chk: new Set() }, colaboradores: { q: '', chk: new Set() }, roteiros: { mode: 'grade', setor: '', chk: new Set() } },
+  undo: [], redo: [], baseKind: 'auto', tileOk: 0, tileErr: 0, autoResequence: true,
+  pg: { clientes: { q: '', page: 0, cidade: '', semCoord: false, noEstudo: '', chk: new Set() }, colaboradores: { q: '', chk: new Set() }, roteiros: { mode: 'grade', setor: '', chk: new Set() }, imp: { tipo: '', n: 15 } },
   cmp: null, g: 'idle', gMsg: '', geo: null, pathCache: new Map(), road: 'idle', vh: 'idle', roadMsg: '', autoRoad: true, bgBusy: false, roadFail: new Set()
 };
 const uiKey = () => 'rt1:' + st.empresa.id + '_ui';
@@ -338,22 +348,76 @@ function itemVisible(it) {
   return ks.some(k => !st.hidden.has(k));
 }
 
-/* Undo */
+/* Desfazer, refazer e histórico: cada passo guarda o estudo como estava antes (setores, clientes, dias, semanas,
+   sequências e o traçado pelas ruas). Vale enquanto a janela estiver aberta, separado por estudo. */
+const HIST_MAX = 30; let histSeq = 0;
+function fotoEstudo() { return { amb: st.cur, itens: new Map(st.itens.map), geo: st.geo ? new Map(st.geo.map) : null, meta: clone(amb()) }; }
 function pushUndo(label) {
   if (!st.itens) return;
-  st.undo.push({ label, amb: st.cur, itens: new Map(st.itens.map), meta: clone(amb()) });
-  if (st.undo.length > 20) st.undo.shift();
+  st.undo.push({ label, em: Date.now(), id: ++histSeq, ...fotoEstudo() });
+  const doEstudo = st.undo.filter(u => u.amb === st.cur);
+  if (doEstudo.length > HIST_MAX) st.undo.splice(st.undo.indexOf(doEstudo[0]), 1);
+  st.redo = st.redo.filter(u => u.amb !== st.cur); // nova alteração descarta o que havia para refazer
 }
-function doUndo() {
-  const u = st.undo.pop(); if (!u) { toast('Nada para desfazer'); return; }
-  if (u.amb !== st.cur) { toast('Desfazer disponível apenas no estudo onde a alteração foi feita'); return; }
-  st.itens.replaceAll(u.itens); st.amb.put(u.meta.id, u.meta);
-  rebuild(); renderAll(); toast('Desfeito: ' + u.label);
+function histDoEstudo(pilha) { return pilha.filter(u => u.amb === st.cur); }
+function ultimoDoEstudo(pilha) { for (let i = pilha.length - 1; i >= 0; i--) if (pilha[i].amb === st.cur) return i; return -1; }
+function restauraFoto(u) { st.itens.replaceAll(new Map(u.itens)); if (st.geo && u.geo) st.geo.replaceAll(new Map(u.geo)); st.amb.put(u.meta.id, clone(u.meta)); }
+function podeVoltar() {
+  if (!st.itens) { toast('Abra um estudo para desfazer'); return false; }
+  if (st.ro) { toast('Estudo em modo somente leitura'); return false; }
+  if (job) { toast('Aguarde o cálculo pelas ruas terminar, ou cancele, antes de desfazer'); return false; }
+  return true;
+}
+function doUndo(silencioso) {
+  if (!podeVoltar()) return null;
+  const i = ultimoDoEstudo(st.undo); if (i < 0) { if (!silencioso) toast('Nada para desfazer neste estudo'); return null; }
+  const u = st.undo.splice(i, 1)[0];
+  st.redo.push({ label: u.label, em: u.em, id: u.id, ...fotoEstudo() });
+  restauraFoto(u);
+  if (!silencioso) { rebuild(); renderAll(); toast('Desfeito: ' + u.label, 6000, 'redo', 'Refazer'); }
+  return u;
+}
+function doRedo() {
+  if (!podeVoltar()) return;
+  const i = ultimoDoEstudo(st.redo); if (i < 0) { toast('Nada para refazer'); return; }
+  const r = st.redo.splice(i, 1)[0];
+  st.undo.push({ label: r.label, em: r.em, id: r.id, ...fotoEstudo() });
+  restauraFoto(r); rebuild(); renderAll(); toast('Refeito: ' + r.label, 6000, 'undo', 'Desfazer');
+}
+// Volta o estudo para como estava antes do passo escolhido, desfazendo também os que vieram depois
+function voltarPara(id) {
+  const lista = histDoEstudo(st.undo), alvo = lista.find(u => u.id === id); if (!alvo || !podeVoltar()) return;
+  let n = 0; for (;;) { const u = doUndo(true); if (!u) break; n++; if (u === alvo) break; }
+  rebuild(); renderAll(); closeModal();
+  toast(`Estudo voltou para antes de “${alvo.label}”${n > 1 ? ` (${n} alterações desfeitas)` : ''}`, 7000, 'redo', 'Refazer');
+}
+function historicoForm() {
+  const lista = histDoEstudo(st.undo), refaz = histDoEstudo(st.redo);
+  const hora = t => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const linhas = [...lista].reverse().map((u, i) => `<div class="hist-row"><div><b>${esc(u.label)}</b><div class="muted">${hora(u.em)}${i === 0 ? ' · última alteração' : ''}</div></div><button class="btn sm" type="button" data-act="histvolta" data-hid="${u.id}"${st.ro ? ' disabled' : ''}>Voltar para antes disto</button></div>`).join('');
+  const linhasRefaz = [...refaz].reverse().map(u => `<div class="hist-row desfeito"><div><b>${esc(u.label)}</b><div class="muted">${hora(u.em)} · desfeita</div></div></div>`).join('');
+  openModal(`<div class="dh"><h2>Histórico de alterações</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db stack">
+    <p class="muted" style="margin:0;font-size:12.5px">Escolha um passo para deixar o estudo como estava antes dele. Os passos posteriores também são desfeitos, e tudo pode ser refeito. O histórico vale enquanto esta janela estiver aberta.</p>
+    ${linhas ? `<div class="hist">${linhas}</div>` : '<p class="muted" style="margin:0">Nenhuma alteração para desfazer neste estudo.</p>'}
+    ${linhasRefaz ? `<div class="lbl">Para refazer</div><div class="hist">${linhasRefaz}</div>` : ''}
+  </div>
+  <div class="df"><button class="btn" type="button" data-act="undo"${lista.length && !st.ro ? '' : ' disabled'}>Desfazer a última</button><button class="btn" type="button" data-act="redo"${refaz.length && !st.ro ? '' : ' disabled'}>Refazer${refaz.length ? ` (${refaz.length})` : ''}</button><button class="btn primary" type="button" data-close>Fechar</button></div>`);
+}
+// Botões para as páginas: desfazer o último passo e abrir o histórico
+function histBtns() {
+  const lista = histDoEstudo(st.undo), u = lista[lista.length - 1], ro = st.ro ? ' disabled' : '';
+  return `${u ? `<button class="btn sm" type="button" data-act="undo" title="Desfazer: ${esc(u.label)}"${ro}>Desfazer “${esc(u.label)}”</button>` : ''}<button class="btn sm" type="button" data-act="hist">Histórico${lista.length ? ` (${lista.length})` : ''}</button>`;
 }
 
 /* ================= UI geral ================= */
 let toastT;
-function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
+function toast(msg, ms = 2600, act, lbl) {
+  const t = $('#toast'); t.textContent = msg; t.classList.toggle('acao', !!act);
+  if (act) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.dataset.act = act; b.textContent = lbl; t.append(b); }
+  t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms);
+}
+const toastU = (msg, ms = 7000) => toast(msg, ms, 'undo', 'Desfazer');
 let tokCache = null;
 function tokens() { if (tokCache) return tokCache; const cs = getComputedStyle(document.documentElement); const g = n => cs.getPropertyValue(n).trim(); tokCache = { surface: g('--surface'), muted: g('--muted'), sel: g('--sel'), ink: g('--ink'), line: g('--line'), bg: g('--map-bg') }; return tokCache; }
 function isDark() { const t = document.documentElement.getAttribute('data-theme'); if (t) return t === 'dark'; return matchMedia('(prefers-color-scheme: dark)').matches; }
@@ -665,7 +729,7 @@ async function roadJob(keys, optimize, label) {
   rebuild(); renderAll();
   const kmDepois = sumRoutes([...trace].map(k => st.routes.get(k)).filter(Boolean)).km;
   const semAlt = [...trace].filter(k => { const r = st.routes.get(k); return r && rotaAviso(r.m); }).length;
-  toast(j.err ? `Cálculo interrompido: ${j.err.message || j.err.code}` : j.cancel ? 'Cálculo cancelado — o que já foi calculado ficou salvo' : `${label}: ${trace.size} rota(s) · ${fkm(kmAntes)} km estimados → ${fkm(kmDepois)} km pelas ruas${semAlt ? ` · ${semAlt} sem alternativa ao pedágio ou à terra` : ''}`, 7000);
+  (optimize ? toastU : toast)(j.err ? `Cálculo interrompido: ${j.err.message || j.err.code}` : j.cancel ? 'Cálculo cancelado — o que já foi calculado ficou salvo' : `${label}: ${trace.size} rota(s) · ${fkm(kmAntes)} km estimados → ${fkm(kmDepois)} km pelas ruas${semAlt ? ` · ${semAlt} sem alternativa ao pedágio ou à terra` : ''}`, 7000);
 }
 function showJob(label) {
   openModal(`<div class="dh"><h2>${esc(label)}</h2></div><div class="db">
@@ -769,7 +833,9 @@ function renderToolbar() {
     <button class="tb" data-act="zin" title="Aproximar (+)" aria-label="Aproximar">${ICON.plus}</button>
     <button class="tb" data-act="zout" title="Afastar (−)" aria-label="Afastar">${ICON.minus}</button>
     <button class="tb" data-act="fit" title="Enquadrar o que está visível (E)" aria-label="Enquadrar">${ICON.fit}</button>
-    <button class="tb" data-act="undo" title="Desfazer (Ctrl+Z)" aria-label="Desfazer"${st.undo.length ? '' : ' disabled'}>${ICON.undo}</button>
+    <button class="tb" data-act="undo" title="${(l => l.length ? 'Desfazer: ' + esc(l[l.length - 1].label) : 'Desfazer')(histDoEstudo(st.undo))} (Ctrl+Z)" aria-label="Desfazer"${histDoEstudo(st.undo).length ? '' : ' disabled'}>${ICON.undo}</button>
+    <button class="tb" data-act="redo" title="${(l => l.length ? 'Refazer: ' + esc(l[l.length - 1].label) : 'Refazer')(histDoEstudo(st.redo))} (Ctrl+Y)" aria-label="Refazer"${histDoEstudo(st.redo).length ? '' : ' disabled'}>${ICON.redo}</button>
+    <button class="tb" data-act="hist" title="Histórico de alterações: voltar o estudo para como estava antes" aria-label="Histórico"${st.itens ? '' : ' disabled'}>${ICON.hist}</button>
     <button class="tb" data-act="full" title="Tela cheia (F)" aria-pressed="${full}" aria-label="Tela cheia">${full ? ICON.unfull : ICON.full}</button>`;
 }
 function setTool(t) {
@@ -991,7 +1057,8 @@ function renderPendNote() {
   const n1 = pend.cli.length, n2 = pend.col.length;
   if ((n1 || n2) && $('#mapNote').hidden) {
     st.pendNoted = st.cur;
-    showNote(`Este estudo cita ${n1 ? n1 + ' cliente(s)' : ''}${n1 && n2 ? ' e ' : ''}${n2 ? n2 + ' colaborador(es)' : ''} que não existem nas bases. <button class="btn sm" id="goPend">Resolver pendências</button>`, 'warn');
+    showNote(`Este estudo cita ${n1 ? n1 + ' cliente(s)' : ''}${n1 && n2 ? ' e ' : ''}${n2 ? n2 + ' colaborador(es)' : ''} que não existem nas bases. <button class="btn sm" id="goPend">Resolver pendências</button> <button class="btn sm ghost" id="ignPend"${st.ro ? ' disabled' : ''}>Ignorar</button>`, 'warn');
+    const ig = $('#ignPend'); if (ig) ig.onclick = () => { $('#mapNote').hidden = true; ignorarPend('todas'); };
     const b = $('#goPend'); if (b) b.onclick = () => { $('#mapNote').hidden = true; setView('estudos'); setTimeout(() => { const p = $('#pendCard'); if (p) p.scrollIntoView({ block: 'start' }); }, 50); };
   }
 }
@@ -1612,7 +1679,7 @@ function routeOp(op, rk) {
   }
   const before = r.m.km; rebuild(); const after = (st.routes.get(rk) || r).m.km;
   renderMap(); renderToolbar();
-  toast(op === 'opt' ? `Sequência otimizada: ${fkm(before)} → ${fkm(after)} km` : 'Sentido invertido');
+  toastU(op === 'opt' ? `Sequência otimizada: ${fkm(before)} → ${fkm(after)} km` : 'Sentido invertido');
 }
 function weeksByFreq(f, W, load) {
   if (W === 1 || f >= 4) return [...Array(W)].map((_, i) => i + 1);
@@ -1650,17 +1717,43 @@ function distribuirSetor(sid, todos) {
   const res = E.autoRoute(pts, baseOf(sid), P(), { seed: 3 }), touched = new Set();
   for (const [sold, v] of res) { const it = clone(st.itens.get(sold)); sdKeys(it).forEach(k => touched.add(k)); it.d = v.d; it.w = v.w; it.q = v.q; st.itens.put(sold, it); sdKeys(it).forEach(k => touched.add(k)); }
   resequence(touched); rebuild(); renderAll(); renderToolbar();
-  toast(`${res.size} cliente(s) divididos nos dias. Use Roteirizar para calcular pelas ruas`, 5000);
+  toastU(`${res.size} cliente(s) divididos nos dias. Use Roteirizar para calcular pelas ruas`);
 }
 function excluirSetor(sid) {
   pushUndo('Excluir setor'); touchAmb(a => { delete a.setores[sid]; });
   for (const [s, it] of st.itens.map) if (it.s === sid) st.itens.put(s, { s: '', d: [], w: [], q: {} });
-  rebuild(); renderAll(); toast('Setor excluído — clientes ficaram sem setor');
+  rebuild(); renderAll(); toastU('Setor excluído — clientes ficaram sem setor');
 }
 function touchAmb(mut) { const a = clone(amb()); a.setores = a.setores || {}; mut(a); a.alterado = Date.now(); st.amb.put(a.id, a); }
+// Pendências ignoradas ficam em pend.ign: deixam de ser cobradas, sem mudar o estudo. Se o registro for cadastrado depois, entra normalmente.
+function pendIgn(a) { const g = (a.pend && a.pend.ign) || {}; return { cli: new Set(g.cli || []), col: new Set(g.col || []) }; }
 function cleanPend(a) {
-  const p = a.pend || { cli: [], col: [] };
-  return { cli: (p.cli || []).filter(x => !st.cli.has(x.sold)), col: (p.col || []).filter(x => !st.col.has(x.codigo)) };
+  const p = a.pend || { cli: [], col: [] }, ig = pendIgn(a);
+  return { cli: (p.cli || []).filter(x => !st.cli.has(x.sold) && !ig.cli.has(x.sold)), col: (p.col || []).filter(x => !st.col.has(x.codigo) && !ig.col.has(x.codigo)) };
+}
+function pendIgnoradas(a) {
+  const p = a.pend || { cli: [], col: [] }, ig = pendIgn(a);
+  return (p.cli || []).filter(x => !st.cli.has(x.sold) && ig.cli.has(x.sold)).length + (p.col || []).filter(x => !st.col.has(x.codigo) && ig.col.has(x.codigo)).length;
+}
+// tipo: 'cli', 'col' ou 'todas'; id: um registro só (opcional)
+function ignorarPend(tipo, id) {
+  const a = amb(); if (!a || st.ro) return; const pc = cleanPend(a);
+  const cli = tipo === 'cli' || tipo === 'todas' ? (id ? [id] : pc.cli.map(x => x.sold)) : [];
+  const col = tipo === 'col' || tipo === 'todas' ? (id ? [id] : pc.col.map(x => x.codigo)) : [];
+  const n = cli.length + col.length; if (!n) return;
+  pushUndo(n === 1 ? 'Ignorar pendência' : 'Ignorar pendências');
+  touchAmb(x => {
+    const pd = x.pend = { cli: [], col: [], ...(x.pend || {}) }, g = pd.ign || {};
+    pd.ign = { cli: [...new Set([...(g.cli || []), ...cli])], col: [...new Set([...(g.col || []), ...col])] };
+  });
+  if (!$('#mapNote').hidden && $('#goPend')) $('#mapNote').hidden = true;
+  renderAll(); toastU(n === 1 ? `Pendência ${id} ignorada` : `${n} pendências ignoradas`);
+}
+function reconsiderarPend() {
+  const a = amb(); if (!a || st.ro) return; const n = pendIgnoradas(a); if (!n) return;
+  pushUndo('Voltar a mostrar pendências');
+  touchAmb(x => { if (x.pend) x.pend.ign = { cli: [], col: [] }; });
+  st.pendNoted = null; renderAll(); toastU(`${n} pendência(s) voltaram a aparecer`);
 }
 
 /* ================= Páginas ================= */
@@ -1750,7 +1843,7 @@ function pageEstudos() {
   if (!a) return `<div class="page"><div class="ph"><div><h1>Estudos e setores</h1><p>Um estudo é um cenário de setorização e roteiro que usa as bases de clientes e colaboradores sem alterá-las.</p></div></div>
     <div class="cols2">${side}<div class="card"><div class="empty"><h3>Comece por um estudo</h3><p>Crie um estudo a partir da base de clientes, importe um roteiro em Excel ou gere dados de exemplo para conhecer o sistema.</p><div class="row" style="justify-content:center"><button class="btn primary" data-act="newamb">Novo estudo</button><button class="btn" data-act="sample">Gerar dados de exemplo</button></div></div></div></div></div>`;
   const p = P(); const routes = st.routes; const s = ambStats(a, st.itens.map, routes);
-  const pend = cleanPend(a);
+  const pend = cleanPend(a), nIgn = pendIgnoradas(a), ro = st.ro ? ' disabled' : '';
   const cnt = new Map(), hrs = new Map(), kms = new Map();
   for (const it of st.itens.values()) if (it.s) cnt.set(it.s, (cnt.get(it.s) || 0) + 1);
   for (const r of routes.values()) { hrs.set(r.s, (hrs.get(r.s) || 0) + r.m.total); kms.set(r.s, (kms.get(r.s) || 0) + r.m.km); }
@@ -1765,11 +1858,12 @@ function pageEstudos() {
     <div class="ph"><div><h1>Estudos e setores</h1><p>Um estudo é um cenário de setorização e roteiro que usa as bases de clientes e colaboradores sem alterá-las. Duplique para comparar alternativas.</p></div></div>
     <div class="cols2">${side}
     <div class="stack">
-      ${pend.cli.length || pend.col.length ? `<div class="card" id="pendCard"><div class="ch"><h2>Pendências de cadastro</h2><span class="pill warn">${pend.cli.length + pend.col.length}</span></div><div class="cb stack">
-        <p class="muted" style="margin:0">O roteiro importado cita registros que não existem nas bases. Cadastre-os para que apareçam no mapa e entrem nos cálculos.</p>
-        ${pend.cli.length ? `<div><span class="lbl">Clientes</span><div class="row" style="margin-top:6px">${pend.cli.slice(0, 40).map(x => `<button class="btn sm" data-newcli="${esc(x.sold)}" data-nome="${esc(x.nome || '')}">Cadastrar ${esc(x.sold)}${x.nome ? ' · ' + esc(x.nome) : ''}</button>`).join('')}${pend.cli.length > 40 ? `<span class="muted">+${pend.cli.length - 40}</span>` : ''}</div><p class="muted" style="font-size:12px;margin:6px 0 0">Muitos clientes? Importe a planilha deles em Clientes — as pendências somem sozinhas.</p></div>` : ''}
-        ${pend.col.length ? `<div><span class="lbl">Colaboradores</span><div class="row" style="margin-top:6px">${pend.col.map(x => `<button class="btn sm" data-newcol="${esc(x.codigo)}" data-nome="${esc(x.nome || '')}">Cadastrar ${esc(x.codigo)}</button>`).join('')}</div></div>` : ''}
-      </div></div>` : ''}
+      ${pend.cli.length || pend.col.length ? `<div class="card" id="pendCard"><div class="ch"><h2>Pendências de cadastro <span class="pill warn">${pend.cli.length + pend.col.length}</span></h2><button class="btn sm" data-act="pendign" data-pt="todas"${ro}>Ignorar todas</button></div><div class="cb stack">
+        <p class="muted" style="margin:0">O roteiro importado cita registros que não existem nas bases. Cadastre-os para que apareçam no mapa e entrem nos cálculos, ou ignore os que não forem necessários: o aviso some e o restante do estudo continua igual.</p>
+        ${pend.cli.length ? `<div><div class="row" style="justify-content:space-between"><span class="lbl">Clientes · ${pend.cli.length}</span>${pend.col.length ? `<button class="btn sm ghost" data-act="pendign" data-pt="cli"${ro}>Ignorar os clientes</button>` : ''}</div><div class="row" style="margin-top:6px">${pend.cli.slice(0, 40).map(x => `<span class="pendchip"><button class="btn sm" data-newcli="${esc(x.sold)}" data-nome="${esc(x.nome || '')}">Cadastrar ${esc(x.sold)}${x.nome ? ' · ' + esc(x.nome) : ''}</button><button class="btn sm ghost" data-act="pendign" data-pt="cli" data-pid="${esc(x.sold)}" title="Ignorar esta pendência" aria-label="Ignorar ${esc(x.sold)}"${ro}>Ignorar</button></span>`).join('')}${pend.cli.length > 40 ? `<span class="muted">+${pend.cli.length - 40}</span>` : ''}</div><p class="muted" style="font-size:12px;margin:6px 0 0">Muitos clientes? Importe a planilha deles em Clientes — as pendências somem sozinhas.</p></div>` : ''}
+        ${pend.col.length ? `<div><div class="row" style="justify-content:space-between"><span class="lbl">Colaboradores · ${pend.col.length}</span>${pend.cli.length ? `<button class="btn sm ghost" data-act="pendign" data-pt="col"${ro}>Ignorar os colaboradores</button>` : ''}</div><div class="row" style="margin-top:6px">${pend.col.map(x => `<span class="pendchip"><button class="btn sm" data-newcol="${esc(x.codigo)}" data-nome="${esc(x.nome || '')}">Cadastrar ${esc(x.codigo)}</button><button class="btn sm ghost" data-act="pendign" data-pt="col" data-pid="${esc(x.codigo)}" title="Ignorar esta pendência" aria-label="Ignorar ${esc(x.codigo)}"${ro}>Ignorar</button></span>`).join('')}</div></div>` : ''}
+        ${nIgn ? `<div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12.5px">${nIgn} pendência(s) ignorada(s).</span><button class="btn sm ghost" data-act="pendvolta"${ro}>Voltar a mostrar</button></div>` : ''}
+      </div></div>` : nIgn ? `<div class="card"><div class="cb row" style="justify-content:space-between"><span class="muted">${nIgn} pendência(s) de cadastro ignorada(s) neste estudo.</span><button class="btn sm" data-act="pendvolta"${ro}>Voltar a mostrar</button></div></div>` : ''}
       <div class="card"><div class="ch"><h2>Identificação</h2><div class="row"><button class="btn sm" data-act="dupamb">Duplicar como cenário</button><button class="btn sm danger" data-act="delamb">Excluir estudo</button></div></div><div class="cb fgrid">
         <label class="field" style="grid-column:span 2"><span class="lbl">Nome do estudo</span><input type="text" id="aNome" value="${esc(a.nome)}"></label>
         <label class="field" style="grid-column:span 2"><span class="lbl">Descrição</span><input type="text" id="aDesc" value="${esc(a.desc || '')}" placeholder="Objetivo, premissas, origem do roteiro"></label>
@@ -1788,7 +1882,7 @@ function pageEstudos() {
       <div class="card"><div class="ch"><h2>Clientes no estudo</h2><div class="row"><button class="btn sm" data-act="incl">Incluir clientes da base</button><button class="btn sm" data-go="mapa">Montar no mapa</button></div></div><div class="cb">
         <div class="row" style="gap:22px"><div><div class="lbl">No estudo</div><div class="num" style="font-size:20px;font-weight:600">${s.clientes}</div></div><div><div class="lbl">Setorizados</div><div class="num" style="font-size:20px;font-weight:600">${s.setorizados}</div></div><div><div class="lbl">Rotas</div><div class="num" style="font-size:20px;font-weight:600">${s.rotas}</div></div><div><div class="lbl">KM no ciclo</div><div class="num" style="font-size:20px;font-weight:600">${fkm(s.km)}</div></div><div><div class="lbl">Horas no ciclo</div><div class="num" style="font-size:20px;font-weight:600">${fhm(s.horas)}</div></div><div><div class="lbl">Ocupação média</div><div style="font-size:15px;margin-top:3px">${s.rotas ? ocPill(s.oc) : '—'}</div></div></div>
       </div></div>
-      <div class="card"><div class="ch"><h2>Setorização e roteirização automáticas</h2></div><div class="cb stack">
+      <div class="card"><div class="ch"><h2>Setorização e roteirização automáticas</h2><div class="row">${histBtns()}</div></div><div class="cb stack">
         <div class="fgrid">
           <label class="field"><span class="lbl">Nº de setores</span><input type="number" id="aK" min="1" max="200" value="${Math.max(1, Object.keys(a.setores || {}).length || [...st.col.values()].length || 4)}"></label>
           <label class="field"><span class="lbl">Equilibrar por</span><select id="aBy"><option value="carga">Carga de trabalho (tempo × frequência)</option><option value="qtd">Quantidade de clientes</option></select></label>
@@ -2063,15 +2157,18 @@ function renderWz() {
       <div class="row"><label class="chk"><input type="checkbox" id="wzGeo" ${wz.geo ? 'checked' : ''}> Buscar as coordenadas pelo endereço de quem não tiver latitude/longitude</label>${geoSrcSel()}</div>`;
     foot = `<button class="btn" id="wzBack">Voltar</button><button class="btn primary" id="wzGo">Importar ${wz.rows.length} linha(s)</button>`;
   } else {
-    const r = wz.res;
-    body = `<div class="stack">${r.lines.map(l => `<div class="banner ${l[0]}">${l[1]}</div>`).join('')}</div>`;
+    const r = wz.res, rg = r.regId && st.imp && st.imp.get(r.regId);
+    body = `<div class="stack">${r.lines.map(l => `<div class="banner ${l[0]}">${l[1]}</div>`).join('')}
+      ${rg ? `<div class="imp-reg"><div class="row" style="justify-content:space-between"><span class="lbl">Registrado no histórico de importações</span><span class="muted" style="font-size:12px">${fdh(rg.em)} · ${esc(rg.usuario || 'sem usuário')}</span></div>
+        <label class="field"><span class="lbl">Observação (opcional)</span><textarea id="wzMsg" class="msg" maxlength="500" placeholder="Ex.: roteiro de novembro enviado pelo comercial">${esc(rg.msg || '')}</textarea><span class="hint">Fica no histórico junto com a data, o usuário e as quantidades. Pode ser editada depois.</span></label></div>` : ''}</div>`;
     foot = wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
   }
   openModal(`<div class="dh"><h2>${T}</h2>${steps}<button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div><div class="db">${body}</div><div class="df">${foot}</div>`);
+  const wm = $('#wzMsg'); if (wm) wm.oninput = () => impMsg(wz.res.regId, wm.value);
   if (wz.step === 1) {
-    $('#wzFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const buf = await f.arrayBuffer(); if (!window.XLSX) throw new Error('leitor indisponível'); wz.wb = XLSX.read(buf, { type: 'array', cellDates: false }); wz.sheet = wz.wb.SheetNames[0]; loadSheet(); renderWz(); } catch (err) { toast('Não consegui ler o arquivo: ' + (err.message || err)); } };
+    $('#wzFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; wz.arquivo = f.name; try { const buf = await f.arrayBuffer(); if (!window.XLSX) throw new Error('leitor indisponível'); wz.wb = XLSX.read(buf, { type: 'array', cellDates: false }); wz.sheet = wz.wb.SheetNames[0]; loadSheet(); renderWz(); } catch (err) { toast('Não consegui ler o arquivo: ' + (err.message || err)); } };
     const sh = $('#wzSheet'); if (sh) sh.onchange = e => { wz.sheet = e.target.value; loadSheet(); renderWz(); };
-    $('#wzRead').onclick = () => { const txt = $('#wzPaste').value; if (!txt.trim()) { toast('Cole os dados primeiro'); return; } wz.wb = null; parseText(txt); renderWz(); };
+    $('#wzRead').onclick = () => { const txt = $('#wzPaste').value; if (!txt.trim()) { toast('Cole os dados primeiro'); return; } wz.wb = null; wz.arquivo = 'Dados colados'; parseText(txt); renderWz(); };
     $('#wzNext').onclick = () => { autoMap(); wz.step = 2; renderWz(); };
   } else if (wz.step === 2) {
     $$('[data-wzf]').forEach(s => { s.onchange = () => { wz.map[s.dataset.wzf] = +s.value; renderWz(); }; });
@@ -2124,7 +2221,7 @@ function cell(r, k) { const i = wz.map[k]; return i >= 0 ? r[i] : ''; }
 async function runImport() {
   const F = FIELDS[wz.kind]; const req = F.filter(f => f.req);
   for (const f of req) if (!(wz.map[f.k] >= 0)) { toast(`Escolha a coluna de “${f.l}”`); return; }
-  const lines = [], toGeo = [];
+  const lines = [], toGeo = []; let reg = { linhas: wz.rows.length };
   // Endereço da linha; se mudou em relação ao cadastro (e a planilha não trouxe coordenada), a coordenada antiga é descartada e buscada de novo
   const readAddr = (r, o, ex) => {
     for (const k of ['endereco', 'bairro', 'cidade', 'uf', 'cep']) if (wz.map[k] >= 0) { let v = String(cell(r, k)).trim(); if (k === 'uf') v = v.toUpperCase(); if (v || !ex) o[k] = v; }
@@ -2152,6 +2249,7 @@ async function runImport() {
       if (setorNome || colab) comSetor.push([sold, setorNome || colab, colab]);
     }
     lines.push(['info', `${nNew} cliente(s) novos, ${nUpd} atualizados${nSkip ? `, ${nSkip} linha(s) ignoradas` : ''}.`]);
+    reg = { ...reg, alteracoes: nNew + nUpd, novos: nNew, atualizados: nUpd, ignorados: nSkip };
     if (comSetor.length) {
       // A listagem já diz o setor de cada cliente: carrega os setores no estudo aberto, ou em um novo com toda a base
       await garantirEstudo(); pushUndo('Importar setores');
@@ -2166,7 +2264,7 @@ async function runImport() {
       }
       a.alterado = Date.now(); st.amb.put(a.id, a); st.visao = 'setores'; verSetor('');
       lines.push(['info', `${byName.size} setor(es) carregados no estudo “${esc(a.nome)}”${byName.size > antes ? `, ${byName.size - antes} novos` : ''}, com ${comSetor.length} cliente(s). Abra um setor para montar as rotas diárias.`]);
-      const pendC = a.pend.col.filter(p => !st.col.has(p.codigo)).length;
+      const pendC = cleanPend(a).col.length; reg = { ...reg, estudo: a.id, estudoNome: a.nome, pend: pendC };
       if (pendC) lines.push(['', `${pendC} colaborador(es) citados não existem na base. Cadastre-os com a base de saída para calcular KM de ida e volta.`]);
     }
     if (toGeo.length) geoLine(toGeo.length, 'endereço(s)');
@@ -2186,6 +2284,7 @@ async function runImport() {
       st.col.put(codigo, o); ex ? nUpd++ : nNew++;
     }
     lines.push(['info', `${nNew} colaborador(es) novos, ${nUpd} atualizados.`]);
+    reg = { ...reg, alteracoes: nNew + nUpd, novos: nNew, atualizados: nUpd, ignorados: Math.max(0, wz.rows.length - nNew - nUpd) };
     if (toGeo.length) geoLine(toGeo.length, 'base(s) de saída');
     const semBase = [...st.col.values()].filter(c => !hasXY(c) && !toGeo.some(([, id]) => id === c.codigo)).length;
     if (semBase) lines.push(['', `${semBase} colaborador(es) sem localização da base. Sem ela não há KM de ida e volta; abra o colaborador e busque pelo endereço ou informe a coordenada.`]);
@@ -2247,7 +2346,7 @@ async function runImport() {
     geoSet.forEach(s => toGeo.push(['cli', s]));
     const usados = new Set(P(a).dias); for (const it of st.itens.values()) (it.d || []).forEach(d => usados.add(d));
     a.params = { ...P(a), dias: [...usados].filter(d => d >= 1 && d <= 7).sort((x, y) => x - y) };
-    a.pend = { cli: [...pendCli.values()], col: [...pendCol.values()] }; a.alterado = Date.now(); st.amb.put(a.id, a);
+    a.pend = { ...a.pend, cli: [...pendCli.values()], col: [...pendCol.values()] }; a.alterado = Date.now(); st.amb.put(a.id, a);
     // sequência para dias sem coluna de sequência
     if (wz.map.seq === undefined || wz.map.seq < 0) { const sd = new Set(); for (const it of st.itens.values()) sdKeys(it).forEach(k => sd.add(k)); resequence(sd); }
     lines.push(['info', `${n} linha(s) aplicadas ao estudo “${esc(a.nome)}” em ${Object.keys(a.setores).length} setor(es).`]);
@@ -2256,12 +2355,80 @@ async function runImport() {
     if (nFreq) lines.push(['info', `Frequência atualizada na base em ${nFreq} cliente(s), conforme as semanas e os dias do roteiro.`]);
     if (toGeo.length) geoLine(toGeo.length, 'endereço(s) de cliente');
     const pc = cleanPend(a);
+    reg = { ...reg, estudo: a.id, estudoNome: a.nome, alteracoes: n, novos: nCriados, atualizados: nFreq + nCoord, ignorados: Math.max(0, wz.rows.length - n), pend: pc.cli.length + pc.col.length };
     if (pc.cli.length) lines.push(['', `${pc.cli.length} cliente(s) não existem na base e a planilha não trouxe endereço: ${pc.cli.slice(0, 8).map(x => esc(x.sold)).join(', ')}${pc.cli.length > 8 ? '…' : ''}. Eles ficam pendentes até serem cadastrados.`]);
     if (pc.col.length) lines.push(['', `${pc.col.length} colaborador(es) não existem na base: ${pc.col.map(x => esc(x.codigo)).join(', ')}. Cadastre-os com a base de saída para calcular KM de ida e volta.`]);
     if (semDia) lines.push(['', `${semDia} cliente(s) ficaram sem dia de visita. Use “Distribuir automaticamente” ou defina os dias no mapa.`]);
   }
   if (toGeo.length) geoEnqueue(toGeo);
-  rebuild(); wz.res = { lines }; wz.step = 3; renderWz(); renderAll(); if (wz.kind !== 'colaboradores') fitVisible();
+  const regId = registraImport(reg, lines);
+  rebuild(); wz.res = { lines, regId }; wz.step = 3; renderWz(); renderAll(); if (wz.kind !== 'colaboradores') fitVisible();
+}
+
+/* ================= Histórico de importações =================
+   Cada importação fica registrada para a empresa: data e hora, usuário, arquivo, quantidades e uma observação opcional. */
+const IMP_MAX = 400;
+const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro' };
+const fdh = ts => new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const semHtml = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.trim(); };
+function registraImport(reg, lines) {
+  if (!st.imp || st.ro) return null;
+  const u = st.usuario || {};
+  const r = { id: uid('i'), em: Date.now(), tipo: wz.kind, arquivo: wz.arquivo || '', usuario: u.nome || u.login || '', login: u.login || '', linhas: 0, alteracoes: 0, novos: 0, atualizados: 0, ignorados: 0, pend: 0, ...reg, resumo: lines.map(l => semHtml(l[1])).slice(0, 20), msg: '' };
+  st.imp.put(r.id, r);
+  const todos = impLista(); todos.slice(IMP_MAX).forEach(x => st.imp.del(x.id));
+  return r.id;
+}
+function impLista() { return st.imp ? [...st.imp.values()].sort((a, b) => (b.em || 0) - (a.em || 0)) : []; }
+function impMsg(id, txt) { const r = id && st.imp && st.imp.get(id); if (!r) return; st.imp.put(id, { ...r, msg: String(txt || '').slice(0, 500) }); }
+function impQtd(r) {
+  const partes = [];
+  if (r.novos) partes.push(`${nf0.format(r.novos)} ${r.tipo === 'roteiro' ? 'cliente(s) cadastrados' : 'novos'}`);
+  if (r.atualizados) partes.push(`${nf0.format(r.atualizados)} atualizados`);
+  if (r.ignorados) partes.push(`${nf0.format(r.ignorados)} linha(s) ignoradas`);
+  return partes.join(' · ');
+}
+function impUltima() {
+  const r = impLista()[0]; if (!r) return '';
+  return `Última importação: <b>${IMP_TIPO[r.tipo] || r.tipo}</b> em ${fdh(r.em)}${r.usuario ? ' por ' + esc(r.usuario) : ''} · ${nf0.format(r.alteracoes || 0)} alteração(ões)`;
+}
+function histImpHtml() {
+  const f = st.pg.imp, todos = impLista(), lista = todos.filter(r => !f.tipo || r.tipo === f.tipo), vis = lista.slice(0, f.n);
+  const cont = k => todos.filter(r => r.tipo === k).length;
+  const seg = (v, l, n) => `<button type="button" data-act="impf" data-t="${v}" aria-pressed="${f.tipo === v}">${l}${n ? ` <span class="muted">${n}</span>` : ''}</button>`;
+  const aviso = st.impSemTabela ? `<div class="banner" style="font-size:12.5px">O banco de dados ainda não tem a tabela do histórico: as importações desta sessão aparecem aqui, mas não ficam gravadas. Peça para rodar <b>supabase/migracao_03_importacoes.sql</b> no Supabase.</div>` : '';
+  const rows = vis.map(r => `<tr class="clk" data-act="impver" data-iid="${esc(r.id)}">
+      <td class="num">${new Date(r.em).toLocaleDateString('pt-BR')}</td><td class="num">${new Date(r.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
+      <td>${esc(r.usuario || '—')}</td><td><span class="pill imp-${esc(r.tipo)}">${IMP_TIPO[r.tipo] || esc(r.tipo)}</span></td>
+      <td class="wrap imp-arq" title="${esc(r.arquivo || '')}">${esc(r.arquivo || '—')}${r.estudoNome ? `<div class="muted" style="font-size:11.5px">Estudo: ${esc(r.estudoNome)}</div>` : ''}</td>
+      <td class="n"><b class="num">${nf0.format(r.alteracoes || 0)}</b><div class="muted" style="font-size:11.5px">${impQtd(r) || `${nf0.format(r.linhas || 0)} linha(s)`}</div></td>
+      <td class="n">${r.pend ? `<span class="pill warn">${nf0.format(r.pend)}</span>` : '<span class="muted">—</span>'}</td>
+      <td class="wrap imp-msg">${r.msg ? esc(r.msg) : '<span class="muted">+ adicionar observação</span>'}</td></tr>`).join('');
+  return `<div class="card" id="impHist"><div class="ch"><h2>Histórico de importações${todos.length ? ` <span class="pill idle">${nf0.format(todos.length)}</span>` : ''}</h2>
+      ${todos.length ? `<div class="seg">${seg('', 'Todas')}${seg('roteiro', 'Roteiro', cont('roteiro'))}${seg('clientes', 'Clientes', cont('clientes'))}${seg('colaboradores', 'Colaboradores', cont('colaboradores'))}</div>` : ''}</div>
+    ${aviso ? `<div class="cb">${aviso}</div>` : ''}
+    ${rows ? `<div style="overflow-x:auto"><table class="t imp-t"><thead><tr><th>Data</th><th>Hora</th><th>Usuário</th><th>Tipo</th><th>Arquivo</th><th class="n">Alterações</th><th class="n">Pendências</th><th>Observação</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${lista.length > vis.length ? `<div class="cb row" style="justify-content:center"><button class="btn sm" data-act="impmais">Mostrar mais (${lista.length - vis.length})</button></div>` : ''}`
+    : `<div class="cb muted">${todos.length ? 'Nenhuma importação deste tipo.' : 'Nenhuma importação registrada ainda. Cada planilha importada aparece aqui com data, hora, usuário e quantidades.'}</div>`}
+  </div>`;
+}
+function impDetalhe(id) {
+  const r = st.imp && st.imp.get(id); if (!r) return;
+  const item = (l, v) => `<div><div class="lbl">${l}</div><div>${v}</div></div>`;
+  openModal(`<div class="dh"><h2>Importação de ${(IMP_TIPO[r.tipo] || r.tipo).toLowerCase()}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db stack">
+    <div class="imp-det">
+      ${item('Data e hora', fdh(r.em))}${item('Usuário', esc(r.usuario || '—') + (r.login && r.login !== r.usuario ? `<div class="muted" style="font-size:12px">${esc(r.login)}</div>` : ''))}
+      ${item('Arquivo', esc(r.arquivo || '—'))}${item('Estudo', esc(r.estudoNome || '—'))}
+      ${item('Linhas lidas', nf0.format(r.linhas || 0))}${item('Alterações', `<b class="num">${nf0.format(r.alteracoes || 0)}</b>`)}
+      ${item(r.tipo === 'roteiro' ? 'Clientes cadastrados' : 'Novos', nf0.format(r.novos || 0))}${item('Atualizados', nf0.format(r.atualizados || 0))}
+      ${item('Linhas ignoradas', nf0.format(r.ignorados || 0))}${item('Pendências', r.pend ? `<span class="pill warn">${nf0.format(r.pend)}</span>` : '0')}
+    </div>
+    ${(r.resumo || []).length ? `<div><div class="lbl">Resultado</div><ul class="imp-res">${r.resumo.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+    <label class="field"><span class="lbl">Observação</span><textarea id="impMsgTxt" class="msg" maxlength="500" placeholder="Uma breve mensagem sobre esta importação"${st.ro ? ' disabled' : ''}>${esc(r.msg || '')}</textarea></label>
+  </div>
+  <div class="df"><button class="btn" data-close>Fechar</button><button class="btn primary" id="impMsgOk"${st.ro ? ' disabled' : ''}>Salvar observação</button></div>`);
+  $('#impMsgOk').onclick = () => { impMsg(id, $('#impMsgTxt').value); closeModal(); renderAll(); toast('Observação salva'); };
 }
 
 /* ================= Exportação ================= */
@@ -2358,7 +2525,7 @@ function runAutoSet() {
   const m = new Map(); for (const sold of st.itens.map.keys()) m.set(sold, res.itens.get(sold) || { s: '', d: [], w: [], q: {} });
   touchAmb(x => { x.setores = res.setores; }); if (st.geo) st.geo.replaceAll(new Map()); st.pathCache.clear();
   st.itens.replaceAll(m); st.hidden.clear(); st.hiddenSet.clear();
-  rebuild(); renderAll(); toast(`${Object.keys(res.setores).length} setores criados e roteirizados`);
+  rebuild(); renderAll(); toastU(`${Object.keys(res.setores).length} setores criados e roteirizados`);
   if ($('#aRoad') && $('#aRoad').checked && roadOk()) roadJob([...st.routes.keys()], true, 'Estudo roteirizado pelas ruas');
 }
 function encaixar() {
@@ -2377,7 +2544,7 @@ function encaixar() {
     const nv = { s: best, d, w: weeksByFreq(p.f, W, load), q: {} };
     st.itens.put(sold, nv); touched.add(best + '|' + d[0]); n++;
   }
-  resequence(touched); rebuild(); renderAll(); toast(`${n} cliente(s) encaixados no setor mais próximo`);
+  resequence(touched); rebuild(); renderAll(); toastU(`${n} cliente(s) encaixados no setor mais próximo`);
 }
 function runAutoRoute() {
   pushUndo('Roteirização automática');
@@ -2386,7 +2553,7 @@ function runAutoRoute() {
     const res = E.autoRoute(solds.map(cliPt).filter(Boolean), baseOf(sid), P(), { seed: 3 });
     for (const [sold, v] of res) st.itens.put(sold, { ...st.itens.get(sold), d: v.d, w: v.w, q: v.q });
   }
-  rebuild(); renderAll(); toast('Setores roteirizados em dias e semanas');
+  rebuild(); renderAll(); toastU('Setores roteirizados em dias e semanas');
   if ($('#aRoad') && $('#aRoad').checked && roadOk()) roadJob([...st.routes.keys()], true, 'Estudo roteirizado pelas ruas');
 }
 async function runCmp() {
@@ -2741,8 +2908,9 @@ function pageImportar() {
     <ul class="cols-list">${m.cols.map(c => `<li><span>${esc(c[0])}</span><span>${['opcional', '<b style="color:var(--ink)">obrigatório</b>', 'recomendado'][c[1]]}</span></li>`).join('')}</ul>
     <div class="row end"><button class="btn" data-modelo="${k}">Baixar modelo (.xlsx)</button><button class="btn primary" data-imp="${k}"${st.ro ? ' disabled' : ''}>Importar planilha</button></div></div></div>`; };
   return `<div class="page">
-    <div class="ph"><div><h1>Importação e modelos</h1><p>Baixe o modelo, preencha no Excel e importe. Cada modelo traz exemplos e uma aba “Instruções”. A ordem recomendada é colaboradores, clientes e, por fim, o roteiro.</p></div></div>
+    <div class="ph"><div><h1>Importação e modelos</h1><p>Baixe o modelo, preencha no Excel e importe. Cada modelo traz exemplos e uma aba “Instruções”. A ordem recomendada é colaboradores, clientes e, por fim, o roteiro.</p>${impUltima() ? `<p class="imp-ult"><button type="button" class="linkbtn" data-act="impir" title="Ver o histórico de importações">${impUltima()}</button></p>` : ''}</div></div>
     <div class="impgrid">${card('colaboradores', 1)}${card('clientes', 2)}${card('roteiro', 3)}</div>
+    ${histImpHtml()}
     <div class="card"><div class="ch"><h2>Endereços a ajustar</h2>${nSea ? `<span class="pill warn">${nSea} no mar</span>` : geoQ.busy ? `<span class="pill idle">buscando…</span>` : '<span class="pill ok">nenhum</span>'}</div><div class="cb stack">
       <p class="muted" style="margin:0">Clientes cujo endereço não foi encontrado ficam empilhados num único ponto no mar e não entram nos cálculos de KM. Para corrigir: arraste o pino do mar até o local, use “Marcar no mapa”, aceite a sugestão aproximada ou corrija o endereço e busque de novo.</p>
       ${geoQ.busy ? `<div class="banner info">Busca em andamento: ${geoQ.done} de ${geoQ.total}. Você pode continuar usando o sistema.</div>` : ''}
@@ -2803,7 +2971,7 @@ function bindEvents() {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.tool) setTool(b.dataset.tool);
     const a = b.dataset.act;
-    if (a === 'zin') map.zoomIn(); if (a === 'zout') map.zoomOut(); if (a === 'fit') fitVisible(); if (a === 'full') toggleFull(); if (a === 'undo') doUndo();
+    if (a === 'zin') map.zoomIn(); if (a === 'zout') map.zoomOut(); if (a === 'fit') fitVisible(); if (a === 'full') toggleFull(); if (a === 'undo') doUndo(); if (a === 'redo') doRedo(); if (a === 'hist') historicoForm();
   });
   $('#layersPanel').addEventListener('click', e => {
     const b = e.target.closest('button, input'); if (!b) return;
@@ -2950,6 +3118,7 @@ function bindEvents() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { if (!$('#ctx').hidden) { fecharCtx(); return; } if (!$('#modal').hidden) { closeModal(); return; } if (st.placing) { endPlace(); return; } if (st.tool === 'ruler') { st.ruler = { pts: [], active: false }; drawRuler(); return; } if (st.sel.size) { st.sel.clear(); afterSel(); } return; }
     if (e.target.closest('input,select,textarea') || !$('#modal').hidden) return;
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); doRedo(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); doUndo(); return; }
     if (st.screen !== 'planner' || st.view !== 'mapa' || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
@@ -3008,9 +3177,19 @@ function pageAct(act, btn) {
     case 'incl': inclForm(); break;
     case 'dupamb': dupAmb(); break;
     case 'delamb': armButton(btn, delAmb, 'Confirmar exclusão'); break;
+    case 'undo': $('#toast').hidden = true; doUndo(); if (btn && btn.closest('#modal')) historicoForm(); break;
+    case 'redo': $('#toast').hidden = true; doRedo(); if (btn && btn.closest('#modal')) historicoForm(); break;
+    case 'hist': historicoForm(); break;
+    case 'pendign': ignorarPend(btn.dataset.pt, btn.dataset.pid); break;
+    case 'pendvolta': reconsiderarPend(); break;
+    case 'impver': impDetalhe(btn.dataset.iid); break;
+    case 'impf': pg.imp.tipo = btn.dataset.t; pg.imp.n = 15; renderPage(); break;
+    case 'impmais': pg.imp.n += 30; renderPage(); break;
+    case 'impir': { const h = $('#impHist'); if (h) h.scrollIntoView({ block: 'start', behavior: 'smooth' }); break; }
+    case 'histvolta': voltarPara(+btn.dataset.hid); break;
     case 'autoset': runAutoSet(); break;
     case 'autoroute': runAutoRoute(); break;
-    case 'reseqall': { pushUndo('Otimizar sequências'); const sd = new Set(); for (const it of st.itens.values()) sdKeys(it).forEach(k => sd.add(k)); const before = sumRoutes([...st.routes.values()]).km; resequence(sd); rebuild(); renderAll(); toast(`Sequências otimizadas: ${fkm(before)} → ${fkm(sumRoutes([...st.routes.values()]).km)} km no ciclo`); break; }
+    case 'reseqall': { pushUndo('Otimizar sequências'); const sd = new Set(); for (const it of st.itens.values()) sdKeys(it).forEach(k => sd.add(k)); const before = sumRoutes([...st.routes.values()]).km; resequence(sd); rebuild(); renderAll(); toastU(`Sequências otimizadas: ${fkm(before)} → ${fkm(sumRoutes([...st.routes.values()]).km)} km no ciclo`); break; }
     case 'newset': { const id = uid('s'); const n = sortedSetores().length + 1; touchAmb(a => { a.setores[id] = { nome: `Setor ${String(n).padStart(2, '0')}`, cor: E.PALETA[(n - 1) % E.PALETA.length], colab: '' }; }); renderPage(); break; }
     case 'cmp': runCmp(); break;
     case 'backup': doBackup(); break;
@@ -3222,7 +3401,7 @@ function renderHome() {
       <div class="card"><div class="ch"><h2>Bases de dados</h2></div><div class="cb stack">
         <div class="dbrow"><div><div class="lbl">Clientes</div><b class="num">${nf0.format(clis.length)}</b> <span class="muted">· ${nf0.format(clis.length - comCoord)} sem coordenadas</span></div><button class="btn sm" data-go="clientes">Gerenciar</button></div>
         <div class="dbrow"><div><div class="lbl">Colaboradores</div><b class="num">${nf0.format(cols.length)}</b> <span class="muted">· ${nf0.format(cols.length - basesOk)} sem base localizada</span></div><button class="btn sm" data-go="colaboradores">Gerenciar</button></div>
-        <div class="dbrow"><div><div class="lbl">Importação e modelos</div><span class="muted">Modelos de planilha para clientes, colaboradores e roteiro${seaList().length ? ` · <b style="color:var(--warn)">${nf0.format(seaList().length)} endereço(s) a ajustar</b>` : ''}</span></div><button class="btn sm primary" data-go="importar">Abrir</button></div>
+        <div class="dbrow"><div><div class="lbl">Importação e modelos</div><span class="muted">${impUltima() || 'Modelos de planilha para clientes, colaboradores e roteiro'}${seaList().length ? ` · <b style="color:var(--warn)">${nf0.format(seaList().length)} endereço(s) a ajustar</b>` : ''}</span></div><button class="btn sm primary" data-go="importar">Abrir</button></div>
         <div><div class="lbl" style="margin-bottom:6px">Clientes por cidade</div>${cityRows.length ? hbars(cityRows) : '<p class="muted" style="margin:0">Nenhuma cidade informada nos clientes.</p>'}</div></div></div>
     </div>
     <div class="card"><div class="ch"><h2>Bases de saída dos colaboradores</h2><span class="muted" style="font-size:12px">${f ? 'setor no estudo: ' + esc(f.nome) : ''}</span></div>
@@ -3690,9 +3869,10 @@ async function boot() {
   initMap();
   probeRoads();
   applyPanels();
-  st.cli = new BucketStore('clientes'); st.col = new BucketStore('colaboradores'); st.amb = new BucketStore('ambientes');
+  st.cli = new BucketStore('clientes'); st.col = new BucketStore('colaboradores'); st.amb = new BucketStore('ambientes'); st.imp = new BucketStore('importacoes');
   try { await Promise.all([st.cli.load(), st.col.load(), st.amb.load()]); }
   catch (e2) { toast('Não foi possível carregar os dados salvos: ' + (e2.message || e2.code || e2)); }
+  try { await st.imp.load(); } catch (e2) { /* o histórico de importações não impede o uso do sistema */ }
   const ids = [...st.amb.values()].sort((a, b) => (b.alterado || 0) - (a.alterado || 0)).map(a => a.id);
   const first = ids.includes(st.lastAmb) ? st.lastAmb : ids[0];
   if (innerWidth < 900) st.panelL = false;

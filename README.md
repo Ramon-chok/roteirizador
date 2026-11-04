@@ -78,7 +78,7 @@ O sistema grava no Supabase: clientes, colaboradores, estudos, setores, roteiros
 - **Dados do navegador:** no login, se o banco do ambiente estiver vazio e o navegador tiver dados, o sistema oferece enviá-los. Eles continuam no navegador.
 - **Várias pessoas ao mesmo tempo:** cada alteração é gravada linha a linha, e a última gravação vale. O que outra pessoa alterou aparece ao recarregar a página.
 
-Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do arquivo. Quem já tinha o schema roda também `supabase/migracao_02_usuarios.sql`. Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
+Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do arquivo. Quem já tinha o schema roda também `supabase/migracao_02_usuarios.sql` e `supabase/migracao_03_importacoes.sql` (histórico de importações). Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
 
 ## Importação pelo endereço
 
