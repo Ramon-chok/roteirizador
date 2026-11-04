@@ -1,82 +1,166 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Roteirizador RRM</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/style.css">
-<style>[hidden]{display:none!important}body{margin:0}</style>
-</head>
-<body class="screen-home screen-login">
-<div id="loginView" aria-label="Acesso"></div>
-<div id="app">
-  <header class="top">
-    <button class="brand" id="goHome" type="button" title="Página inicial" aria-label="Roteirizador RRM — página inicial"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/><path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3"/></svg><span><b>RRM</b></span></button>
-    <nav class="tabs" id="tabs" role="tablist" aria-label="Seções">
-      <button class="tab" role="tab" data-view="mapa" aria-selected="true">Mapa</button>
-      <button class="tab" role="tab" data-view="roteiros" aria-selected="false">Roteiros</button>
-      <button class="tab" role="tab" data-view="estudos" aria-selected="false">Estudos</button>
-      <button class="tab" role="tab" data-view="clientes" aria-selected="false">Clientes</button>
-      <button class="tab" role="tab" data-view="colaboradores" aria-selected="false">Colaboradores</button>
-      <button class="tab" role="tab" data-view="importar" aria-selected="false">Importação</button>
-      <button class="tab" role="tab" data-view="config" aria-selected="false">Configurações</button>
-    </nav>
-    <div class="amb-pick"><select id="ambSel" title="Estudo aberto" aria-label="Estudo aberto"><option>Carregando…</option></select></div>
-    <button class="btn primary" id="openPlanner" type="button">Abrir Planner</button>
-    <div class="save" id="save"><span class="dot"></span><span class="txt">Carregando…</span></div>
-    <button class="acct" id="acctBtn" type="button" title="Minha conta" aria-label="Minha conta"></button>
-  </header>
-  <main>
-    <section id="homeView" aria-label="Página inicial"></section>
-    <section id="mapView">
-      <div id="map" aria-label="Mapa"></div>
-      <div class="float" id="toolbar" role="toolbar" aria-label="Ferramentas do mapa"></div>
-      <button class="btn float drawer-toggle" id="btnLayers" hidden>Visualizar</button>
-      <aside class="float drawer left" id="layersPanel" aria-label="Visualizar">
-        <header><h2>Visualizar</h2><button class="iconbtn" aria-label="Recolher painel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button></header>
-        <div class="body"></div>
-      </aside>
-      <button class="btn float drawer-toggle" id="btnSel" hidden>Editar <span class="count"></span></button>
-      <aside class="float drawer right" id="selPanel" hidden aria-label="Editar e roteirizar">
-        <header><h2>Editar e roteirizar</h2><button class="iconbtn" aria-label="Recolher painel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button></header>
-        <div class="body"></div>
-      </aside>
-      <div class="float" id="legend" hidden></div>
-      <div class="float" id="mapSummary"></div>
-      <div class="float" id="mapNote" hidden></div>
-      <div class="float" id="rulerBox" hidden></div>
-      <div class="float" id="seaChip" hidden></div>
-      <div class="basepick"><select id="baseSel" aria-label="Mapa de fundo">
-        <option value="auto">Mapa claro/escuro (automático)</option>
-        <option value="ruasesri">Ruas detalhadas (Esri)</option>
-        <option value="claro">Mapa claro (Esri)</option>
-        <option value="escuro">Mapa escuro (Esri)</option>
-        <option value="ruas">OpenStreetMap padrão</option>
-        <option value="satelite">Satélite (Esri)</option>
-        <option value="g_mapa">Google: mapa (chave)</option>
-        <option value="g_sat">Google: satélite (chave)</option>
-        <option value="g_ter">Google: terreno (chave)</option>
-        <option value="grade">Grade (sem internet)</option>
-      </select></div>
-    </section>
-    <section id="pageView" hidden></section>
-    <div class="loading" id="loading">Carregando bases…</div>
-  </main>
-</div>
-<div id="modal" hidden></div>
-<div id="toast" hidden role="status" aria-live="polite"></div>
-<div id="geoBar" hidden role="status" aria-live="polite"></div>
-<div id="tip" hidden role="tooltip"></div>
-<div id="ctx" class="float" hidden role="menu" aria-label="Opções da seleção"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet.gridlayer.googlemutant@0.16.0/dist/Leaflet.GoogleMutant.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
-<script src="js/config.js"></script>
-<script src="js/engine.js"></script>
-<script src="js/app.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Roteirizador RRM</title>
+    <meta name="claude:viewport-fit-sides" content="cover" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+    <style>
+      [hidden] {
+        display: none !important;
+      }
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body class="screen-home screen-login">
+    <div id="loginView" aria-label="Acesso"></div>
+    <div id="app">
+      <header class="top">
+        <button
+          class="brand"
+          id="goHome"
+          type="button"
+          title="Página inicial"
+          aria-label="Roteirizador RRM — página inicial"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="5" cy="18" r="2.2" />
+            <circle cx="19" cy="6" r="2.2" />
+            <path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3" /></svg
+          ><span><b>RRM</b></span>
+        </button>
+        <nav class="tabs" id="tabs" role="tablist" aria-label="Seções">
+          <button class="tab" role="tab" data-view="mapa" aria-selected="true">Mapa</button>
+          <button class="tab" role="tab" data-view="roteiros" aria-selected="false">
+            Roteiros
+          </button>
+          <button class="tab" role="tab" data-view="estudos" aria-selected="false">Estudos</button>
+          <button class="tab" role="tab" data-view="clientes" aria-selected="false">
+            Clientes
+          </button>
+          <button class="tab" role="tab" data-view="colaboradores" aria-selected="false">
+            Colaboradores
+          </button>
+          <button class="tab" role="tab" data-view="importar" aria-selected="false">
+            Importação
+          </button>
+          <button class="tab" role="tab" data-view="config" aria-selected="false">
+            Configurações
+          </button>
+        </nav>
+        <div class="amb-pick">
+          <select id="ambSel" title="Estudo aberto" aria-label="Estudo aberto">
+            <option>Carregando…</option>
+          </select>
+        </div>
+        <button class="btn primary" id="openPlanner" type="button">Abrir Planner</button>
+        <div class="save" id="save">
+          <span class="dot"></span><span class="txt">Carregando…</span>
+        </div>
+        <button
+          class="acct"
+          id="acctBtn"
+          type="button"
+          title="Minha conta"
+          aria-label="Minha conta"
+        ></button>
+      </header>
+      <main>
+        <section id="homeView" aria-label="Página inicial"></section>
+        <section id="mapView">
+          <div id="map" aria-label="Mapa"></div>
+          <div class="float" id="toolbar" role="toolbar" aria-label="Ferramentas do mapa"></div>
+          <button class="btn float drawer-toggle" id="btnLayers" hidden>Visualizar</button>
+          <aside class="float drawer left" id="layersPanel" aria-label="Visualizar">
+            <header>
+              <h2>Visualizar</h2>
+              <button class="iconbtn" aria-label="Recolher painel">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <path d="M15 6l-6 6 6 6" />
+                </svg>
+              </button>
+            </header>
+            <div class="body"></div>
+          </aside>
+          <button class="btn float drawer-toggle" id="btnSel" hidden>
+            Editar <span class="count"></span>
+          </button>
+          <aside class="float drawer right" id="selPanel" hidden aria-label="Editar e roteirizar">
+            <header>
+              <h2>Editar e roteirizar</h2>
+              <button class="iconbtn" aria-label="Recolher painel">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+            </header>
+            <div class="body"></div>
+          </aside>
+          <div class="float" id="legend" hidden></div>
+          <div class="float" id="mapSummary"></div>
+          <div class="float" id="mapNote" hidden></div>
+          <div class="float" id="rulerBox" hidden></div>
+          <div class="float" id="seaChip" hidden></div>
+          <div class="basepick">
+            <select id="baseSel" aria-label="Mapa de fundo">
+              <option value="auto">Mapa claro/escuro (automático)</option>
+              <option value="ruasesri">Ruas detalhadas (Esri)</option>
+              <option value="claro">Mapa claro (Esri)</option>
+              <option value="escuro">Mapa escuro (Esri)</option>
+              <option value="ruas">OpenStreetMap padrão</option>
+              <option value="satelite">Satélite (Esri)</option>
+              <option value="g_mapa">Google: mapa (chave)</option>
+              <option value="g_sat">Google: satélite (chave)</option>
+              <option value="g_ter">Google: terreno (chave)</option>
+              <option value="grade">Grade (sem internet)</option>
+            </select>
+          </div>
+        </section>
+        <section id="pageView" hidden></section>
+        <div class="loading" id="loading">Carregando bases…</div>
+      </main>
+    </div>
+    <div id="modal" hidden></div>
+    <div id="toast" hidden role="status" aria-live="polite"></div>
+    <div id="geoBar" hidden role="status" aria-live="polite"></div>
+    <div id="tip" hidden role="tooltip"></div>
+    <div id="ctx" class="float" hidden role="menu" aria-label="Opções da seleção"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.gridlayer.googlemutant@0.16.0/dist/Leaflet.GoogleMutant.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/app.js"></script>
+  </body>
 </html>

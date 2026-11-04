@@ -331,7 +331,7 @@ function sortedRoutes(list) {
 }
 function routeVisible(k) { const s = k.split('|')[0]; return !st.hiddenSet.has(s) && !st.hidden.has(k); }
 function itemVisible(it) {
-  if (!it.s || !setorOf(it.s)) return st.showUnassigned && st.verSemSetor;
+  if (!it.s || !setorOf(it.s)) return false; // clientes sem setor só aparecem na visão Base
   if (st.hiddenSet.has(it.s)) return false;
   const ks = itemKeys(it);
   if (!ks.length) return st.showUnassigned;
@@ -838,11 +838,6 @@ function renderMap() {
     want.set(sold, col ? { radius: sel ? 8 : 6, color: sel ? tok.sel : tok.surface, weight: sel ? 3 : 1.5, fillColor: col, fillOpacity: 0.95 }
       : { radius: sel ? 8 : 5.5, color: sel ? tok.sel : tok.muted, weight: sel ? 3 : 1.8, fillColor: tok.surface, fillOpacity: 0.9 });
   }
-  if (!base && st.showOut && st.verSemSetor) for (const c of st.cli.values()) {
-    if (st.itens && st.itens.has(c.sold)) continue; if (!isNum(c.lat) || !isNum(c.lng)) continue;
-    const sel = st.sel.has(c.sold);
-    want.set(c.sold, { radius: sel ? 7 : 4, color: sel ? tok.sel : tok.muted, weight: sel ? 2.5 : 1, fillColor: tok.muted, fillOpacity: 0.2 });
-  }
   for (const [sold, m] of st.mk) if (!want.has(sold)) { ptsLayer.removeLayer(m); st.mk.delete(sold); }
   for (const [sold, sty] of want) {
     let m = st.mk.get(sold); const c = st.cli.get(sold);
@@ -886,7 +881,7 @@ function renderMap() {
 /* Clientes sem coordenada ficam empilhados num ponto no mar; arrastar um pino até o local grava a coordenada */
 let seaSig = '';
 function renderSea() {
-  const list = st.showSea && st.verSemSetor ? seaList() : [];
+  const list = st.showSea && st.visao === 'base' ? seaList() : [];
   const chip = $('#seaChip'), n = seaList().length;
   chip.hidden = !n;
   if (n) chip.innerHTML = `<span><b class="num">${n}</b> endereço(s) não encontrados${st.showSea ? '' : ' (camada oculta)'}</span><button class="btn sm" data-sea="go">Ver no mar</button><button class="btn sm" data-sea="list">Ajustar</button>`;
@@ -908,7 +903,7 @@ function seaTip(sold) {
   const g = c.geoPend;
   return `<div class="tip"><b>${esc(c.nome || c.sold)}</b><br><span class="t2">SOLD ${esc(c.sold)} · ${esc(addrTxt(c) || 'sem endereço')}</span><br><span class="t2">${esc(g ? g.msg : 'ainda sem coordenada')} · arraste até o local</span></div>`;
 }
-function goSea() { if (st.view !== 'mapa' || st.screen !== 'planner') setView('mapa'); st.showSea = true; renderMap(); setTimeout(() => map.setView([SEA.lat, SEA.lng], 11), 60); }
+function goSea() { if (st.view !== 'mapa' || st.screen !== 'planner') setView('mapa'); st.showSea = true; if (st.visao !== 'base') setVisao('base'); renderMap(); setTimeout(() => map.setView([SEA.lat, SEA.lng], 11), 60); }
 /* Posicionar clicando no mapa */
 function startPlace(sold) {
   const c = st.cli.get(sold); if (!c || st.ro) return;
@@ -963,7 +958,7 @@ function renderLegend() {
   else if ((st.corAtual || st.colorBy) === 'dia') rows = P().dias.map(d => [COR_DIA[d], DIA_L[d]]);
   else if (st.colorBy === 'semana') { const W = P().semanas; rows = [['#6E7C76', 'Todas as semanas']]; for (let w = 1; w <= W; w++) rows.push([COR_SEM[w], 'Semana ' + w]); }
   else { const seen = new Map(); sortedSetores().forEach(([id]) => { const c = colabOfSetor(id); if (c && !seen.has(c.codigo)) seen.set(c.codigo, [c.cor || '#7d8a84', c.nome]); }); rows = [...seen.values()]; }
-  rows.push(['transparent', 'Sem setor/dia']);
+  rows.push(['transparent', 'Sem dia']);
   el.hidden = false;
   el.innerHTML = rows.map(([c, t]) => `<div class="li"><span class="sw" style="background:${esc(c)};${c === 'transparent' ? 'border:1.5px solid var(--muted)' : ''}"></span>${esc(t)}</div>`).join('');
 }
@@ -1132,8 +1127,8 @@ function modoHtml() {
 /* O que está à vista no mapa, para o seletor de setor: '' todos, __nenhum, __sem, id de um setor ou __parte */
 function setorVisto() {
   const sets = sortedSetores(), on = sets.filter(([id]) => !st.hiddenSet.has(id));
-  if (on.length === sets.length && st.verSemSetor) return '';
-  if (!on.length) return st.verSemSetor ? '__sem' : '__nenhum';
+  if (on.length === sets.length) return '';
+  if (!on.length) return '__nenhum';
   return on.length === 1 ? on[0][0] : '__parte';
 }
 function setorBloco(id) {
@@ -1229,7 +1224,6 @@ function roteirizarHtml(vis) {
 }
 function exibicaoHtml() {
   let nUn = 0, nSemDia = 0; for (const it of st.itens.values()) { if (!it.s || !setorOf(it.s)) nUn++; else if (!itemKeys(it).length) nSemDia++; }
-  let nOut = 0; for (const c of st.cli.values()) if (!st.itens.has(c.sold)) nOut++;
   const segBtn = (v, l) => `<button type="button" data-colorby="${v}" aria-pressed="${st.colorBy === v}">${l}</button>`;
   return `<details class="rzsec" data-sec="exib"${st.rzSec.exib ? ' open' : ''}><summary>Exibição do mapa</summary>
       <div class="stack"><span class="lbl">Colorir por</span><div class="seg">${segBtn('setor', 'Setor')}${segBtn('dia', 'Dia')}${segBtn('semana', 'Semana')}${segBtn('colab', 'Colaborador')}</div>
@@ -1238,9 +1232,7 @@ function exibicaoHtml() {
         <label class="chk"><input type="checkbox" data-opt="showLines" ${st.showLines ? 'checked' : ''}> Linhas das rotas (ida e volta tracejadas)</label>
         <label class="chk"><input type="checkbox" data-opt="showSeq" ${st.showSeq ? 'checked' : ''}> Números da sequência</label>
         <label class="chk"><input type="checkbox" data-opt="showBases" ${st.showBases ? 'checked' : ''}> Base dos colaboradores</label>
-        <label class="chk"><input type="checkbox" data-opt="showUnassigned" ${st.showUnassigned ? 'checked' : ''}> Sem setor ou sem dia (${nUn + nSemDia})</label>
-        <label class="chk"><input type="checkbox" data-opt="showOut" ${st.showOut ? 'checked' : ''}> Clientes da base fora do estudo (${nOut})</label>
-        <label class="chk"><input type="checkbox" data-opt="showSea" ${st.showSea ? 'checked' : ''}> Endereços não encontrados, no mar (${seaList().length})</label>
+        <label class="chk"><input type="checkbox" data-opt="showUnassigned" ${st.showUnassigned ? 'checked' : ''}> Clientes do setor ainda sem dia (${nSemDia})</label>
       </div>
     </details>`;
 }
@@ -1271,10 +1263,9 @@ function renderLayersPanel() {
   body.innerHTML = `${visaoHtml()}
     <section class="rz">
       <div class="stack"><span class="lbl">O que ver no mapa</span>
-        <label class="rzl"><span class="muted">Setor</span><select id="rzSet"><option value=""${setVal === '' ? ' selected' : ''}>Todos</option><option value="__nenhum"${setVal === '__nenhum' ? ' selected' : ''}>Nenhum</option><option value="__sem"${setVal === '__sem' ? ' selected' : ''}>Só clientes sem setor (${nUn + nOut})</option>${setVal === '__parte' ? `<option value="__parte" selected>${onSets.length} setores marcados</option>` : ''}${sets.map(([id, x]) => `<option value="${esc(id)}"${setVal === id ? ' selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+        <label class="rzl"><span class="muted">Setor</span><select id="rzSet"><option value=""${setVal === '' ? ' selected' : ''}>Todos</option><option value="__nenhum"${setVal === '__nenhum' ? ' selected' : ''}>Nenhum</option>${setVal === '__parte' ? `<option value="__parte" selected>${onSets.length} setores marcados</option>` : ''}${sets.map(([id, x]) => `<option value="${esc(id)}"${setVal === id ? ' selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
         ${filtrosRotaHtml()}
         <div class="rzn"><span class="muted"><b class="num">${vis.length}</b> de ${st.routes.size} rotas · <b class="num">${nf0.format(st.mk.size)}</b> clientes</span><button class="btn sm ghost" data-act="showall">Limpar filtros</button></div>
-        ${aberto ? `<label class="chk"><input type="checkbox" data-opt="verSemSetor" ${st.verSemSetor ? 'checked' : ''}> Mostrar também clientes sem setor</label>` : ''}
       </div>
     </section>
     <details class="rzsec" data-sec="setores"${st.rzSec.setores ? ' open' : ''}><summary>Setores · ${sets.length}</summary>
@@ -1326,7 +1317,7 @@ function edicaoHtml(vis) {
   let semDia = 0; for (const it of st.itens.values()) if (it.s && setorOf(it.s) && !itemKeys(it).length) semDia++;
   const partes = [];
   if (aberto) partes.push(setorBloco(visto));
-  else partes.push(`<section class="stack">${dica(sets.length ? 'Selecione clientes no mapa para definir setor, dias e semanas.' : 'Selecione clientes no mapa e clique com o botão direito para criar um setor.')}${!st.routes.size && semDia ? `<div class="banner info" style="font-size:12.5px"><span>Os clientes dos setores ainda não têm dia e semana.</span><button class="btn sm primary" type="button" data-act="distribuir"${ro}>Dividir nos dias</button></div>` : ''}</section>`);
+  else partes.push(`<section class="stack">${dica(sets.length ? 'Aqui aparecem só os clientes dos setores. Selecione no mapa para mudar dias e semanas; para incluir outros clientes, use a visão Base.' : 'Abra a visão Base, selecione clientes no mapa e clique com o botão direito para criar um setor.')}${!st.routes.size && semDia ? `<div class="banner info" style="font-size:12.5px"><span>Os clientes dos setores ainda não têm dia e semana.</span><button class="btn sm primary" type="button" data-act="distribuir"${ro}>Dividir nos dias</button></div>` : ''}</section>`);
   partes.push(`<section class="stack rzb"><span class="lbl">Modo de roteirização</span>${modoHtml()}${roteirizarHtml(vis)}<label class="chk"><input type="checkbox" data-opt="autoRoad" ${st.autoRoad ? 'checked' : ''}> Refazer o traçado ao editar uma rota</label></section>`);
   if (vis.length === 1) partes.push(`<section class="stack rzb">${st.rotaAntes ? '<div class="row"><button class="btn sm" type="button" data-rkvolta>← Todas as rotas marcadas</button></div>' : ''}${routeDetail(vis[0])}</section>`);
   else if (st.visao === 'rotas' && vis.length > 1) partes.push(rotasLista(vis));
@@ -1976,7 +1967,7 @@ function inclForm() {
     ${cid.length ? `<label class="field" data-cr="cidade" hidden><span class="lbl">Cidade</span><select name="cidade">${cid.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>` : ''}
     ${bai.length ? `<label class="field" data-cr="bairro" hidden><span class="lbl">Bairro</span><select name="bairro">${bai.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>` : ''}
     <label class="field" data-cr="lista" hidden><span class="lbl">SOLDs (um por linha, ou separados por vírgula)</span><textarea name="lista"></textarea></label>
-    <p class="muted" style="margin:0;font-size:12.5px">No mapa, ligue “Clientes da base fora do estudo”, selecione com o laço e use “Incluir no estudo”.</p>
+    <p class="muted" style="margin:0;font-size:12.5px">No mapa, abra a visão Base, selecione com o laço e use “Incluir no estudo”.</p>
   </form>
   <div class="df"><button class="btn" data-close>Cancelar</button><button class="btn primary" form="fIncl" type="submit">Incluir</button></div>`, 'sm');
   $('#inclCr').onchange = e => $$('[data-cr]').forEach(x => { x.hidden = x.dataset.cr !== e.target.value; });
