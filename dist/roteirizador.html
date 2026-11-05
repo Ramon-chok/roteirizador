@@ -6749,7 +6749,7 @@ async function render(el = $('#homeView')) {
   if (!el || st.screen !== 'home' || st.homeSec !== 'cal') return;
   const seq = ++renderSeq; liga(el);
   if (!CS.store) { el.innerHTML = `<div class="page home">${R.migalha('Calendário')}<p class="muted">Carregando…</p></div>`; await iniciar(); if (seq !== renderSeq) return; }
-  const keep = el.scrollTop, hoje = hojeIso(), di = diaInfo(hoje), prox = proximos(3), c = cfg();
+  const keep = el.scrollTop, hoje = hojeIso(), di = diaInfo(hoje), prox = proximos(3);
   const ano = CS.ano, rAno = Array.from({ length: 12 }, (_, m) => resumoMes(`${ano}-${pad2(m + 1)}`));
   const uteisAno = rAno.reduce((s, r) => s + r.uteis, 0);
   const corpo = CS.vista === 'ano'
@@ -6757,7 +6757,7 @@ async function render(el = $('#homeView')) {
     : `<div class="cal-unico">${mesHtml(ano, CS.mes, { grande: true, comAno: true })}</div>`;
   el.innerHTML = `<div class="page home cal-pg">${R.migalha('Calendário')}
     <div class="ph"><div><h1>Calendário</h1><p>Dias úteis, feriados, eventos da empresa e as semanas do ciclo de roteiro (S1 a S4 e quinzenas 1,3 e 2,4).</p></div>
-      <div class="row">${admin() ? '<button class="btn" type="button" data-ca="cats">Categorias</button><button class="btn" type="button" data-ca="ciclo">Ciclo e feriados</button><button class="btn primary" type="button" data-ca="novo">Novo evento</button>' : ''}</div></div>
+      <div class="row">${admin() ? '<button class="btn" type="button" data-ca="cats">Categorias</button><button class="btn" type="button" data-ca="ciclo">Feriados</button><button class="btn primary" type="button" data-ca="novo">Novo evento</button>' : ''}</div></div>
     <div class="cal-hoje card"><div class="cb row">
       <span><b>Hoje</b> · ${esc(fmtLonga(hoje))}</span><span class="wk gr" style="--c:${COR_SEM[di.s4]}">Semana S${di.s4}</span><span class="qz gr q${di.s4 % 2 ? 13 : 24}">Quinzena ${quinzena(di.s4)}</span>
       ${di.motivo ? `<span class="pill bad">${esc(di.motivo)}</span>` : di.util ? '<span class="pill ok">dia útil</span>' : '<span class="pill idle">fim de semana</span>'}
@@ -6765,7 +6765,7 @@ async function render(el = $('#homeView')) {
     <div class="cal-bar">
       <div class="row"><button class="btn sm" type="button" data-ca="ant" aria-label="Anterior">‹</button><b class="cal-tit num">${CS.vista === 'ano' ? ano : `${MES_L[CS.mes]} ${ano}`}</b><button class="btn sm" type="button" data-ca="prox" aria-label="Próximo">›</button><button class="btn sm" type="button" data-ca="hoje">Hoje</button></div>
       <div class="seg">${[['ano', 'Ano'], ['mes', 'Mês']].map(([v, t]) => `<button type="button" data-cvista="${v}" aria-pressed="${CS.vista === v}">${t}</button>`).join('')}</div>
-      <span class="muted" style="font-size:12.5px">${ano}: ${uteisAno} dias úteis · referência do ciclo: semana de ${fmtData(c.ancora)} = S1</span>
+      <span class="muted" style="font-size:12.5px">${ano}: ${uteisAno} dias úteis</span>
     </div>
     ${legendaHtml()}
     ${corpo}
@@ -6831,16 +6831,17 @@ function catsForm() {
 function cicloForm() {
   if (!admin()) return;
   const c = cfg();
-  openModal(`<div class="dh"><h2>Ciclo e feriados</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  openModal(`<div class="dh"><h2>Feriados</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
     <form id="calCiclo"><div class="db">
-      <label class="field"><span class="lbl">Semana de referência (S1)</span><input type="date" name="ancora" value="${esc(c.ancora)}" required><span class="hint">A semana (domingo a sábado) desta data é a S1; as seguintes são S2, S3, S4 e o ciclo recomeça.</span></label>
-      <div class="muted" id="calPrev" style="font-size:12.5px"></div>
       <label class="chk"><input type="checkbox" name="facult"${c.facultSemRota ? ' checked' : ''}> Pontos facultativos (Carnaval e Corpus Christi) são dias sem rota</label>
-      <p class="muted" style="margin:0;font-size:12.5px">Feriados estaduais e municipais: inclua como evento da categoria “Feriado local” (ou outra marcada como sem rota).</p></div>
+      <p class="muted" style="margin:0;font-size:12.5px">Feriados estaduais e municipais: inclua como evento da categoria “Feriado local” (ou outra marcada como sem rota).</p>
+      <details class="avancado"><summary class="muted">Contagem das semanas (avançado)</summary><div class="stack" style="margin-top:10px">
+        <label class="field"><span class="lbl">Semana de referência (S1)</span><input type="date" name="ancora" value="${esc(c.ancora)}"><span class="hint">A semana (domingo a sábado) desta data é a S1; as seguintes são S2, S3, S4 e o ciclo recomeça. Só mude se a contagem das semanas da empresa mudar.</span></label>
+        <div class="muted" id="calPrev" style="font-size:12.5px"></div></div></details></div>
     <div class="df"><button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`, 'sm');
   const f = $('#calCiclo'), prev = () => { const a = f.ancora.value; if (!a) return; const n = Math.round((dataDe(iniSemana(hojeIso())) - dataDe(iniSemana(a))) / 6048e5), s = ((n % 4) + 4) % 4 + 1; $('#calPrev').textContent = `Com esta referência, a semana de hoje é a S${s} (quinzena ${quinzena(s)}).`; };
   f.ancora.oninput = prev; prev();
-  f.onsubmit = ev => { ev.preventDefault(); CS.store.put(CFG_ID, { id: CFG_ID, tipo: 'cfg', ancora: f.ancora.value, facultSemRota: f.facult.checked }); R.audita('calendario', `Ciclo: S1 na semana de ${fmtData(f.ancora.value)}`); closeModal(); render(); toast('Ciclo salvo'); };
+  f.onsubmit = ev => { ev.preventDefault(); const ancora = f.ancora.value || c.ancora; CS.store.put(CFG_ID, { id: CFG_ID, tipo: 'cfg', ancora, facultSemRota: f.facult.checked }); R.audita('calendario', `Feriados e ciclo: S1 na semana de ${fmtData(ancora)}`); closeModal(); render(); toast('Ciclo salvo'); };
 }
 
 /* ---------- Eventos da página ---------- */

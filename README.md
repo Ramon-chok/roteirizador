@@ -101,8 +101,8 @@ O módulo **Rotas** guarda os roteiros em uso, por período (mês/ano), para aco
 ## Calendário
 
 - **Ano e mês:** o ano inteiro em 12 meses, ou um mês grande com os nomes dos eventos. Cada mês mostra os dias úteis (segunda a sexta sem feriado), os sábados e os feriados. Hoje e a semana atual ficam destacados. Clique em um dia para ver o que há nele.
-- **Semanas do ciclo:** à esquerda de cada semana, a semana do ciclo de 4 semanas (S1 a S4); à direita, a quinzena (1,3 ou 2,4). As semanas vão de domingo a sábado e a referência padrão é a semana de 16/11/2026 (de 15 a 21/11) = S1 (depois S2, S3, S4 e o ciclo recomeça, para frente e para trás). O administrador muda a referência em **Ciclo e feriados**.
-- **Feriados nacionais:** calculados para qualquer ano, inclusive os móveis (Carnaval, Sexta-feira Santa e Corpus Christi, a partir da Páscoa) e o Dia da Consciência Negra (desde 2024). Carnaval e Corpus Christi são pontos facultativos; em **Ciclo e feriados** o administrador define se eles têm rota ou não.
+- **Semanas do ciclo:** à esquerda de cada semana, a semana do ciclo de 4 semanas (S1 a S4); à direita, a quinzena (1,3 ou 2,4). As semanas vão de domingo a sábado e a referência padrão é a semana de 16/11/2026 (de 15 a 21/11) = S1 (depois S2, S3, S4 e o ciclo recomeça, para frente e para trás). A referência não aparece no calendário; o administrador só a muda, se a contagem da empresa mudar, em **Feriados → Contagem das semanas (avançado)**.
+- **Feriados nacionais:** calculados para qualquer ano, inclusive os móveis (Carnaval, Sexta-feira Santa e Corpus Christi, a partir da Páscoa) e o Dia da Consciência Negra (desde 2024). Carnaval e Corpus Christi são pontos facultativos; em **Feriados** o administrador define se eles têm rota ou não.
 - **Eventos:** o administrador inclui eventos de um ou mais dias em categorias com cor (Reembolso, Reunião, Pagamento de verba, Feriado local, Outro, ou as que criar em **Categorias**). Categorias marcadas como “sem rota” tiram o dia do cálculo, como os feriados municipais. Os chips da legenda mostram ou escondem cada categoria.
 
 ## Verba Indenizatória
