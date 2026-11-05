@@ -115,6 +115,12 @@ const SB_MAPA = {
     linha: (k, x) => ({ id: k, tipo: x.tipo || 'outro', mes: nulo(x.mes), vendedor: nulo(x.vend), dados: x }),
     item: r => [r.id, r.dados || {}]
   },
+  // Pedágios: cada praça (local, rodovia e tarifas) é uma linha; '__cfg' guarda a categoria do veículo e o raio de detecção
+  pedagios: {
+    tab: 'pedagios', pk: ['id'],
+    linha: (k, x) => ({ id: k, tipo: x.tipo === 'cfg' ? 'cfg' : 'praca', nome: nulo(x.nome), lat: coordOk(x.lat, 90), lng: coordOk(x.lng, 180), dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
   // Rotas: cada base de roteiros (um período) é uma linha; o resumo calculado fica em "dados"
   rotasbase: {
     tab: 'rotas_bases', pk: ['id'],
@@ -177,7 +183,7 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
   };
   const semTabela = e => !!e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist/i.test(e.message || ''));
   // Tabelas criadas por migrações: sem elas, o sistema segue funcionando e avisa (o que for gravado fica só nesta sessão)
-  const opcional = c => (c === 'importacoes' ? 'impSemTabela' : c === 'rotasbase' || c.startsWith('rotasl/') ? 'rotasSemTabela' : c === 'calendario' || c === 'verba' ? 'verbaSemTabela' : '');
+  const opcional = c => (c === 'importacoes' ? 'impSemTabela' : c === 'rotasbase' || c.startsWith('rotasl/') ? 'rotasSemTabela' : c === 'calendario' || c === 'verba' ? 'verbaSemTabela' : c === 'pedagios' ? 'pedSemTabela' : '');
   const ler = async coll => { try { return await ler0(coll); } catch (e) { const f = opcional(coll); if (f && semTabela(e)) { st[f] = true; return {}; } throw e; } };
   const escreve = async (...a) => { try { return await escreve0(...a); } catch (e) { const f = opcional(a[0]); if (f && semTabela(e)) { st[f] = true; return; } throw e; } };
   const ler0 = async coll => {
@@ -311,7 +317,7 @@ const st = {
   screen: 'home', homeSec: 'hub', homeFocus: null,
   view: 'mapa', colorBy: 'setor',
   hidden: new Set(), hiddenSet: new Set(), qf: { w: [], d: [] }, rzSec: { setores: true, exib: false }, visao: 'base', corAtual: null, arv: new Map(), baseF: { cidades: new Set(), soldes: new Set(), q: '', cq: '' }, baseCor: 'cidade', bzRes: [], rotaAntes: null,
-  showLines: true, showBases: true, showSeq: true, pinos: true, showOut: true, showUnassigned: true, verSemSetor: true, colorAntes: null, selForm: {}, showSea: true, placing: null,
+  showLines: true, showBases: true, showSeq: true, pinos: true, showOut: true, showUnassigned: true, verSemSetor: true, colorAntes: null, selForm: {}, showSea: true, showPed: true, placing: null,
   sel: new Set(), tool: 'select', routes: new Map(), visRoutes: [],
   panelL: true, panelR: false, mk: new Map(), ruler: { pts: [], active: false },
   undo: [], redo: [], baseKind: 'auto', tileOk: 0, tileErr: 0, autoResequence: true,
@@ -458,6 +464,7 @@ function armButton(btn, fn, txt = 'Confirmar') {
 function setScreen(s, sec) {
   if (sec) st.homeSec = sec;
   if (s !== 'home' || st.homeSec !== 'rotas') { const R = window.RotasMod; if (R) R.limpar(); }
+  if ((s !== 'home' || st.homeSec !== 'ped') && window.PedMod) window.PedMod.limpar();
   st.screen = s;
   document.body.classList.toggle('screen-home', s === 'home');
   $('#homeView').hidden = s !== 'home';
@@ -696,6 +703,7 @@ function encodePoly(path, prec = 1e5) {
   for (const [la, ln] of path) { const a = Math.round(la * prec), b = Math.round(ln * prec); s += enc(a - pa) + enc(b - pb); pa = a; pb = b; }
   return s;
 }
+const pedChave = r => `e:${st.cur}|${r.k}|${r.sig}`; // mesma chave do módulo Pedágios, que guarda o resultado de cada percurso
 function pathOf(k, sig) {
   const g = st.geo && st.geo.get(k); if (!g || g.sig !== sig || !g.p) return null;
   let c = st.pathCache.get(k); if (!c || c.sig !== sig) { c = { sig, path: decodePoly(g.p) }; st.pathCache.set(k, c); }
@@ -782,7 +790,7 @@ function autoRoadSync() {
 }
 
 /* ================= Mapa ================= */
-let map, rPts, rLines, rSel, ptsLayer, linesLayer, seqLayer, basesLayer, toolLayer, baseLayer, seaLayer;
+let map, rPts, rLines, rSel, ptsLayer, linesLayer, seqLayer, basesLayer, toolLayer, baseLayer, seaLayer, pedLayer;
 // A CARTO passou a exigir chave de API (devolve uma imagem de aviso no lugar do mapa); por isso o padrão é Esri, gratuito e sem chave.
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
 const BASES = {
@@ -877,7 +885,7 @@ function initMap() {
   rSel = L.canvas({ pane: 'selecao', padding: 0.2 });
   L.control.scale({ metric: true, imperial: false, position: 'bottomright', maxWidth: 170 }).addTo(map);
   linesLayer = L.layerGroup().addTo(map); ptsLayer = L.layerGroup().addTo(map); seqLayer = L.layerGroup().addTo(map);
-  basesLayer = L.layerGroup().addTo(map); toolLayer = L.layerGroup().addTo(map); seaLayer = L.layerGroup().addTo(map);
+  basesLayer = L.layerGroup().addTo(map); toolLayer = L.layerGroup().addTo(map); seaLayer = L.layerGroup().addTo(map); pedLayer = L.layerGroup().addTo(map);
   setBase();
   map.on('click', onMapClick);
   map.on('contextmenu', e => abrirCtx(e, null));
@@ -1002,6 +1010,9 @@ function renderMap() {
       L.polyline([[b.lat, b.lng], pts[0]], o).addTo(linesLayer); L.polyline([pts[pts.length - 1], [b.lat, b.lng]], o).addTo(linesLayer);
     }
   }
+  // Praças de pedágio: as do percurso das rotas visíveis em destaque, as demais apagadas
+  pedLayer.clearLayers();
+  if (window.PedMod && st.showPed) window.PedMod.desenha(pedLayer, st.showLines ? vis.map(r => ({ chave: pedChave(r), path: pathOf(r.k, r.sig) })) : [], true);
   if (st.showBases && a && !base) {
     const seen = new Set();
     for (const r of vis) { if (seen.has(r.s)) continue; seen.add(r.s); }
@@ -1397,6 +1408,7 @@ function exibicaoHtml() {
         <label class="chk"><input type="checkbox" data-opt="pinos" ${st.pinos ? 'checked' : ''}> Pinos de GPS (desmarque para pontos simples)</label>
         <label class="chk"><input type="checkbox" data-opt="showSeq" ${st.showSeq ? 'checked' : ''}> Números da sequência</label>
         <label class="chk"><input type="checkbox" data-opt="showBases" ${st.showBases ? 'checked' : ''}> Base dos colaboradores</label>
+        <label class="chk"><input type="checkbox" data-opt="showPed" ${st.showPed ? 'checked' : ''}> Praças de pedágio</label>
         <label class="chk"><input type="checkbox" data-opt="showUnassigned" ${st.showUnassigned ? 'checked' : ''}> Clientes do setor ainda sem dia (${nSemDia})</label>
       </div>
     </details>`;
@@ -1456,7 +1468,7 @@ function passaFiltro(r) { const { w, d } = st.qf; return (!w.length || w.include
 function abrirDetalheRotas() { if (st.visao === 'rotas' && innerWidth > 640) { st.panelR = true; applyPanels(); } }
 function rotasLista(vis) {
   return `<section class="stack rzb"><span class="lbl">${vis.length} rotas marcadas</span>
-    <div class="rlist">${vis.map(r => { const c = colabOfSetor(r.s); return `<button type="button" class="rit rkrow" data-rkver="${esc(r.k)}" title="Abrir esta rota"><span class="sw" style="background:${esc(routeColor(r))}"></span><span class="nm">${esc(c ? c.nome : (setorOf(r.s) || {}).nome)} · S${r.w} · ${DIA_C[r.d]}<span class="muted" style="display:block;font-size:11.5px">${r.m.n} visitas · ${fkm(r.m.km)} km · ${fhm(r.m.total)}</span></span>${ocPill(r.m.ocup)}</button>`; }).join('')}</div></section>`;
+    <div class="rlist">${vis.map(r => { const c = colabOfSetor(r.s); return `<button type="button" class="rit rkrow" data-rkver="${esc(r.k)}" title="Abrir esta rota"><span class="sw" style="background:${esc(routeColor(r))}"></span><span class="nm">${esc(c ? c.nome : (setorOf(r.s) || {}).nome)} · S${r.w} · ${DIA_C[r.d]}<span class="muted" style="display:block;font-size:11.5px">${r.m.n} visitas · ${fkm(r.m.km)} km · ${fhm(r.m.total)}</span>${window.PedMod ? window.PedMod.chip(pedChave(r), pathOf(r.k, r.sig)) : ''}</span>${ocPill(r.m.ocup)}</button>`; }).join('')}</div></section>`;
 }
 /* Consultas que "Roteirizar" fará, para mostrar o tempo antes de começar. Semanas com a mesma lista de visitas contam uma vez, como em traceRoute */
 function estimaRoteirizar(list, o) {
@@ -1515,6 +1527,7 @@ function routeDetail(r) {
     </div>
     ${m.real ? `<div class="muted" style="font-size:12.5px">Calculada como: <b style="color:var(--ink)">${esc(rotaTxt(m.o))}</b>${m.o !== rotaKey(rotaOpt()) ? ' <span class="pill warn" title="O formato escolhido no painel é outro. Roteirize de novo para aplicar">outro formato</span>' : ''}${m.toll && !rotaAviso(m) ? ' <span class="pill idle">com pedágio</span>' : ''}</div>` : ''}
     ${rotaAviso(m) ? `<div class="banner" style="font-size:12.5px">Sem alternativa no mapa: ${esc(rotaAviso(m))}.</div>` : ''}
+    ${window.PedMod ? window.PedMod.blocoRota(pedChave(r), pathOf(r.k, r.sig), m, 4 / Math.max(1, P().semanas || 4)) : ''}
     <div class="row"><button class="btn sm" data-rop="rtrace" data-rk="${esc(r.k)}" title="Mantém a ordem e traça o caminho pelas ruas"${roadOk() ? '' : ' disabled'}>Só traçar</button></div>
     <div class="row"><button class="btn sm" data-rop="opt" data-rk="${esc(r.k)}" title="Sem consultar o servidor: usa linha reta">Otimizar em linha reta</button><button class="btn sm" data-rop="rev" data-rk="${esc(r.k)}">Inverter sentido</button><button class="btn sm" data-rop="selall" data-rk="${esc(r.k)}">Selecionar clientes</button></div>
     <p class="muted" style="margin:0;font-size:12px">Arraste para mudar a ordem. A sequência vale para o dia nas semanas em que o cliente é visitado.</p>
@@ -2238,6 +2251,24 @@ const FIELDS = {
     { k: 'lat', l: 'Latitude do cliente', al: ['lat', 'latitude'] },
     { k: 'lng', l: 'Longitude do cliente', al: ['lng', 'lon', 'long', 'longitude'] }
   ],
+  // Praças do módulo Pedágios
+  pedagios: [
+    { k: 'nome', l: 'Nome da praça', req: 1, al: ['praca', 'nome', 'pracadepedagio', 'nomedapraca', 'pedagio'] },
+    { k: 'lat', l: 'Latitude', req: 1, al: ['lat', 'latitude'] },
+    { k: 'lng', l: 'Longitude', req: 1, al: ['lng', 'lon', 'long', 'longitude'] },
+    { k: 'rodovia', l: 'Rodovia', al: ['rodovia', 'estrada', 'via'] },
+    { k: 'km', l: 'KM', al: ['km', 'kmrodovia', 'marco', 'quilometro'] },
+    { k: 'conc', l: 'Concessionária', al: ['concessionaria', 'operadora', 'empresa', 'administradora'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'uf', l: 'UF', al: ['uf', 'estado'] },
+    { k: 'sentido', l: 'Cobrança (os dois sentidos ou um)', al: ['cobranca', 'sentido', 'sentidodecobranca'] },
+    { k: 'dir', l: 'Sentido cobrado (N, S, L, O… ou graus)', al: ['sentidocobrado', 'direcao', 'rumo', 'sentidodacobranca'] },
+    { k: 't_carro', l: 'Tarifa carro (R$)', al: ['tarifacarro', 'carro', 'automovel', 'categoria1', 'cat1', 'tarifa'] },
+    { k: 't_moto', l: 'Tarifa moto (R$)', al: ['tarifamoto', 'moto', 'motocicleta', 'categoria9', 'cat9'] },
+    { k: 't_util', l: 'Tarifa utilitário 2 eixos (R$)', al: ['tarifautilitario', 'utilitario', 'categoria2', 'cat2', 'caminhao2eixos'] },
+    { k: 'atualizado', l: 'Valores válidos desde', al: ['valoresdesde', 'vigencia', 'validodesde', 'data', 'atualizado', 'reajuste'] },
+    { k: 'obs', l: 'Observação', al: ['observacao', 'obs', 'nota'] }
+  ],
   // Reembolsos e descontos da Verba Indenizatória
   lancamentos: [
     { k: 'vend', l: 'SOLD do vendedor', req: 1, al: ['soldvendedor', 'vendedor', 'codvendedor', 'codigovendedor', 'colaborador', 'rca', 'matricula', 'codigo'] },
@@ -2257,11 +2288,11 @@ function openImport(kind, opts = {}) {
   renderWz();
 }
 function renderWz() {
-  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro', rotas: 'Importar base de roteiros (Rotas)', lancamentos: 'Importar reembolsos e descontos' }[wz.kind];
+  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro', rotas: 'Importar base de roteiros (Rotas)', lancamentos: 'Importar reembolsos e descontos', pedagios: 'Importar praças de pedágio' }[wz.kind];
   const steps = `<div class="steps"><span class="${wz.step === 1 ? 'on' : ''}">1 · Arquivo</span>›<span class="${wz.step === 2 ? 'on' : ''}">2 · Colunas</span>›<span class="${wz.step === 3 ? 'on' : ''}">3 · Resultado</span></div>`;
   let body = '', foot = '';
   if (wz.step === 1) {
-    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.', rotas: 'Uma linha por cliente e vendedor, com o Dia e a Semana do roteiro, ou a Data de cada visita. Com uma coluna de Período (ou datas de meses diferentes), cada mês vira uma base separada no histórico. Equipe, Região e Segmento são opcionais e viram filtros. A posição do cliente vem da base de clientes ou da Latitude/Longitude da planilha.', lancamentos: 'Uma linha por lançamento: SOLD do vendedor e Valor. Opcionais: Tipo (reembolso ou desconto; valor negativo também conta como desconto), Mês ou Data, Motivo e Referência. As imagens de comprovante podem ser incluídas depois, editando cada lançamento.' }[wz.kind];
+    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.', rotas: 'Uma linha por cliente e vendedor, com o Dia e a Semana do roteiro, ou a Data de cada visita. Com uma coluna de Período (ou datas de meses diferentes), cada mês vira uma base separada no histórico. Equipe, Região e Segmento são opcionais e viram filtros. A posição do cliente vem da base de clientes ou da Latitude/Longitude da planilha.', lancamentos: 'Uma linha por lançamento: SOLD do vendedor e Valor. Opcionais: Tipo (reembolso ou desconto; valor negativo também conta como desconto), Mês ou Data, Motivo e Referência. As imagens de comprovante podem ser incluídas depois, editando cada lançamento.', pedagios: 'Uma linha por praça: Nome, Latitude e Longitude. Opcionais: Rodovia, KM, Concessionária, Cidade, UF, Cobrança (os dois sentidos ou um), as tarifas de carro, moto e utilitário de 2 eixos e a data de início dos valores. Importar de novo atualiza as praças de mesmo nome perto do mesmo local.' }[wz.kind];
     body = `<p class="muted" style="margin:0">${help}</p>
       <div class="row"><button class="btn sm" type="button" data-modelo="${wz.kind}">Baixar modelo (.xlsx)</button><span class="muted" style="font-size:12px">Planilha pronta com as colunas, exemplos e uma aba de instruções.</span></div>
       <label class="field"><span class="lbl">Planilha (.xlsx, .xls, .csv)</span><input type="file" id="wzFile" accept=".xlsx,.xls,.xlsm,.csv,.txt"></label>
@@ -2287,7 +2318,7 @@ function renderWz() {
     body = `<div class="stack">${r.lines.map(l => `<div class="banner ${l[0]}">${l[1]}</div>`).join('')}
       ${rg ? `<div class="imp-reg"><div class="row" style="justify-content:space-between"><span class="lbl">Registrado no histórico de importações</span><span class="muted" style="font-size:12px">${fdh(rg.em)} · ${esc(rg.usuario || 'sem usuário')}</span></div>
         <label class="field"><span class="lbl">Observação (opcional)</span><textarea id="wzMsg" class="msg" maxlength="500" placeholder="Ex.: roteiro de novembro enviado pelo comercial">${esc(rg.msg || '')}</textarea><span class="hint">Fica no histórico junto com a data, o usuário e as quantidades. Pode ser editada depois.</span></label></div>` : ''}</div>`;
-    foot = wz.kind === 'rotas' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="rotas">Abrir em Rotas</button>` : wz.kind === 'lancamentos' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="verba">Abrir na Verba</button>` : wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
+    foot = wz.kind === 'rotas' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="rotas">Abrir em Rotas</button>` : wz.kind === 'lancamentos' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="verba">Abrir na Verba</button>` : wz.kind === 'pedagios' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="ped">Abrir Pedágios</button>` : wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
   }
   openModal(`<div class="dh"><h2>${T}</h2>${steps}<button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div><div class="db">${body}</div><div class="df">${foot}</div>`);
   const wm = $('#wzMsg'); if (wm) wm.oninput = () => impMsg(wz.res.regId, wm.value);
@@ -2309,7 +2340,7 @@ function renderWz() {
   }
 }
 // Importações tratadas por módulos em arquivos separados
-function modImport(kind) { return kind === 'rotas' ? window.RotasMod : kind === 'lancamentos' ? window.VerbaMod : null; }
+function modImport(kind) { return kind === 'rotas' ? window.RotasMod : kind === 'lancamentos' ? window.VerbaMod : kind === 'pedagios' ? window.PedMod : null; }
 function loadSheet() { const ws = wz.wb.Sheets[wz.sheet]; const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }); setRows(rows); }
 function parseText(txt) {
   if (window.XLSX) { try { const wb = XLSX.read(txt, { type: 'string' }); setRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' })); return; } catch (e) { /* cai no simples */ } }
@@ -2353,7 +2384,7 @@ async function runImport() {
   if (modImport(wz.kind)) {
     const res = await modImport(wz.kind).importar(wz, r => k => cell(r, k));
     if (!res) return;
-    const regId = (wz.kind === 'rotas' ? st.rotasSemTabela : st.verbaSemTabela) ? null : registraImport(res.reg, res.lines);
+    const regId = (wz.kind === 'rotas' ? st.rotasSemTabela : wz.kind === 'pedagios' ? st.pedSemTabela : st.verbaSemTabela) ? null : registraImport(res.reg, res.lines);
     wz.res = { lines: res.lines, regId }; wz.step = 3; renderWz(); renderHome(); return;
   }
   const lines = [], toGeo = []; let reg = { linhas: wz.rows.length };
@@ -2503,7 +2534,7 @@ async function runImport() {
 /* ================= Histórico de importações =================
    Cada importação fica registrada para a empresa: data e hora, usuário, arquivo, quantidades e uma observação opcional. */
 const IMP_MAX = 400;
-const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro', rotas: 'Base de rotas', lancamentos: 'Reembolsos e descontos' };
+const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro', rotas: 'Base de rotas', lancamentos: 'Reembolsos e descontos', pedagios: 'Praças de pedágio' };
 const fdh = ts => new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const semHtml = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.trim(); };
 function registraImport(reg, lines) {
@@ -3048,6 +3079,28 @@ MODELOS.rotas = {
   ],
   dicas: ['Uma planilha com vários meses (coluna Período ou Data) gera uma base por mês no histórico.', 'Importar de novo o mesmo mês substitui a base daquele mês, se a opção estiver marcada.', 'O KM é estimado pela distância em linha reta × fator de rota (como no Planejamento) e pode ser recalculado pelas ruas em Rotas → Mapa.', 'O valor do KM (R$) fica em Rotas → Parâmetros.']
 };
+MODELOS.pedagios = {
+  titulo: 'Praças de pedágio', aba: 'Pracas', arq: 'modelo_pracas_pedagio.xlsx',
+  desc: 'Local e tarifas de cada praça de pedágio, para o módulo Pedágios e a roteirização.',
+  cols: [
+    ['Praça', 1, 'Nome da praça', 'Praça Exemplo Norte', 'Praça Exemplo Sul'],
+    ['Latitude', 1, 'Em graus decimais (copie do Google Maps)', '-23,1534', '-23,2071'],
+    ['Longitude', 1, 'Em graus decimais', '-47,0189', '-46,7843'],
+    ['Rodovia', 2, 'Sigla da rodovia', 'SP-000', 'BR-000'],
+    ['KM', 0, 'Marco quilométrico', '78', '39,4'],
+    ['Concessionária', 0, 'Quem administra', 'Concessionária X', 'Concessionária Y'],
+    ['Cidade', 0, '', 'Cidade A', 'Cidade B'],
+    ['UF', 0, '', 'SP', 'SP'],
+    ['Cobrança', 0, 'Os dois sentidos ou Um sentido. Vazio = os dois', 'Os dois sentidos', 'Um sentido'],
+    ['Sentido cobrado', 0, 'Só para cobrança em um sentido: rumo de quem paga (N, NE, L, SE, S, SO, O, NO ou graus). Vazio = conta metade das passagens', '', 'S'],
+    ['Tarifa carro', 2, 'R$ por passagem, automóvel (categoria 1)', '12,30', '9,80'],
+    ['Tarifa moto', 0, 'R$ por passagem, motocicleta', '6,15', '4,90'],
+    ['Tarifa utilitário', 0, 'R$ por passagem, utilitário ou caminhão leve de 2 eixos', '24,60', '19,60'],
+    ['Valores desde', 0, 'Data do último reajuste (dd/mm/aaaa)', '01/07/2026', '01/07/2026'],
+    ['Observação', 0, '', '', '']
+  ],
+  dicas: ['Os nomes e valores do exemplo são fictícios: use a tabela da concessionária ou da agência reguladora (ANTT nas rodovias federais, ARTESP em SP e as agências dos outros estados).', 'Em Pedágios → Mapa, “Buscar praças nesta área” traz do OpenStreetMap o local das praças visíveis no mapa; os valores ficam para você completar.', 'Uma rota passa pela praça quando o percurso pelas ruas chega a menos do raio de detecção (padrão 150 m, em Pedágios → Parâmetros).']
+};
 MODELOS.lancamentos = {
   titulo: 'Reembolsos e descontos (Verba)', aba: 'Lancamentos', arq: 'modelo_reembolsos_descontos.xlsx',
   desc: 'Lançamentos que somam (reembolso) ou subtraem (desconto) da verba indenizatória do mês.',
@@ -3527,6 +3580,8 @@ function renderHome() {
   if (window.RotasMod) window.RotasMod.limpar();
   if (st.homeSec === 'verba' && window.VerbaMod) { window.VerbaMod.render(el); return; }
   if (st.homeSec === 'cal' && window.CalMod) { window.CalMod.render(el); return; }
+  if (st.homeSec === 'ped' && window.PedMod) { window.PedMod.render(el); return; }
+  if (window.PedMod) window.PedMod.limpar();
   if (st.homeSec !== 'plan') { renderHub(el); return; }
   renderPlanejamento(el);
 }
@@ -3536,12 +3591,13 @@ const ICON_MOD = {
   rotas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/><circle cx="18" cy="5" r="2.5"/></svg>',
   verba: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg>',
   config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
+  ped: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M4.5 21V9.5L7 7l2.5 2.5V21"/><path d="M9.5 13H21"/><path d="M13 13l1.6-2M16.5 13l1.6-2"/><path d="M21 11v4"/></svg>',
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>'
 };
 function renderHub(el) {
   const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   const nome = String((st.usuario && st.usuario.nome) || '').split(' ')[0];
-  const cur = amb(), R = window.RotasMod ? window.RotasMod.resumoHub() : null, C = window.CalMod ? window.CalMod.resumoHub() : null, V = window.VerbaMod ? window.VerbaMod.resumoHub() : null;
+  const cur = amb(), R = window.RotasMod ? window.RotasMod.resumoHub() : null, C = window.CalMod ? window.CalMod.resumoHub() : null, V = window.VerbaMod ? window.VerbaMod.resumoHub() : null, PD = window.PedMod ? window.PedMod.resumoHub() : null;
   const stat = (v, l) => `<span class="ms"><b class="num${String(v).length > 12 ? ' longo' : ''}">${v}</b><span>${l}</span></span>`;
   const mod = (k, titulo, desc, stats, extra = '', cls = '') => `<article class="mod ${cls}"><button type="button" class="mod-go" data-hub="${k}" aria-label="Abrir ${esc(titulo)}"></button>
     <div class="mod-h"><span class="mod-i">${ICON_MOD[k]}</span><div><h2>${titulo}</h2><p>${desc}</p></div></div>
@@ -3555,6 +3611,8 @@ function renderHub(el) {
         `<button class="btn sm primary" type="button" data-act="plannerOpen">Abrir Planner</button>${cur ? `<button class="btn sm" type="button" data-enter="${esc(cur.id)}">Continuar: ${esc(cur.nome)}</button>` : ''}`)}
       ${mod('rotas', 'Rotas', 'Bases de roteiros por mês e ano: tabela, mapa com pinos e regiões, filtros e comparação com os estudos.', R ? stat(nf0.format(R.bases), R.bases === 1 ? 'base' : 'bases') + stat(R.ultimo || '—', 'último período') + stat(R.km, 'KM/mês') : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn sm" type="button" data-act="rotasImport"${st.ro ? ' disabled' : ''}>Importar base</button>`)}
+      ${mod('ped', 'Pedágios', 'Praças de pedágio com local e valores, mapa com as rotas de um estudo ou base e relatório de quem paga, quanto e onde.', PD ? stat(nf0.format(PD.n), PD.n === 1 ? 'praça cadastrada' : 'praças cadastradas') + stat(PD.media, `tarifa média · ${esc(PD.cat.toLowerCase())}`) + stat(nf0.format(PD.semValor), 'sem valor') : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="ped">Abrir Pedágios</button>`)}
       ${mod('verba', 'Verba Indenizatória', 'KM das rotas × racional de combustível e cesta de serviço × dias de rota no mês, com reembolsos, descontos, extrato e histórico.', V ? stat(V.racional, 'racional') + stat(V.ultimo, 'última apuração') + stat(nf0.format(V.lanc), 'lançamentos no mês') : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="verba">Abrir Verba</button>`)}
       ${mod('cal', 'Calendário', 'Ano inteiro com dias úteis, feriados, eventos da empresa e as semanas do ciclo (S1 a S4 e quinzenas 1,3 e 2,4).', C ? stat(C.semana, `semana atual · ${C.quinzena}`) + stat(nf0.format(C.uteis), 'dias úteis no mês') + stat(esc(C.proximo), 'próximo evento') : stat('—', 'carregando'),
@@ -4051,7 +4109,7 @@ const msgBloqueio = ate => `Acesso bloqueado por excesso de tentativas. Tente de
 
 /* ----- Registro de atividades (quem fez o quê e quando). Com o Supabase, ninguém altera nem apaga um registro ----- */
 const AUD_MAX_LOCAL = 1500;
-const AUD_ACAO = { login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)', calendario: 'Alterou o calendário', verba: 'Verba indenizatória' };
+const AUD_ACAO = { login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)', calendario: 'Alterou o calendário', verba: 'Verba indenizatória', pedagios: 'Pedágios' };
 const audLocalColl = () => (st.empresa ? st.empresa.id : 'x') + '_auditoria';
 async function audLocalLer() { try { const d = (await st.base.list(audLocalColl())).find(x => x.id === 'log'); return (d && d.data && d.data.items) || []; } catch (e) { return []; } }
 function audita(acao, detalhe = '') {
@@ -4515,7 +4573,7 @@ async function boot() {
   $('#loading').hidden = true;
   iniciaInatividade();
   // Os módulos carregam os próprios dados em segundo plano; o início se atualiza quando chegam
-  for (const M of [window.RotasMod, window.CalMod, window.VerbaMod]) if (M) M.iniciar().then(() => { if (st.screen === 'home') renderHome(); }).catch(() => {});
+  for (const M of [window.RotasMod, window.CalMod, window.VerbaMod, window.PedMod]) if (M) M.iniciar().then(() => { if (st.screen === 'home') renderHome(); }).catch(() => {});
   addEventListener('beforeunload', ev => {
     for (const s of Save.stores) if (s.dirty.size) s.flush();
     if (geoQ.busy) { ev.preventDefault(); ev.returnValue = ''; } // a busca de coordenadas para se a página fechar

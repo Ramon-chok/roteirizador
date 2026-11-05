@@ -939,3 +939,60 @@ button.opt:hover .oi { background: var(--accent); color: var(--accent-ink); }
   .leaflet-control-attribution { margin-right: 0; }
   .leaflet-bottom.leaflet-right { bottom: 0; }
 }
+
+/* ===== Pedágios: módulo, marcadores no mapa e bloco da rota no Planner ===== */
+.pd-fonte { gap: 10px 16px; }
+.pd-fonte select { max-width: 320px; }
+.pd-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; align-items: start; }
+.pd-grid .rt-map { height: calc(100vh - 330px); min-height: 480px; }
+.rt-map.marcando, .rt-map.marcando .leaflet-interactive { cursor: crosshair; }
+.pd-side { max-height: calc(100vh - 330px); min-height: 480px; overflow-y: auto; }
+.pd-side .cb { gap: 14px; }
+.pd-list { display: flex; flex-direction: column; gap: 4px; }
+.pd-it { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; }
+button.pd-it { cursor: pointer; }
+button.pd-it:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.pd-it .nm { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.pd-it .nm .muted, .pd-it .vl .muted { display: block; font-weight: 400; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-it .vl { text-align: right; white-space: nowrap; font-family: var(--f-body); font-variant-numeric: tabular-nums; }
+.pd-ic { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); flex: none; }
+.pd-ic svg { width: 14px; height: 14px; }
+.pd-ic.on { background: var(--route); color: #fff; border-color: transparent; }
+.pd-ic.sv { box-shadow: 0 0 0 2px var(--warn); }
+.pd-leg .sw.ln { width: 18px; height: 4px; border-radius: 2px; background: var(--accent); }
+.pd-leg .sw.ln.on { background: var(--route); }
+.pd-leg .sw.ln.tr { background: repeating-linear-gradient(90deg, var(--muted) 0 4px, transparent 4px 7px); }
+.pd-leg .pd-ic { width: 18px; height: 18px; border-radius: 5px; }
+.pd-leg .pd-ic svg { width: 12px; height: 12px; }
+/* Marcador da praça no mapa */
+.pedm { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--surface); color: var(--muted); border: 1.5px solid var(--line-strong); box-shadow: 0 1px 4px rgba(0,0,0,.35); transition: transform .12s; }
+.pedm svg { width: 15px; height: 15px; }
+.pedm.on { background: var(--route); color: #fff; border-color: #fff; }
+.pedm.sv { box-shadow: 0 0 0 2px var(--warn), 0 1px 4px rgba(0,0,0,.35); }
+.pedm.foco { transform: scale(1.25); }
+.pd-pop { display: flex; flex-direction: column; gap: 6px; min-width: 220px; font-size: 12.5px; }
+.pd-pop > b { font-size: 13.5px; }
+.pd-pop .mgrid { margin: 2px 0; }
+/* Bloco "Pedágios" da rota (Planner e módulo) */
+.pd-rota { border-top: 1px solid var(--line); padding-top: 10px; }
+.pd-bloco { display: flex; flex-direction: column; gap: 8px; }
+.pd-tot { font-size: 12.5px; color: var(--muted); }
+.pd-tot b { color: var(--ink); font-family: var(--f-body); }
+.pd-chip { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; padding: 1px 7px 1px 5px; border-radius: 99px; font-size: 11px; font-weight: 600; background: var(--route); color: #fff; width: fit-content; font-variant-numeric: tabular-nums; }
+.pd-chip svg { width: 12px; height: 12px; }
+.pd-chip.ok { background: var(--ok-soft); color: var(--ok); padding-left: 7px; }
+.kc .v small { font-size: .55em; color: var(--muted); font-weight: 500; }
+@media (max-width: 1000px) {
+  .pd-grid { grid-template-columns: 1fr; }
+  .pd-side { max-height: none; min-height: 0; }
+  .pd-grid .rt-map { height: 60vh; min-height: 360px; }
+}
+/* Popups do Leaflet (o CSS embutido do Leaflet não traz os popups) */
+.leaflet-popup { position: absolute; text-align: left; margin-bottom: 16px; }
+.leaflet-popup-content-wrapper { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 1px; }
+.leaflet-popup-content { margin: 12px 30px 12px 14px; line-height: 1.4; font-size: 12.5px; }
+.leaflet-popup-tip-container { width: 30px; height: 15px; position: absolute; left: 50%; margin-left: -15px; overflow: hidden; pointer-events: none; }
+.leaflet-popup-tip { width: 14px; height: 14px; margin: -8px auto 0; transform: rotate(45deg); background: var(--surface); border: 1px solid var(--line); }
+.leaflet-container a.leaflet-popup-close-button { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 6px; font: 18px/21px var(--f-body); text-align: center; color: var(--muted); text-decoration: none; background: transparent; }
+.leaflet-container a.leaflet-popup-close-button:hover { color: var(--ink); background: var(--surface-2); }
+.pd-acoes { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: nowrap; }

@@ -17,9 +17,10 @@ Alternativa sem extensão (precisa do Node.js instalado): no terminal do VS Code
 ## Como o sistema está organizado
 
 - **Acesso**: a pessoa escolhe o ambiente (G4 Distribuidora, J.Arantes, Chok Distribuidora ou Grupo Arantes) e faz login. Cada ambiente tem usuários, clientes, colaboradores e estudos separados. Veja [Ambientes e login](#ambientes-e-login).
-- **Início** (tela de abertura): os módulos com acesso rápido. **Planejamento**, **Rotas**, **Verba Indenizatória**, **Calendário** e **Configurações**. Cada cartão mostra os números principais do módulo (no Calendário, a semana atual do ciclo e o próximo evento).
+- **Início** (tela de abertura): os módulos com acesso rápido. **Planejamento**, **Rotas**, **Pedágios**, **Verba Indenizatória**, **Calendário** e **Configurações**. Cada cartão mostra os números principais do módulo (no Calendário, a semana atual do ciclo e o próximo evento).
 - **Planejamento**: painel dos estudos. No topo, escolha o **Estudo** e o **Setor** (ou clique em um setor no gráfico de KM): os indicadores (clientes, cidades ou setores, rotas, KM e tempo no ciclo, ocupação), os gráficos (KM por rota em cada dia, visitas por dia, clientes por cidade, ocupação da jornada) e o mapa de cobertura passam a mostrar só aquele setor. **Abrir o setor no mapa** leva ao Planner com ele aberto. Abaixo ficam a lista de estudos e, recolhido em **Cobertura e bases**, o mapa, as bases de dados, as bases de saída e o backup.
 - **Rotas**: bases de roteiros importadas mês a mês e os estudos do Planejamento, com visão geral, tabela, mapa, histórico e comparação. Veja [Rotas](#rotas).
+- **Pedágios**: praças de pedágio com local e tarifas, mapa com as rotas de um estudo ou de uma base e relatório de quais rotas pagam, quanto e onde. Na roteirização, cada rota mostra os pedágios do percurso. Veja [Pedágios](#pedágios).
 - **Verba Indenizatória**: cálculo da verba pelo KM das rotas, com racionais, reembolsos, descontos, extrato e histórico. Veja [Verba Indenizatória](#verba-indenizatória).
 - **Calendário**: o ano com dias úteis, feriados, eventos da empresa e as semanas do ciclo. Veja [Calendário](#calendário).
 - **Planner**: o sistema de mapa, roteiros, estudos, clientes e colaboradores. Entre pelo botão **Abrir Planner**, que oferece: abrir um **estudo existente**, criar um **planner vazio e novo** ou **importar** um roteiro (Excel/CSV). Para voltar, clique em **Roteirizador RRM** no topo.
@@ -84,7 +85,7 @@ O sistema grava no Supabase: clientes, colaboradores, estudos, setores, roteiros
 - **Dados do navegador:** no login, se o banco do ambiente estiver vazio e o navegador tiver dados, o sistema oferece enviá-los. Eles continuam no navegador.
 - **Várias pessoas ao mesmo tempo:** cada alteração é gravada linha a linha, e a última gravação vale. O que outra pessoa alterou aparece ao recarregar a página.
 
-Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, depois `supabase/migracao_04_seguranca.sql`, `supabase/migracao_05_rotas.sql` e `supabase/migracao_06_calendario_verba.sql`, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do `schema.sql`. Quem já tinha o schema roda também, nesta ordem, `migracao_02_usuarios.sql`, `migracao_03_importacoes.sql` (histórico de importações), `migracao_04_seguranca.sql` (duas etapas, privacidade e registro de atividades) , `migracao_05_rotas.sql` (módulo Rotas) e `migracao_06_calendario_verba.sql` (Calendário e Verba Indenizatória). Todas podem rodar mais de uma vez. Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
+Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, depois `supabase/migracao_04_seguranca.sql`, `supabase/migracao_05_rotas.sql`, `supabase/migracao_06_calendario_verba.sql` e `supabase/migracao_07_pedagios.sql`, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do `schema.sql`. Quem já tinha o schema roda também, nesta ordem, `migracao_02_usuarios.sql`, `migracao_03_importacoes.sql` (histórico de importações), `migracao_04_seguranca.sql` (duas etapas, privacidade e registro de atividades) , `migracao_05_rotas.sql` (módulo Rotas), `migracao_06_calendario_verba.sql` (Calendário e Verba Indenizatória) e `migracao_07_pedagios.sql` (Pedágios). Todas podem rodar mais de uma vez. Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
 
 ## Rotas
 
@@ -97,6 +98,23 @@ O módulo **Rotas** guarda os roteiros em uso, por período (mês/ano), para aco
 - **KM e custo:** o KM é estimado como no Planejamento (linha reta × fator de rota, com ida e volta da base do colaborador) e pode ser recalculado pelas ruas em **Mapa → Calcular KM pelas ruas** (até 300 rotas por vez, cerca de 1 por segundo no servidor público). O valor do KM (R$) e os demais parâmetros ficam em **Rotas → Parâmetros** e valem para o ambiente todo. O mês considera 4 semanas: KM do mês = KM do ciclo × 4 ÷ semanas do ciclo; para bases por data, é o total do mês.
 - **Estudos em Rotas:** no seletor **Ver** aparecem as bases de rotas e, logo abaixo, os estudos do Planejamento. Um estudo abre com as mesmas visões (geral, tabela e mapa) e os mesmos filtros; o KM pelas ruas do estudo continua sendo calculado no Planner.
 - **Comparar:** cada lado escolhe uma base ou um estudo e um vendedor (ou todos). Vale base × estudo, estudo × estudo e base × base. Os dois mapas ficam lado a lado e se movem juntos; a tabela mostra a diferença de clientes, visitas, dias de rota, KM por mês, semana e dia, horas e custo, e a lista de clientes que só existem de um lado. O botão ⇄ troca os lados.
+
+## Pedágios
+
+O módulo **Pedágios** guarda as praças de pedágio do ambiente e mostra por quais delas as rotas passam.
+
+- **Cadastro:** cada praça tem nome, local (latitude e longitude), rodovia, KM, concessionária, cidade, a cobrança (nos dois sentidos ou em um só, com o rumo de quem paga) e a tarifa por passagem de carro, moto e utilitário de 2 eixos. Há três formas de cadastrar:
+  - **Importar praças:** pelo modelo em **Pedágios → Modelo (.xlsx)**. Importar de novo atualiza as praças de mesmo nome perto do mesmo local.
+  - **Buscar praças nesta área (OpenStreetMap):** traz as praças visíveis no mapa. Muitas já vêm com as tarifas e o sentido cobrado. Confira os valores na tabela da concessionária ou da agência reguladora (ANTT, ARTESP…).
+  - **Nova praça** ou **Marcar praça no mapa:** uma a uma.
+- **Mapa:** escolha em **Rotas de** um estudo ou uma base de Rotas. As rotas com pedágio ficam em laranja, as sem pedágio em azul e as ainda não traçadas pelas ruas tracejadas. As praças das rotas ficam em destaque. Clique numa rota para ver as praças dela. Filtros: vendedor, dia, com pedágio, sem pedágio e sem traçado.
+- **Relatório:** por vendedor, por praça e por rota, com passagens e valores por dia e por mês. Exporta para Excel.
+- **Como a passagem é contada:** a rota passa pela praça quando o percurso pelas ruas chega a menos do raio de detecção (padrão 150 m). Cada entrada nesse raio é uma passagem. Rota de ida e volta pela mesma praça paga duas vezes. Em praça que cobra num sentido só, a passagem só conta quando o rumo do percurso naquele ponto bate com o sentido cobrado. A passagem no outro sentido aparece como "sem cobrança". Se o sentido cobrado não estiver informado, conta metade das passagens, arredondando para cima.
+- **Mês:** valor por dia de rota × 4 ÷ semanas do ciclo, como no KM do mês. Em bases por data, é o total do mês.
+- **Parâmetros:** a categoria do veículo usada nas contas (carro, moto ou utilitário) e o raio de detecção valem para o ambiente todo.
+- **Só rotas traçadas pelas ruas:** rotas em linha reta não entram na conta. No Planner, use **Roteirizar** ou **Só traçar**. Em Pedágios, **Traçar pelas ruas** traça para a análise sem gravar o KM.
+
+**Na roteirização (Planner):** a rota aberta mostra o bloco **Pedágios**, com cada praça do percurso, o número de passagens, o valor e o total por dia e no mês. Se o percurso não passa por nenhuma praça, aparece **Sem pedágio**. Na lista de rotas marcadas, cada rota tem um selo laranja com o número de pedágios e o valor do dia; um "+ ?" no selo indica praça sem valor cadastrado. No mapa, as praças do percurso ficam em laranja e as demais, apagadas; para esconder todas, desmarque **Exibição do mapa → Praças de pedágio**. Se o servidor de rotas indicar pedágio num trecho em que não há praça cadastrada, a rota avisa.
 
 ## Calendário
 
@@ -152,12 +170,14 @@ Fica em **Configurações → Segurança e privacidade** (também em **Minha con
 | `js/rotas.js` | Módulo Rotas: bases de roteiros por período e estudos, tabela, mapa, histórico e comparação |
 | `js/calendario.js` | Módulo Calendário: feriados, eventos, dias úteis e semanas do ciclo (S1 a S4, 1,3 e 2,4) |
 | `js/verba.js` | Módulo Verba Indenizatória: racionais, cálculo, extrato, reembolsos, descontos, histórico e comparativo |
+| `js/pedagios.js` | Módulo Pedágios: praças e tarifas, mapa com as rotas, relatório e os pedágios de cada rota no Planner |
 | `exemplos/` | Modelos CSV de clientes, colaboradores e roteiro (os modelos .xlsx com instruções são baixados na aba Importação) |
 | `ferramentas/build.py` | Gera `dist/roteirizador.html`, um arquivo único com tudo embutido |
 | `supabase/schema.sql` | Estrutura do banco para o Supabase: tabelas, regras de acesso e consultas prontas |
 | `supabase/migracao_04_seguranca.sql` | Duas etapas exigida pelo banco, política do ambiente, aceite de privacidade e registro de atividades |
 | `supabase/migracao_05_rotas.sql` | Tabelas do módulo Rotas |
 | `supabase/migracao_06_calendario_verba.sql` | Tabelas do Calendário e da Verba Indenizatória (escrita só do administrador) |
+| `supabase/migracao_07_pedagios.sql` | Tabela das praças de pedágio |
 | `ferramentas/backup_para_sql.py` | Converte um backup do sistema em SQL para carregar no Supabase |
 | `dist/roteirizador.html` | Versão em arquivo único, pronta para enviar ou hospedar |
 

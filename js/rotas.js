@@ -757,5 +757,5 @@ function resumoHub() {
 }
 
 // Usado pela Verba Indenizatória: as mesmas fontes, rotas e nomes
-window.RotasMod = { iniciar, render, limpar, resumoHub, opcoesImport, ligaOpcoesImport, importar, fontesLista, fonteOpts, nomeFonte, carregaFonte, recsTodos, nomeVend, semanasCiclo, fmtPer, fmtPerLongo, ehEstudo };
+window.RotasMod = { polyDe: (id, k) => RS.poly.get(id + '|' + k), iniciar, render, limpar, resumoHub, opcoesImport, ligaOpcoesImport, importar, fontesLista, fonteOpts, nomeFonte, carregaFonte, recsTodos, nomeVend, semanasCiclo, fmtPer, fmtPerLongo, ehEstudo };
 })();
