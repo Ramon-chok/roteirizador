@@ -5,7 +5,8 @@
 -- sem alterar nada. Para refazer do zero em um projeto de teste, veja o fim do arquivo.
 --
 -- Depois deste arquivo, rode também migracao_04_seguranca.sql (duas etapas, privacidade
--- e registro de atividades) e migracao_05_rotas.sql (módulo Rotas), nessa ordem.
+-- e registro de atividades), migracao_05_rotas.sql (módulo Rotas) e
+-- migracao_06_calendario_verba.sql (Calendário e Verba Indenizatória), nessa ordem.
 --
 -- Cada empresa (ambiente) tem seus próprios usuários, clientes, colaboradores
 -- e estudos. A separação é feita no banco, por Row Level Security (RLS):

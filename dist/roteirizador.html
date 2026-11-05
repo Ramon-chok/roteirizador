@@ -40,21 +40,21 @@
   --f-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", "Arial Narrow", sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --r: 6px;
-  --lasso: #0B63CE; --cmp-a: #2F6FB3; --cmp-b: #C2512B;
+  --lasso: #0B63CE; --cmp-a: #2F6FB3; --cmp-b: #C2512B; --feriado: #B83A5E;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0F1412; --surface: #171D1A; --surface-2: #1D2421; --ink: #E3E9E5; --muted: #8E9C95;
   --line: #2A3330; --line-strong: #3A4541; --accent: #3BB394; --accent-ink: #06231B; --accent-soft: #163A31;
   --route: #E8873F; --ok: #5BBE7C; --ok-soft: #173424; --warn: #E0B04A; --warn-soft: #3A2E10; --bad: #EE7266; --bad-soft: #3D1C19;
   --sel: #FFFFFF; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45); --map-bg: #1A201D; color-scheme: dark;
-  --lasso: #4FA3FF; --cmp-a: #4A8FD6; --cmp-b: #D06A2A;
+  --lasso: #4FA3FF; --cmp-a: #4A8FD6; --cmp-b: #D06A2A; --feriado: #E06A8C;
 } }
 :root[data-theme="dark"] {
   --bg: #0F1412; --surface: #171D1A; --surface-2: #1D2421; --ink: #E3E9E5; --muted: #8E9C95;
   --line: #2A3330; --line-strong: #3A4541; --accent: #3BB394; --accent-ink: #06231B; --accent-soft: #163A31;
   --route: #E8873F; --ok: #5BBE7C; --ok-soft: #173424; --warn: #E0B04A; --warn-soft: #3A2E10; --bad: #EE7266; --bad-soft: #3D1C19;
   --sel: #FFFFFF; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45); --map-bg: #1A201D; color-scheme: dark;
-  --lasso: #4FA3FF; --cmp-a: #4A8FD6; --cmp-b: #D06A2A;
+  --lasso: #4FA3FF; --cmp-a: #4A8FD6; --cmp-b: #D06A2A; --feriado: #E06A8C;
 }
 
 html, body { height: 100%; }
@@ -553,7 +553,7 @@ textarea.msg { min-height: 64px; font-family: inherit; font-size: 13px; resize: 
 .mod-h p { margin: 3px 0 0; color: var(--muted); font-size: 13px; max-width: 52ch; }
 .mod-i { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
 .mod-i svg { width: 24px; height: 24px; }
-.mod-i.lg { width: 60px; height: 60px; } .mod-i.lg svg { width: 32px; height: 32px; }
+.mod-i.xl { width: 60px; height: 60px; } .mod-i.xl svg { width: 32px; height: 32px; }
 .mod-s { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; }
 .ms { display: flex; flex-direction: column; } .ms b { font-size: 20px; font-weight: 600; line-height: 1.1; } .ms span { font-size: 11.5px; color: var(--muted); }
 .mod-a { display: flex; flex-wrap: wrap; gap: 8px; position: relative; z-index: 1; }
@@ -628,6 +628,113 @@ table.t.heat td.n { font-size: 12.5px; }
 #mfaCad, #sgOff { flex-direction: row !important; align-items: flex-end !important; justify-content: flex-start; flex-wrap: wrap; }
 #mfaCad .field, #sgOff .field { width: 190px; }
 .kc .v.rs { font-size: 21px; white-space: nowrap; padding-top: 4px; }
+
+/* ---------- Planejamento enxuto ---------- */
+.mods { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+.kgrid.k4 { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.tblwrap.flat { border: 0; border-radius: 0; }
+.plan .card > .ch h2 { font-size: 16px; }
+.foco { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 18px; align-items: start; }
+.minis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mini { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.mini b { font-size: 20px; font-weight: 600; } .mini .muted { font-size: 12px; }
+details.mais > summary { list-style: none; display: flex; gap: 10px; align-items: baseline; padding: 12px 14px; flex-wrap: wrap; }
+details.mais > summary::-webkit-details-marker { display: none; }
+details.mais > summary::before { content: "▸"; color: var(--muted); }
+details.mais[open] > summary::before { content: "▾"; }
+details.mais > summary .muted { font-size: 12.5px; }
+@media (max-width: 900px) { .foco { grid-template-columns: 1fr; } }
+
+/* ---------- Semanas do ciclo (Calendário, Verba e extrato) ---------- */
+.wk { display: inline-grid; place-items: center; min-width: 26px; padding: 1px 5px; border-radius: 5px; font: 600 11px var(--f-mono); color: #fff; background: var(--c, var(--muted)); }
+.qz { display: inline-grid; place-items: center; min-width: 30px; padding: 1px 5px; border-radius: 5px; font: 600 11px var(--f-mono); border: 1px solid var(--line-strong); color: var(--ink); }
+.qz.q13 { background: color-mix(in srgb, var(--cmp-a) 16%, var(--surface)); border-color: color-mix(in srgb, var(--cmp-a) 45%, var(--line)); }
+.qz.q24 { background: color-mix(in srgb, var(--cmp-b) 16%, var(--surface)); border-color: color-mix(in srgb, var(--cmp-b) 45%, var(--line)); }
+.wk.gr, .qz.gr { font-size: 12.5px; padding: 3px 9px; }
+
+/* ---------- Calendário ---------- */
+.cal-hoje .cb { gap: 10px 14px; }
+.cal-bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.cal-tit { font-size: 18px; min-width: 64px; text-align: center; }
+.cal-legs { display: flex; flex-wrap: wrap; gap: 6px; }
+.cal-leg { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; color: var(--ink); }
+.cal-leg i { width: 10px; height: 10px; border-radius: 3px; }
+.cal-leg.off { opacity: .45; text-decoration: line-through; }
+.cal-leg.fixa { cursor: default; border-style: dashed; }
+.cal-leg .hojei { border: 2px solid var(--accent); background: transparent; }
+.cal-leg .fdsi { background: var(--surface-2); border: 1px solid var(--line); }
+.cal-ano { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.cal-mes { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 8px; min-width: 0; }
+.cal-mh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0 4px 6px; flex-wrap: wrap; }
+.cal-mh b { font-family: var(--f-cond); font-size: 15.5px; font-weight: 600; }
+.cal-mh .muted { font-size: 11.5px; }
+table.cal { width: 100%; border-collapse: separate; border-spacing: 2px; table-layout: fixed; }
+table.cal th { font: 600 10.5px var(--f-cond); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 2px 0; }
+table.cal th.fds { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+table.cal th.cw, table.cal td.cw { width: 40px; }
+table.cal td { text-align: center; padding: 0; }
+table.cal td.cd { position: relative; height: 30px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+table.cal td.cd:hover { background: var(--surface-2); outline: 1px solid var(--line-strong); }
+table.cal td.cd .dn { display: block; line-height: 1; padding-top: 4px; }
+table.cal td.cd.fds { color: var(--muted); background: var(--surface-2); }
+table.cal td.cd.fer, table.cal td.cd.semrota { background: color-mix(in srgb, var(--feriado) 18%, var(--surface)); color: var(--feriado); font-weight: 700; }
+table.cal td.cd.hoje { box-shadow: inset 0 0 0 2px var(--accent); font-weight: 700; }
+table.cal .dots { position: absolute; left: 0; right: 0; bottom: 3px; display: flex; justify-content: center; gap: 2px; }
+table.cal .dots i { width: 5px; height: 5px; border-radius: 50%; }
+table.cal tr.atual td.cw .wk, table.cal tr.atual td.cw .qz { outline: 2px solid var(--accent); outline-offset: 1px; }
+table.cal tr.atual td.cd:not(.fer):not(.semrota) { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+table.cal tr.atual td.cd.fds:not(.fer) { background: color-mix(in srgb, var(--accent) 9%, var(--surface-2)); }
+.cal-mes.grande table.cal td.cd { height: 92px; vertical-align: top; text-align: left; padding: 4px 6px; }
+.cal-mes.grande table.cal td.cd .dn { padding: 0 0 4px; font-size: 14px; }
+.cal-mes.grande table.cal th.cw, .cal-mes.grande table.cal td.cw { width: 54px; }
+.cal-mes.grande .ev { display: block; font-size: 11.5px; line-height: 1.25; margin-top: 2px; padding: 1px 5px; border-radius: 4px; color: var(--ink); background: color-mix(in srgb, var(--c, var(--accent)) 16%, var(--surface)); border-left: 3px solid var(--c, var(--accent)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.cal-mes.grande .ev.fer { --c: var(--feriado); }
+.cal-mes.grande .ev.km { --c: var(--accent); font-family: var(--f-mono); }
+.cal-mes.grande .ev.perd { --c: var(--feriado); }
+table.cal td.cd.rota { background: color-mix(in srgb, var(--accent) 20%, var(--surface)); color: var(--ink); font-weight: 600; }
+table.cal td.cd.perdido { background: color-mix(in srgb, var(--feriado) 18%, var(--surface)); }
+.cal-unico { max-width: 1100px; }
+.cal-lista { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.cal-lista li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.cal-lista li:last-child { border-bottom: 0; }
+.cal-lista li.passou { opacity: .55; }
+.cl-d { min-width: 82px; color: var(--muted); }
+.cl-c { font: 600 11px var(--f-cond); text-transform: uppercase; letter-spacing: .05em; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--c) 16%, var(--surface)); color: var(--ink); border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line)); }
+.cl-t { flex: 1; min-width: 160px; }
+.cat-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.cat-row input[type=color] { width: 40px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
+
+/* ---------- Verba ---------- */
+.vb-ctl { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.vb-ctl .field { min-width: 180px; flex: 1; max-width: 340px; }
+.vb-form { padding: 9px 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); background: var(--surface-2); border-radius: 0 0 8px 8px; }
+.vb-form b { color: var(--ink); }
+.extrato > .vb-form { border: 1px solid var(--line); border-radius: 8px; }
+.kc.tot { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); background: var(--accent-soft); }
+.cmpl { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 240px; }
+.extrato { display: flex; flex-direction: column; gap: 14px; }
+.ext-h { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.ext-h h2 { margin: 2px 0; font-family: var(--f-cond); font-size: 22px; font-weight: 600; }
+.ext-g { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+table.t tr.perd td { color: var(--feriado); background: color-mix(in srgb, var(--feriado) 7%, transparent); }
+.thumbs { display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.thumb { position: relative; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; background: var(--surface-2); cursor: pointer; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumbs.lg .thumb { width: 72px; height: 72px; cursor: default; }
+.thumb-x { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 2px; border: 0; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; cursor: pointer; display: grid; place-items: center; }
+.thumb-x svg { width: 12px; height: 12px; }
+.anexo-full { max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 6px; background: #fff; align-self: center; }
+@media (max-width: 1000px) { .ext-g { grid-template-columns: 1fr; } }
+@media print {
+  body.imprime-extrato { overflow: visible; background: #fff; }
+  body.imprime-extrato .top, body.imprime-extrato .crumb, body.imprime-extrato .ph, body.imprime-extrato .rt-abas, body.imprime-extrato .verba > .card:first-of-type, body.imprime-extrato .no-print, body.imprime-extrato .banner, body.imprime-extrato #toast { display: none !important; }
+  body.imprime-extrato #app, body.imprime-extrato main, body.imprime-extrato #homeView { position: static; height: auto; overflow: visible; display: block; }
+}
+.ms b.longo { font: 600 14px/1.3 var(--f-body); max-width: 300px; }
+.extrato .cal-mes.grande table.cal td.cd { height: 58px; }
+.extrato .cal-mes.grande .ev { font-size: 11px; }
+.ext-g { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.ext-g table.t td, .ext-g table.t th { padding-left: 8px; padding-right: 8px; }
 
 </style>
     <style>
@@ -1269,6 +1376,18 @@ const SB_MAPA = {
     linha: (k, x) => ({ id: k, tipo: x.tipo || 'roteiro', arquivo: nulo(x.arquivo), estudo_id: nulo(x.estudo), estudo_nome: nulo(x.estudoNome), usuario: nulo(x.usuario), usuario_login: nulo(x.login), importado_em: emISO(x.em), linhas: x.linhas || 0, alteracoes: x.alteracoes || 0, novos: x.novos || 0, atualizados: x.atualizados || 0, ignorados: x.ignorados || 0, pendencias: x.pend || 0, resumo: x.resumo || [], mensagem: nulo(x.msg) }),
     item: r => [r.id, semVazios({ id: r.id, tipo: r.tipo, arquivo: r.arquivo, estudo: r.estudo_id, estudoNome: r.estudo_nome, usuario: r.usuario, login: r.usuario_login, em: deISO(r.importado_em), linhas: r.linhas, alteracoes: r.alteracoes, novos: r.novos, atualizados: r.atualizados, ignorados: r.ignorados, pend: r.pendencias, resumo: r.resumo || [], msg: r.mensagem })]
   },
+  // Calendário: eventos, categorias e a semana de referência do ciclo
+  calendario: {
+    tab: 'calendario', pk: ['id'],
+    linha: (k, x) => ({ id: k, data: /^\d{4}-\d{2}-\d{2}$/.test(x.data || '') ? x.data : null, dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
+  // Verba Indenizatória: racionais, reembolsos e descontos (com as imagens) e apurações salvas
+  verba: {
+    tab: 'verba', pk: ['id'],
+    linha: (k, x) => ({ id: k, tipo: x.tipo || 'outro', mes: nulo(x.mes), vendedor: nulo(x.vend), dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
   // Rotas: cada base de roteiros (um período) é uma linha; o resumo calculado fica em "dados"
   rotasbase: {
     tab: 'rotas_bases', pk: ['id'],
@@ -1331,7 +1450,7 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
   };
   const semTabela = e => !!e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist/i.test(e.message || ''));
   // Tabelas criadas por migrações: sem elas, o sistema segue funcionando e avisa (o que for gravado fica só nesta sessão)
-  const opcional = c => (c === 'importacoes' ? 'impSemTabela' : c === 'rotasbase' || c.startsWith('rotasl/') ? 'rotasSemTabela' : '');
+  const opcional = c => (c === 'importacoes' ? 'impSemTabela' : c === 'rotasbase' || c.startsWith('rotasl/') ? 'rotasSemTabela' : c === 'calendario' || c === 'verba' ? 'verbaSemTabela' : '');
   const ler = async coll => { try { return await ler0(coll); } catch (e) { const f = opcional(coll); if (f && semTabela(e)) { st[f] = true; return {}; } throw e; } };
   const escreve = async (...a) => { try { return await escreve0(...a); } catch (e) { const f = opcional(a[0]); if (f && semTabela(e)) { st[f] = true; return; } throw e; } };
   const ler0 = async coll => {
@@ -3391,21 +3510,31 @@ const FIELDS = {
     { k: 'seq', l: 'Sequência', al: ['sequencia', 'seq', 'ordem'] },
     { k: 'lat', l: 'Latitude do cliente', al: ['lat', 'latitude'] },
     { k: 'lng', l: 'Longitude do cliente', al: ['lng', 'lon', 'long', 'longitude'] }
+  ],
+  // Reembolsos e descontos da Verba Indenizatória
+  lancamentos: [
+    { k: 'vend', l: 'SOLD do vendedor', req: 1, al: ['soldvendedor', 'vendedor', 'codvendedor', 'codigovendedor', 'colaborador', 'rca', 'matricula', 'codigo'] },
+    { k: 'valor', l: 'Valor (R$)', req: 1, al: ['valor', 'valorr', 'total', 'quantia', 'montante'] },
+    { k: 'tipo', l: 'Tipo (reembolso ou desconto)', al: ['tipo', 'natureza', 'lancamento', 'operacao'] },
+    { k: 'mes', l: 'Mês da verba', al: ['mes', 'mesano', 'periodo', 'competencia', 'referencia'] },
+    { k: 'data', l: 'Data', al: ['data', 'dia', 'datadodespesa', 'datadespesa'] },
+    { k: 'motivo', l: 'Motivo', al: ['motivo', 'descricao', 'historico', 'justificativa', 'observacao'] },
+    { k: 'ref', l: 'Referência (rota, dia, documento)', al: ['ref', 'referencia', 'rota', 'documento', 'nf', 'notafiscal'] }
   ]
 };
 const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 let wz = null;
 function openImport(kind, opts = {}) {
   if (!window.XLSX) { toast('O leitor de planilhas não carregou. Use “Colar dados”.'); }
-  wz = { kind, step: 1, rows: null, headers: [], map: {}, wb: null, sheet: '', toPlanner: !!opts.toPlanner, target: kind === 'roteiro' ? (amb() && !opts.toPlanner ? 'atual' : 'novo') : '', modo: 'mesclar', novoNome: 'Roteiro importado ' + new Date().toLocaleDateString('pt-BR'), update: true, geo: true };
+  wz = { natPadrao: opts.natPadrao, kind, step: 1, rows: null, headers: [], map: {}, wb: null, sheet: '', toPlanner: !!opts.toPlanner, target: kind === 'roteiro' ? (amb() && !opts.toPlanner ? 'atual' : 'novo') : '', modo: 'mesclar', novoNome: 'Roteiro importado ' + new Date().toLocaleDateString('pt-BR'), update: true, geo: true };
   renderWz();
 }
 function renderWz() {
-  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro', rotas: 'Importar base de roteiros (Rotas)' }[wz.kind];
+  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro', rotas: 'Importar base de roteiros (Rotas)', lancamentos: 'Importar reembolsos e descontos' }[wz.kind];
   const steps = `<div class="steps"><span class="${wz.step === 1 ? 'on' : ''}">1 · Arquivo</span>›<span class="${wz.step === 2 ? 'on' : ''}">2 · Colunas</span>›<span class="${wz.step === 3 ? 'on' : ''}">3 · Resultado</span></div>`;
   let body = '', foot = '';
   if (wz.step === 1) {
-    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.', rotas: 'Uma linha por cliente e vendedor, com o Dia e a Semana do roteiro, ou a Data de cada visita. Com uma coluna de Período (ou datas de meses diferentes), cada mês vira uma base separada no histórico. Equipe, Região e Segmento são opcionais e viram filtros. A posição do cliente vem da base de clientes ou da Latitude/Longitude da planilha.' }[wz.kind];
+    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.', rotas: 'Uma linha por cliente e vendedor, com o Dia e a Semana do roteiro, ou a Data de cada visita. Com uma coluna de Período (ou datas de meses diferentes), cada mês vira uma base separada no histórico. Equipe, Região e Segmento são opcionais e viram filtros. A posição do cliente vem da base de clientes ou da Latitude/Longitude da planilha.', lancamentos: 'Uma linha por lançamento: SOLD do vendedor e Valor. Opcionais: Tipo (reembolso ou desconto; valor negativo também conta como desconto), Mês ou Data, Motivo e Referência. As imagens de comprovante podem ser incluídas depois, editando cada lançamento.' }[wz.kind];
     body = `<p class="muted" style="margin:0">${help}</p>
       <div class="row"><button class="btn sm" type="button" data-modelo="${wz.kind}">Baixar modelo (.xlsx)</button><span class="muted" style="font-size:12px">Planilha pronta com as colunas, exemplos e uma aba de instruções.</span></div>
       <label class="field"><span class="lbl">Planilha (.xlsx, .xls, .csv)</span><input type="file" id="wzFile" accept=".xlsx,.xls,.xlsm,.csv,.txt"></label>
@@ -3418,20 +3547,20 @@ function renderWz() {
     const opt = sel => `<option value="-1">— não importar —</option>` + wz.headers.map((h, i) => `<option value="${i}"${sel === i ? ' selected' : ''}>${esc(h || 'Coluna ' + (i + 1))}</option>`).join('');
     const prev = wz.rows.slice(0, 4);
     body = `<div style="overflow-x:auto"><table class="t maptbl"><thead><tr><th>Campo do sistema</th><th>Coluna da planilha</th><th>Exemplo</th></tr></thead><tbody>${F.map(f => `<tr><td>${esc(f.l)}${f.req ? ' *' : ''}</td><td><select data-wzf="${f.k}">${opt(wz.map[f.k] ?? -1)}</select></td><td class="muted" style="font-size:12px">${prev.map(r => esc(wz.map[f.k] >= 0 ? r[wz.map[f.k]] : '')).filter(Boolean).slice(0, 2).join(' · ')}</td></tr>`).join('')}</tbody></table></div>
-      ${wz.kind === 'rotas' ? window.RotasMod.opcoesImport(wz) : wz.kind !== 'roteiro' ? `<label class="chk"><input type="checkbox" id="wzUpd" ${wz.update ? 'checked' : ''}> Atualizar registros que já existem (pelo ${wz.kind === 'clientes' ? 'SOLD' : 'código'})</label>` : `
+      ${modImport(wz.kind) ? modImport(wz.kind).opcoesImport(wz) : wz.kind !== 'roteiro' ? `<label class="chk"><input type="checkbox" id="wzUpd" ${wz.update ? 'checked' : ''}> Atualizar registros que já existem (pelo ${wz.kind === 'clientes' ? 'SOLD' : 'código'})</label>` : `
       <div class="fgrid">
         <label class="field"><span class="lbl">Destino</span><select id="wzTgt">${amb() ? `<option value="atual"${wz.target === 'atual' ? ' selected' : ''}>Estudo aberto: ${esc(amb().nome)}</option>` : ''}<option value="novo"${wz.target === 'novo' ? ' selected' : ''}>Novo estudo</option></select></label>
         <label class="field" ${wz.target === 'novo' ? '' : 'hidden'}><span class="lbl">Nome do novo estudo</span><input type="text" id="wzNome" value="${esc(wz.novoNome)}"></label>
         <label class="field" ${wz.target === 'atual' ? '' : 'hidden'}><span class="lbl">Modo</span><select id="wzModo"><option value="mesclar"${wz.modo === 'mesclar' ? ' selected' : ''}>Mesclar com o que existe</option><option value="substituir"${wz.modo === 'substituir' ? ' selected' : ''}>Substituir todo o roteiro do estudo</option></select></label>
       </div>`}
-      ${wz.kind === 'rotas' ? '' : `<div class="row"><label class="chk"><input type="checkbox" id="wzGeo" ${wz.geo ? 'checked' : ''}> Buscar as coordenadas pelo endereço de quem não tiver latitude/longitude</label>${geoSrcSel()}</div>`}`;
+      ${modImport(wz.kind) ? '' : `<div class="row"><label class="chk"><input type="checkbox" id="wzGeo" ${wz.geo ? 'checked' : ''}> Buscar as coordenadas pelo endereço de quem não tiver latitude/longitude</label>${geoSrcSel()}</div>`}`;
     foot = `<button class="btn" id="wzBack">Voltar</button><button class="btn primary" id="wzGo">Importar ${wz.rows.length} linha(s)</button>`;
   } else {
     const r = wz.res, rg = r.regId && st.imp && st.imp.get(r.regId);
     body = `<div class="stack">${r.lines.map(l => `<div class="banner ${l[0]}">${l[1]}</div>`).join('')}
       ${rg ? `<div class="imp-reg"><div class="row" style="justify-content:space-between"><span class="lbl">Registrado no histórico de importações</span><span class="muted" style="font-size:12px">${fdh(rg.em)} · ${esc(rg.usuario || 'sem usuário')}</span></div>
         <label class="field"><span class="lbl">Observação (opcional)</span><textarea id="wzMsg" class="msg" maxlength="500" placeholder="Ex.: roteiro de novembro enviado pelo comercial">${esc(rg.msg || '')}</textarea><span class="hint">Fica no histórico junto com a data, o usuário e as quantidades. Pode ser editada depois.</span></label></div>` : ''}</div>`;
-    foot = wz.kind === 'rotas' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="rotas">Abrir em Rotas</button>` : wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
+    foot = wz.kind === 'rotas' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="rotas">Abrir em Rotas</button>` : wz.kind === 'lancamentos' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="verba">Abrir na Verba</button>` : wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
   }
   openModal(`<div class="dh"><h2>${T}</h2>${steps}<button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div><div class="db">${body}</div><div class="df">${foot}</div>`);
   const wm = $('#wzMsg'); if (wm) wm.oninput = () => impMsg(wz.res.regId, wm.value);
@@ -3444,7 +3573,7 @@ function renderWz() {
     $$('[data-wzf]').forEach(s => { s.onchange = () => { wz.map[s.dataset.wzf] = +s.value; renderWz(); }; });
     const u = $('#wzUpd'); if (u) u.onchange = () => { wz.update = u.checked; };
     const wg = $('#wzGeo'); if (wg) wg.onchange = e => { wz.geo = e.target.checked; };
-    if (wz.kind === 'rotas') window.RotasMod.ligaOpcoesImport(wz);
+    if (modImport(wz.kind)) modImport(wz.kind).ligaOpcoesImport(wz);
     const tg = $('#wzTgt'); if (tg) tg.onchange = () => { wz.target = tg.value; renderWz(); };
     const nm = $('#wzNome'); if (nm) nm.oninput = () => { wz.novoNome = nm.value; };
     const md = $('#wzModo'); if (md) md.onchange = () => { wz.modo = md.value; };
@@ -3452,6 +3581,8 @@ function renderWz() {
     $('#wzGo').onclick = () => runImport();
   }
 }
+// Importações tratadas por módulos em arquivos separados
+function modImport(kind) { return kind === 'rotas' ? window.RotasMod : kind === 'lancamentos' ? window.VerbaMod : null; }
 function loadSheet() { const ws = wz.wb.Sheets[wz.sheet]; const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }); setRows(rows); }
 function parseText(txt) {
   if (window.XLSX) { try { const wb = XLSX.read(txt, { type: 'string' }); setRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' })); return; } catch (e) { /* cai no simples */ } }
@@ -3492,10 +3623,10 @@ function cell(r, k) { const i = wz.map[k]; return i >= 0 ? r[i] : ''; }
 async function runImport() {
   const F = FIELDS[wz.kind]; const req = F.filter(f => f.req);
   for (const f of req) if (!(wz.map[f.k] >= 0)) { toast(`Escolha a coluna de “${f.l}”`); return; }
-  if (wz.kind === 'rotas') {
-    const res = await window.RotasMod.importar(wz, r => k => cell(r, k));
+  if (modImport(wz.kind)) {
+    const res = await modImport(wz.kind).importar(wz, r => k => cell(r, k));
     if (!res) return;
-    const regId = st.rotasSemTabela ? null : registraImport(res.reg, res.lines);
+    const regId = (wz.kind === 'rotas' ? st.rotasSemTabela : st.verbaSemTabela) ? null : registraImport(res.reg, res.lines);
     wz.res = { lines: res.lines, regId }; wz.step = 3; renderWz(); renderHome(); return;
   }
   const lines = [], toGeo = []; let reg = { linhas: wz.rows.length };
@@ -3645,7 +3776,7 @@ async function runImport() {
 /* ================= Histórico de importações =================
    Cada importação fica registrada para a empresa: data e hora, usuário, arquivo, quantidades e uma observação opcional. */
 const IMP_MAX = 400;
-const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro', rotas: 'Base de rotas' };
+const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro', rotas: 'Base de rotas', lancamentos: 'Reembolsos e descontos' };
 const fdh = ts => new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const semHtml = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.trim(); };
 function registraImport(reg, lines) {
@@ -4190,6 +4321,20 @@ MODELOS.rotas = {
   ],
   dicas: ['Uma planilha com vários meses (coluna Período ou Data) gera uma base por mês no histórico.', 'Importar de novo o mesmo mês substitui a base daquele mês, se a opção estiver marcada.', 'O KM é estimado pela distância em linha reta × fator de rota (como no Planejamento) e pode ser recalculado pelas ruas em Rotas → Mapa.', 'O valor do KM (R$) fica em Rotas → Parâmetros.']
 };
+MODELOS.lancamentos = {
+  titulo: 'Reembolsos e descontos (Verba)', aba: 'Lancamentos', arq: 'modelo_reembolsos_descontos.xlsx',
+  desc: 'Lançamentos que somam (reembolso) ou subtraem (desconto) da verba indenizatória do mês.',
+  cols: [
+    ['SOLD vendedor', 1, 'Código do vendedor', '1157', '1157'],
+    ['Valor', 1, 'Em reais. Valor negativo também conta como desconto', '45,90', '30,00'],
+    ['Tipo', 2, 'Reembolso ou Desconto. Vazio = o escolhido na importação', 'Reembolso', 'Desconto'],
+    ['Mês', 0, 'Mês da verba (11/2026). Vazio = o mês da Data, ou o escolhido na importação', '11/2026', '11/2026'],
+    ['Data', 0, 'Data da despesa ou do fato (dd/mm/aaaa)', '10/11/2026', '17/11/2026'],
+    ['Motivo', 2, 'Ex.: Pedágio, Estacionamento, KM não realizado', 'Pedágio', 'Rota não cumprida'],
+    ['Referência', 0, 'Rota, dia ou documento (NF, recibo)', 'NF 1234', 'segunda S2']
+  ],
+  dicas: ['As imagens de comprovante ou evidência são incluídas depois, editando o lançamento em Verba → Reembolsos ou Descontos.', 'Só o administrador do ambiente importa e altera lançamentos.']
+};
 function downloadModelo(kind) {
   const m = MODELOS[kind]; if (!m) return;
   if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
@@ -4470,6 +4615,7 @@ function pageAct(act, btn) {
     case 'newamb': newAmbForm(); break;
     case 'plannerOpen': openPlannerChooser(); break;
     case 'rotasImport': openImport('rotas'); break;
+    case 'focoplan': st.homeFocus = btn.dataset.fid; renderHome(); break;
     case 'seguranca': segurancaForm(); break;
     case 'listagens': openListagens(); break;
     case 'conta': contaForm(); break;
@@ -4635,7 +4781,8 @@ function renderHome() {
   const tipH = $('#tip'); if (tipH) tipH.hidden = true;
   if (st.homeSec === 'rotas' && window.RotasMod) { window.RotasMod.render(el); return; }
   if (window.RotasMod) window.RotasMod.limpar();
-  if (st.homeSec === 'verba') { el.innerHTML = paginaVerba(); el.scrollTop = 0; return; }
+  if (st.homeSec === 'verba' && window.VerbaMod) { window.VerbaMod.render(el); return; }
+  if (st.homeSec === 'cal' && window.CalMod) { window.CalMod.render(el); return; }
   if (st.homeSec !== 'plan') { renderHub(el); return; }
   renderPlanejamento(el);
 }
@@ -4644,13 +4791,14 @@ const ICON_MOD = {
   plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>',
   rotas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10.2A6 6 0 0 1 18 10.8C18 15.7 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.3"/></svg>',
   verba: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg>',
-  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>'
+  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>'
 };
 function renderHub(el) {
   const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   const nome = String((st.usuario && st.usuario.nome) || '').split(' ')[0];
-  const cur = amb(), R = window.RotasMod ? window.RotasMod.resumoHub() : null;
-  const stat = (v, l) => `<span class="ms"><b class="num">${v}</b><span>${l}</span></span>`;
+  const cur = amb(), R = window.RotasMod ? window.RotasMod.resumoHub() : null, C = window.CalMod ? window.CalMod.resumoHub() : null, V = window.VerbaMod ? window.VerbaMod.resumoHub() : null;
+  const stat = (v, l) => `<span class="ms"><b class="num${String(v).length > 12 ? ' longo' : ''}">${v}</b><span>${l}</span></span>`;
   const mod = (k, titulo, desc, stats, extra = '', cls = '') => `<article class="mod ${cls}"><button type="button" class="mod-go" data-hub="${k}" aria-label="Abrir ${esc(titulo)}"></button>
     <div class="mod-h"><span class="mod-i">${ICON_MOD[k]}</span><div><h2>${titulo}</h2><p>${desc}</p></div></div>
     <div class="mod-s">${stats}</div>${extra ? `<div class="mod-a">${extra}</div>` : ''}</article>`;
@@ -4662,7 +4810,10 @@ function renderHub(el) {
         `<button class="btn sm primary" type="button" data-act="plannerOpen">Abrir Planner</button>${cur ? `<button class="btn sm" type="button" data-enter="${esc(cur.id)}">Continuar: ${esc(cur.nome)}</button>` : ''}`)}
       ${mod('rotas', 'Rotas', 'Bases de roteiros por mês e ano: tabela, mapa com pinos e regiões, filtros e comparação com os estudos.', R ? stat(nf0.format(R.bases), R.bases === 1 ? 'base' : 'bases') + stat(R.ultimo || '—', 'último período') + stat(R.km, 'KM/mês') : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn sm" type="button" data-act="rotasImport"${st.ro ? ' disabled' : ''}>Importar base</button>`)}
-      ${mod('verba', 'Verba Indenizatória', 'Reembolso de KM rodado pelos colaboradores, a partir das rotas e do valor do KM.', '<span class="pill idle">Em breve</span>', '', 'breve')}
+      ${mod('verba', 'Verba Indenizatória', 'KM das rotas × racional de combustível e cesta de serviço × dias de rota no mês, com reembolsos, descontos, extrato e histórico.', V ? stat(V.racional, 'racional') + stat(V.ultimo, 'última apuração') + stat(nf0.format(V.lanc), 'lançamentos no mês') : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="verba">Abrir Verba</button>`)}
+      ${mod('cal', 'Calendário', 'Ano inteiro com dias úteis, feriados, eventos da empresa e as semanas do ciclo (S1 a S4 e quinzenas 1,3 e 2,4).', C ? stat(C.semana, `semana atual · ${C.quinzena}`) + stat(nf0.format(C.uteis), 'dias úteis no mês') + stat(esc(C.proximo), 'próximo evento') : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="cal">Abrir Calendário</button>`)}
       ${mod('config', 'Configurações', 'Minha conta, segurança e privacidade, mapa de fundo, servidores de rota e backup.', mfa + (st.usuario && st.usuario.papel === 'admin' ? '<span class="pill idle">Administrador</span>' : ''),
         `<button class="btn sm" type="button" data-hub="config">Abrir</button><button class="btn sm" type="button" data-act="seguranca">Segurança</button>`)}
     </nav>
@@ -4670,12 +4821,7 @@ function renderHub(el) {
   </div>`;
   el.scrollTop = 0;
 }
-function paginaVerba() {
-  return `<div class="page home">${migalha('Verba Indenizatória')}
-    <section class="card"><div class="empty"><span class="mod-i lg">${ICON_MOD.verba}</span><h3>Verba Indenizatória · em breve</h3>
-      <p>Este módulo vai calcular o reembolso de KM rodado por colaborador a partir das bases de Rotas e do valor do KM definido lá. Enquanto isso, o valor do KM por dia, semana e mês já aparece em Rotas.</p>
-      <div class="row" style="justify-content:center"><button class="btn primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn" type="button" data-hub="hub">Voltar ao início</button></div></div></section></div>`;
-}
+
 function renderPlanejamento(el) {
   const tipEl = $('#tip'); if (tipEl) tipEl.hidden = true;
   const keep = el.scrollTop;
@@ -4684,92 +4830,70 @@ function renderPlanejamento(el) {
   const byId = new Map(ready.map(s => [s.id, s]));
   const recent = [...ready].sort((x, y) => y.alterado - x.alterado);
   const f = byId.get(st.homeFocus) || byId.get(st.cur) || recent[0] || null;
-  const cur = amb();
   const clis = [...st.cli.values()], cols = [...st.col.values()];
   const comCoord = clis.filter(c => isNum(c.lat) && isNum(c.lng)).length;
   const cidades = new Map(); for (const c of clis) if (c.cidade) cidades.set(c.cidade, (cidades.get(c.cidade) || 0) + 1);
   const basesOk = cols.filter(c => isNum(c.lat) && isNum(c.lng)).length;
-  const comRotas = ready.filter(s => s.rotas > 0);
-  const melhor = [...comRotas].sort((x, y) => x.km - y.km)[0];
-
-  const hero = `<section class="hero card"><div><span class="lbl">Planejamento territorial · ${esc(st.empresa.nome)}</span><h1>Roteirizador <b>RRM</b></h1>
-    <p>Acompanhe os números dos estudos e abra o Planner para montar setores e rotas sobre o mapa, calcular KM e tempo e comparar cenários.</p></div>
-    <div class="row"><button class="btn primary lg" data-act="plannerOpen">Abrir Planner</button>${st.cli.size ? '<button class="btn lg" data-act="mapabase" title="Todos os clientes da base, com filtro por cidade">Mapa da base</button>' : ''}${cur ? `<button class="btn lg" data-enter="${esc(cur.id)}" title="Abrir o último estudo no mapa">Continuar: ${esc(cur.nome)}</button>` : ''}</div></section>`;
+  const comRotas = ready.filter(s => s.rotas > 0), nSea = seaList().length;
+  const topo = `${migalha('Planejamento')}<div class="ph"><div><h1>Planejamento</h1><p>Estudos de setores e roteiros sobre o mapa.</p></div>
+    <div class="row">${st.cli.size ? '<button class="btn" data-act="mapabase">Mapa da base</button>' : ''}<button class="btn" data-act="plannerImport">Importar roteiro</button><button class="btn primary" data-act="plannerOpen">Abrir Planner</button></div></div>`;
 
   if (!st.amb.size && !st.cli.size) {
-    el.innerHTML = `<div class="page home">${migalha('Planejamento')}${hero}${atalhosHome()}<div class="card"><div class="empty"><h3>Vamos começar</h3><p>Ainda não há clientes nem estudos. Baixe os modelos de planilha e importe colaboradores, clientes e roteiro, abra o Planner para criar um estudo vazio, restaure um backup ou gere dados de exemplo para conhecer o sistema.</p>
-      <div class="row" style="justify-content:center"><button class="btn primary" data-go="importar">Importação e modelos</button><button class="btn" data-act="plannerOpen">Abrir Planner</button><button class="btn" data-act="sample">Gerar dados de exemplo</button><button class="btn" data-act="restore">Restaurar backup</button></div></div></div></div>`;
+    el.innerHTML = `<div class="page home plan">${topo}<div class="card"><div class="empty"><h3>Vamos começar</h3><p>Ainda não há clientes nem estudos. Importe colaboradores, clientes e roteiro, crie um planner vazio, restaure um backup ou gere dados de exemplo para conhecer o sistema.</p>
+      <div class="row" style="justify-content:center"><button class="btn primary" data-go="importar">Importação e modelos</button><button class="btn" data-act="plannerNew">Planner vazio</button><button class="btn" data-act="sample">Dados de exemplo</button><button class="btn" data-act="restore">Restaurar backup</button></div></div></div></div>`;
     el.scrollTop = keep; return;
   }
 
-  const overview = `<div class="kgrid">
-    ${kcard('Estudos', nf0.format(st.amb.size), `${comRotas.length} com rotas montadas`)}
-    ${kcard('Clientes na base', nf0.format(clis.length), clis.length ? `${fpct(comCoord / clis.length)} com coordenadas` : 'base vazia')}
-    ${kcard('Bases de saída', `${nf0.format(basesOk)}<span class="of">/${nf0.format(cols.length)}</span>`, `colaboradores com base localizada`)}
-    ${kcard('Cidades', nf0.format(cidades.size), cidades.size ? esc([...cidades].sort((x, y) => y[1] - x[1])[0][0]) + ' é a maior' : 'sem cidade informada')}
-    ${kcard('Menor KM no ciclo', melhor ? fkm(melhor.km) : '—', melhor ? esc(melhor.nome) : 'sem rotas calculadas')}
-    ${kcard('Última alteração', recent[0] ? fdate(recent[0].alterado) : '—', recent[0] ? esc(recent[0].nome) : '—')}</div>`;
+  const kpis = `<div class="kgrid k4">
+    ${kcard('Estudos', nf0.format(st.amb.size), `${comRotas.length} com rotas`)}
+    ${kcard('Clientes', nf0.format(clis.length), clis.length ? `${fpct(comCoord / clis.length)} no mapa${nSea ? ` · <button type="button" class="linkbtn" data-act="adj">${nf0.format(nSea)} a ajustar</button>` : ''}` : 'base vazia')}
+    ${kcard('Colaboradores', `${nf0.format(basesOk)}<span class="of">/${nf0.format(cols.length)}</span>`, 'com base de saída localizada')}
+    ${kcard('Cidades', nf0.format(cidades.size), cidades.size ? esc([...cidades].sort((x, y) => y[1] - x[1])[0][0]) + ' é a maior' : 'sem cidade informada')}</div>`;
 
-  let focusBlock = '';
+  // Lista de estudos: o essencial de cada um e um clique para abrir
+  const lista = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0)).map(a => {
+    const s = byId.get(a.id), tags = (a.id === st.cur ? ' <span class="pill ok">último aberto</span>' : '') + (a.exemplo ? ' <span class="pill idle">exemplo</span>' : '');
+    return `<tr class="clk${s && f && s.id === f.id ? ' on' : ''}" data-enter="${esc(a.id)}"><td class="wrap"><b>${esc(a.nome)}</b>${tags}${a.desc ? `<div class="muted" style="font-size:12px">${esc(a.desc)}</div>` : ''}</td>
+      ${s ? `<td class="n">${s.setores}</td><td class="n">${nf0.format(s.clientes)}</td><td class="n">${fkm(s.km)}</td><td>${s.rotas ? ocPill(s.oc) : '<span class="muted">sem rotas</span>'}</td>` : '<td class="muted" colspan="4">calculando…</td>'}
+      <td class="muted">${fdate(a.alterado || a.criado)}</td><td class="n"><button class="btn sm" type="button" data-act="focoplan" data-fid="${esc(a.id)}" title="Ver os indicadores abaixo">Indicadores</button> <button class="btn sm primary" type="button" data-enter="${esc(a.id)}">Abrir</button></td></tr>`;
+  }).join('');
+  const estudos = `<section class="card"><div class="ch"><h2>Estudos</h2><span class="row"><button class="btn sm" data-act="plannerNew">Novo estudo</button></span></div>
+    <div class="tblwrap flat"><table class="t"><thead><tr><th>Estudo</th><th class="n">Setores</th><th class="n">Clientes</th><th class="n">KM no ciclo</th><th>Ocupação</th><th>Alterado</th><th></th></tr></thead><tbody>${lista}</tbody></table></div></section>`;
+
+  // Estudo em foco, compacto: quatro números e o KM por setor
+  let foco = '';
   if (f) {
-    const dias = [...new Set([...f.diasP, ...Object.keys(f.dias).map(Number)])].filter(d => d >= 1 && d <= 7).sort((x, y) => x - y);
-    const OCC = [['Com folga', '< 50%', 'var(--muted)'], ['Adequada', '50–90%', 'var(--ok)'], ['No limite', '90–100%', 'var(--warn)'], ['Excede', '> 100%', 'var(--bad)']];
-    const chart = (t, sub, body) => `<div class="card"><div class="ch"><h2>${t}</h2><span class="muted" style="font-size:12px">${sub}</span></div><div class="cb">${body}</div></div>`;
-    const none = msg => `<p class="muted" style="margin:0">${msg}</p>`;
-    const kmRows = [...comRotas].sort((x, y) => x.km - y.km).slice(0, 8).map(s => ({ label: s.nome, v: s.km, fmt: fkm(s.km) + ' km', enter: s.id, strong: s.id === f.id, tip: `${s.nome}\n${fkm(s.km)} km · ${fhm(s.horas)} · ${s.rotas} rotas\nOcupação média ${fpct(s.oc)}\nClique para abrir no Planner` }));
     const setRows = [...f.setoresList].filter(s => s.rotas).sort((x, y) => y.km - x.km).map(s => ({ label: s.nome, cor: s.cor, v: s.km, fmt: fkm(s.km) + ' km', tip: `${s.nome}\n${s.clientes} clientes · ${s.rotas} rotas\n${fkm(s.km)} km · ${fhm(s.horas)}\nOcupação média ${fpct(s.oc)}` }));
-    focusBlock = `<div class="ph"><h2 class="sec">Indicadores do estudo</h2><label class="row"><span class="lbl">Estudo em foco</span><select id="hFocus">${recent.map(s => `<option value="${esc(s.id)}"${s.id === f.id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label></div>
-      <div class="kgrid">
-        ${kcard('Clientes', nf0.format(f.clientes), `${nf0.format(f.setorizados)} com setor`)}
-        ${kcard('Setores', nf0.format(f.setores), `${f.setoresList.filter(s => s.colab).length} com colaborador`)}
-        ${kcard('Rotas', nf0.format(f.rotas), `ciclo de ${f.semanas} semana${f.semanas > 1 ? 's' : ''}`)}
-        ${kcard('KM no ciclo', fkm(f.km), f.rotas ? `${fkm(f.km / f.rotas)} km por rota` : 'sem rotas')}
-        ${kcard('Tempo no ciclo', fhm(f.horas), `${fhm(f.desl)} desloc. · ${fhm(f.atend)} atend.`)}
-        ${kcard('Ocupação média', f.rotas ? fpct(f.oc) : '—', f.rotas ? `maior rota: ${fpct(f.ocMax)}` : 'sem rotas')}</div>
-      ${f.rotas ? '' : `<div class="banner info">Este estudo ainda não tem rotas montadas. <button class="btn sm" data-enter="${esc(f.id)}">Abrir no Planner</button></div>`}
-      <div class="cgrid">
-        ${chart('KM no ciclo por estudo', 'menor = menos deslocamento', kmRows.length ? hbars(kmRows) : none('Monte rotas em um estudo para compará-lo aqui.'))}
-        ${chart('KM por setor', esc(f.nome), setRows.length ? hbars(setRows) : none('Este estudo não tem setores com rotas.'))}
-        ${chart('Ocupação da jornada nas rotas', `${f.rotas} rotas`, f.rotas ? vcols(OCC.map(([n, r, cor], i) => ({ label: n, sub: r, v: f.occ[i], cor, tip: `${n} (${r} da jornada)\n${f.occ[i]} rota(s)` }))) : none('Sem rotas para medir.'))}
-        ${chart('Visitas por dia da semana', 'no ciclo', f.rotas ? vcols(dias.map(d => ({ label: DIA_C[d], v: f.dias[d] || 0, tip: `${DIA_L[d]}\n${nf0.format(f.dias[d] || 0)} visitas no ciclo` }))) : none('Sem rotas para medir.'))}
-      </div>`;
+    const mini = (k, v, s2) => `<div class="mini"><span class="lbl">${k}</span><b class="num">${v}</b><span class="muted">${s2}</span></div>`;
+    foco = `<section class="card"><div class="ch"><h2>${esc(f.nome)}</h2><span class="row"><select id="hFocus" aria-label="Estudo em foco">${recent.map(s => `<option value="${esc(s.id)}"${s.id === f.id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select><button class="btn sm primary" data-enter="${esc(f.id)}">Abrir no mapa</button></span></div>
+      <div class="cb foco"><div class="minis">${mini('Rotas', nf0.format(f.rotas), `ciclo de ${f.semanas} sem.`)}${mini('KM no ciclo', fkm(f.km), f.rotas ? `${fkm(f.km / f.rotas)} por rota` : 'sem rotas')}${mini('Tempo no ciclo', fhm(f.horas), `${fhm(f.desl)} desloc.`)}${mini('Ocupação', f.rotas ? fpct(f.oc) : '—', f.rotas ? `maior ${fpct(f.ocMax)}` : '')}</div>
+      <div><div class="lbl" style="margin-bottom:6px">KM por setor</div>${setRows.length ? hbars(setRows) : '<p class="muted" style="margin:0">Este estudo ainda não tem rotas montadas.</p>'}</div></div></section>`;
   }
 
+  // O restante fica recolhido: cobertura no mapa, bases de dados e colaboradores
   const cityRows = [...cidades].sort((x, y) => y[1] - x[1]).slice(0, 6).map(([c, n]) => ({ label: c, v: n, fmt: nf0.format(n), tip: `${c}\n${nf0.format(n)} clientes` }));
   const legend = f ? f.setoresList.slice(0, 12).map(s => `<span class="li"><i class="sw" style="background:${esc(s.cor)}"></i>${esc(s.nome)}</span>`).join('') : '';
   const colRows = [...cols].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).slice(0, 10).map(c => {
     const s = f && f.setoresList.find(x => x.colab === c.codigo);
-    return `<tr><td><span class="sw" style="background:${esc(c.cor || 'var(--muted)')}"></span></td><td><b>${esc(c.nome)}</b> <span class="muted">${esc(c.codigo)}</span></td><td>${esc(c.funcao || '')}</td><td class="wrap">${esc(c.endereco || '—')}</td><td>${isNum(c.lat) && isNum(c.lng) ? '<span class="pill ok">localizada</span>' : '<span class="pill warn">sem coordenadas</span>'}</td><td>${s ? esc(s.nome) : '<span class="muted">—</span>'}</td><td class="n">${s ? fkm(s.km) : '—'}</td></tr>`;
+    return `<tr><td><span class="sw" style="background:${esc(c.cor || 'var(--muted)')}"></span></td><td><b>${esc(c.nome)}</b> <span class="muted">${esc(c.codigo)}</span></td><td class="wrap">${esc(c.endereco || '—')}</td><td>${isNum(c.lat) && isNum(c.lng) ? '<span class="pill ok">localizada</span>' : '<span class="pill warn">sem coordenadas</span>'}</td><td>${s ? esc(s.nome) : '<span class="muted">—</span>'}</td></tr>`;
   }).join('');
-  const studyRows = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0)).map(a => {
-    const s = byId.get(a.id), tag = (a.exemplo ? ' <span class="pill idle">exemplo</span>' : '') + (a.id === st.cur ? ' <span class="pill ok">último aberto</span>' : '');
-    const nm = `<td class="wrap"><b>${esc(a.nome)}</b>${tag}${a.desc ? `<div class="muted" style="font-size:12px">${esc(a.desc)}</div>` : ''}</td>`;
-    return `<tr class="clk" data-enter="${esc(a.id)}">${nm}${s ? `<td class="n">${s.setores}</td><td class="n">${nf0.format(s.clientes)}</td><td class="n">${s.rotas}</td><td class="n">${fkm(s.km)}</td><td class="n">${fhm(s.horas)}</td><td>${s.rotas ? ocPill(s.oc) : '—'}</td>` : '<td class="muted" colspan="6">calculando…</td>'}<td>${fdate(a.alterado || a.criado)}</td><td><button class="btn sm primary" type="button" data-enter="${esc(a.id)}">Abrir</button></td></tr>`;
-  }).join('');
-
-  el.innerHTML = `<div class="page home">${migalha('Planejamento')}${hero}${atalhosHome()}
-    <div class="ph"><h2 class="sec">Visão geral</h2></div>${overview}
-    ${focusBlock}
-    <div class="ph"><h2 class="sec">Bases</h2></div>
-    <div class="cols-b">
-      <div class="card"><div class="ch"><h2>Cobertura geográfica</h2><button class="btn sm" data-enter="${f ? esc(f.id) : ''}"${f ? '' : ' hidden'}>Ver no mapa</button></div><div class="cb stack">${homeScatter(f)}
-        <div class="legend-row"><span class="li"><i class="sw" style="background:var(--muted);opacity:.6"></i>Clientes${f ? ' fora de setor' : ''}</span>${legend}<span class="li"><i class="sw sq" style="background:var(--ink)"></i>Base do colaborador</span></div></div></div>
-      <div class="card"><div class="ch"><h2>Bases de dados</h2></div><div class="cb stack">
+  st.planMais = st.planMais || false;
+  const mais = `<details class="card mais" id="planMais"${st.planMais ? ' open' : ''}><summary><b>Bases e cobertura</b><span class="muted">clientes por cidade, mapa de cobertura e bases de saída</span></summary>
+    <div class="cb stack"><div class="cols-b">
+      <div class="stack">${homeScatter(f)}<div class="legend-row"><span class="li"><i class="sw" style="background:var(--muted);opacity:.6"></i>Clientes${f ? ' fora de setor' : ''}</span>${legend}<span class="li"><i class="sw sq" style="background:var(--ink)"></i>Base do colaborador</span></div></div>
+      <div class="stack">
         <div class="dbrow"><div><div class="lbl">Clientes</div><b class="num">${nf0.format(clis.length)}</b> <span class="muted">· ${nf0.format(clis.length - comCoord)} sem coordenadas</span></div><button class="btn sm" data-go="clientes">Gerenciar</button></div>
         <div class="dbrow"><div><div class="lbl">Colaboradores</div><b class="num">${nf0.format(cols.length)}</b> <span class="muted">· ${nf0.format(cols.length - basesOk)} sem base localizada</span></div><button class="btn sm" data-go="colaboradores">Gerenciar</button></div>
-        <div class="dbrow"><div><div class="lbl">Importação e modelos</div><span class="muted">${impUltima() || 'Modelos de planilha para clientes, colaboradores e roteiro'}${seaList().length ? ` · <b style="color:var(--warn)">${nf0.format(seaList().length)} endereço(s) a ajustar</b>` : ''}</span></div><button class="btn sm primary" data-go="importar">Abrir</button></div>
-        <div><div class="lbl" style="margin-bottom:6px">Clientes por cidade</div>${cityRows.length ? hbars(cityRows) : '<p class="muted" style="margin:0">Nenhuma cidade informada nos clientes.</p>'}</div></div></div>
-    </div>
-    <div class="card"><div class="ch"><h2>Bases de saída dos colaboradores</h2><span class="muted" style="font-size:12px">${f ? 'setor no estudo: ' + esc(f.nome) : ''}</span></div>
-      ${colRows ? `<div style="overflow-x:auto"><table class="t"><thead><tr><th></th><th>Colaborador</th><th>Função</th><th>Endereço da base</th><th>Localização</th><th>Setor</th><th class="n">KM/ciclo</th></tr></thead><tbody>${colRows}</tbody></table></div>${cols.length > 10 ? `<div class="pager">Mostrando 10 de ${cols.length} · <button class="btn sm" data-go="colaboradores">Ver todos</button></div>` : ''}` : '<div class="cb muted">Nenhum colaborador cadastrado. Importe a planilha em Colaboradores, dentro do Planner.</div>'}
-    </div>
-    <div class="ph"><h2 class="sec">Estudos</h2><div class="row"><button class="btn" data-act="plannerImport">Importar roteiro</button><button class="btn primary" data-act="plannerNew">Novo planner vazio</button></div></div>
-    <div class="tblwrap"><table class="t"><thead><tr><th>Estudo</th><th class="n">Setores</th><th class="n">Clientes</th><th class="n">Rotas</th><th class="n">KM no ciclo</th><th class="n">Horas no ciclo</th><th>Ocupação</th><th>Alterado</th><th></th></tr></thead><tbody>${studyRows}</tbody></table></div>
-    <div class="card"><div class="cb row" style="justify-content:space-between"><span class="muted">${st.sb ? 'Os dados ficam no banco de dados da empresa. O backup guarda bases e estudos em um arquivo.' : 'Os dados ficam neste navegador. Guarde um backup para levar bases e estudos a outro computador.'}</span><span class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button><button class="btn sm" data-act="sample">Gerar dados de exemplo</button></span></div></div>
-  </div>`;
+        <div class="dbrow"><div><div class="lbl">Importação</div><span class="muted">${impUltima() || 'Modelos de planilha para clientes, colaboradores e roteiro'}</span></div><button class="btn sm" data-go="importar">Abrir</button></div>
+        <div><div class="lbl" style="margin-bottom:6px">Clientes por cidade</div>${cityRows.length ? hbars(cityRows) : '<p class="muted" style="margin:0">Nenhuma cidade informada.</p>'}</div></div></div>
+      ${colRows ? `<div class="tblwrap"><table class="t"><thead><tr><th></th><th>Colaborador</th><th>Base de saída</th><th>Localização</th><th>Setor${f ? ' em ' + esc(f.nome) : ''}</th></tr></thead><tbody>${colRows}</tbody></table></div>${cols.length > 10 ? `<div class="pager">Mostrando 10 de ${cols.length} · <button class="btn sm" data-go="colaboradores">Ver todos</button></div>` : ''}` : ''}
+      <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12.5px">${st.sb ? 'Os dados ficam no banco de dados da empresa.' : 'Os dados ficam neste navegador.'} O backup guarda bases e estudos em um arquivo.</span><span class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button><button class="btn sm" data-act="sample">Dados de exemplo</button></span></div>
+    </div></details>`;
+
+  el.innerHTML = `<div class="page home plan">${topo}${kpis}${estudos}${foco}${mais}</div>`;
+  const d = $('#planMais'); if (d) d.ontoggle = () => { st.planMais = d.open; };
   el.scrollTop = keep;
 }
-
 /* ================= Acesso: ambientes e usuários =================
    Sem servidor, as contas ficam no mesmo armazenamento dos dados: isso separa as empresas e evita o acesso casual,
    mas não substitui um login validado em servidor. Senhas e códigos são guardados só como hash (PBKDF2). */
@@ -5157,7 +5281,7 @@ const msgBloqueio = ate => `Acesso bloqueado por excesso de tentativas. Tente de
 
 /* ----- Registro de atividades (quem fez o quê e quando). Com o Supabase, ninguém altera nem apaga um registro ----- */
 const AUD_MAX_LOCAL = 1500;
-const AUD_ACAO = { login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)' };
+const AUD_ACAO = { login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)', calendario: 'Alterou o calendário', verba: 'Verba indenizatória' };
 const audLocalColl = () => (st.empresa ? st.empresa.id : 'x') + '_auditoria';
 async function audLocalLer() { try { const d = (await st.base.list(audLocalColl())).find(x => x.id === 'log'); return (d && d.data && d.data.items) || []; } catch (e) { return []; } }
 function audita(acao, detalhe = '') {
@@ -5620,7 +5744,8 @@ async function boot() {
   setScreen('home', 'hub');
   $('#loading').hidden = true;
   iniciaInatividade();
-  if (window.RotasMod) window.RotasMod.iniciar().then(() => { if (st.screen === 'home') renderHome(); }).catch(() => {});
+  // Os módulos carregam os próprios dados em segundo plano; o início se atualiza quando chegam
+  for (const M of [window.RotasMod, window.CalMod, window.VerbaMod]) if (M) M.iniciar().then(() => { if (st.screen === 'home') renderHome(); }).catch(() => {});
   addEventListener('beforeunload', ev => {
     for (const s of Save.stores) if (s.dirty.size) s.flush();
     if (geoQ.busy) { ev.preventDefault(); ev.returnValue = ''; } // a busca de coordenadas para se a página fechar
@@ -5661,7 +5786,7 @@ const RS = {
   bases: null, carregando: null, linhas: new Map(), memo: new Map(), poly: new Map(), estudos: new Map(),
   aba: 'geral', base: '', tab: 'vend', abertos: new Set(), aberto: '', f: novoFiltro(),
   cor: 'vend', verLinhas: true, verRegioes: false, verBases: true, hist: { de: '', ate: '', met: 'km' },
-  cmp: { vend: '', estudo: '', setor: '' }, maps: [], job: null, ligado: false
+  cmp: { a: null, b: null }, nomes: new Map(), ultimo: null, maps: [], job: null, ligado: false
 };
 
 /* ---------- Períodos e datas ---------- */
@@ -5699,8 +5824,7 @@ async function iniciar() {
 const params = () => ({ ...DEF, ...((RS.bases && RS.bases.get(PARAM_ID)) || {}).p });
 const psig = p => [p.fator, p.vel, p.jornada, p.tPadrao].join('|');
 const basesList = () => (RS.bases ? [...RS.bases.values()].filter(b => b && b.id && b.id !== PARAM_ID) : []).sort((a, b) => String(b.periodo || '').localeCompare(String(a.periodo || '')) || (b.em || 0) - (a.em || 0));
-const baseAtual = () => { const l = basesList(); return l.find(b => b.id === RS.base) || l[0] || null; };
-const nomeVend = v => { const c = st.col && st.col.get(v); return c && c.nome ? c.nome : 'Vendedor ' + v; };
+const nomeVend = v => { if (RS.nomes.has(v)) return RS.nomes.get(v); const c = st.col && st.col.get(v); return c && c.nome ? c.nome : 'Vendedor ' + v; };
 const corVend = (v, i) => { const c = st.col && st.col.get(v); return (c && c.cor) || E.PALETA[i % E.PALETA.length]; };
 // Posição e dados do cliente: a base de clientes vale primeiro; a planilha completa o que faltar
 function info(l) {
@@ -6045,7 +6169,7 @@ function abaMapa(b, recs) {
       <label class="chk"><input type="checkbox" data-ropt="verRegioes"${RS.verRegioes ? ' checked' : ''}> Regiões</label>
       <label class="chk"><input type="checkbox" data-ropt="verBases"${RS.verBases ? ' checked' : ''}> Bases</label>
       <span class="sp"></span>
-      ${RS.job ? `<span class="muted num">Calculando pelas ruas: ${RS.job.feitos}/${RS.job.total}</span><button class="btn sm" type="button" data-ra="jobstop">Parar</button>` : `<button class="btn sm" type="button" data-ra="ruas"${semRua && !st.ro ? '' : ' disabled'} title="Consulta o servidor de rotas (cerca de 1 por segundo no servidor público)">Calcular KM pelas ruas (${nf0.format(Math.min(semRua, 300))})</button>`}
+      ${b.estudo ? '<span class="muted" style="font-size:12.5px">O KM pelas ruas do estudo é calculado no Planner</span>' : RS.job ? `<span class="muted num">Calculando pelas ruas: ${RS.job.feitos}/${RS.job.total}</span><button class="btn sm" type="button" data-ra="jobstop">Parar</button>` : `<button class="btn sm" type="button" data-ra="ruas"${semRua && !st.ro ? '' : ' disabled'} title="Consulta o servidor de rotas (cerca de 1 por segundo no servidor público)">Calcular KM pelas ruas (${nf0.format(Math.min(semRua, 300))})</button>`}
     </div>
     <div class="rt-mapwrap"><div id="rtMap" class="rt-map" aria-label="Mapa das rotas"></div><div class="rt-legend" id="rtLeg"></div><div class="rt-mapinfo">${nf0.format(vis)} rota(s)${vis > 12 ? ' · filtre até 12 rotas para ver os números das visitas' : ''}</div></div>`;
 }
@@ -6146,91 +6270,121 @@ async function recalcTodas() {
   toast('Histórico recalculado'); render();
 }
 
-/* ---------- Comparação com um estudo do Planejamento ---------- */
+/* ---------- Fontes: bases de rotas e estudos do Planejamento ----------
+   Um estudo vira o mesmo formato de rotas de uma base (vendedor × semana × dia), então as visões, a comparação
+   e a Verba Indenizatória funcionam igual para os dois. Id de estudo = 'e:' + id do estudo. */
+const ehEstudo = id => String(id || '').startsWith('e:');
+function fontesLista() {
+  const bs = basesList().map(b => ({ id: b.id, nome: `${fmtPer(b.periodo)} · ${b.nome}`, tipo: 'base', periodo: b.periodo }));
+  const es = [...(st.amb ? st.amb.values() : [])].sort((x, y) => (y.alterado || 0) - (x.alterado || 0)).map(a => ({ id: 'e:' + a.id, nome: a.nome, tipo: 'estudo' }));
+  return bs.concat(es);
+}
+function fonteOpts(sel) {
+  const l = fontesLista(), g = (t, nome) => { const x = l.filter(f => f.tipo === t); return x.length ? `<optgroup label="${nome}">${x.map(f => `<option value="${esc(f.id)}"${f.id === sel ? ' selected' : ''}>${esc(f.nome)}</option>`).join('')}</optgroup>` : ''; };
+  return g('base', 'Bases de rotas') + g('estudo', 'Estudos do Planejamento');
+}
+const nomeFonte = id => { const f = fontesLista().find(x => x.id === id); return f ? f.nome : '—'; };
 async function estudoDados(id) {
   const a = st.amb.get(id); if (!a) return null;
-  const c = RS.estudos.get(id); if (c && c.alt === a.alterado) return c;
-  let items, geo;
-  if (id === st.cur && st.itens) { items = st.itens.map; geo = st.geo ? st.geo.map : new Map(); }
-  else { const b = new R.BucketStore('itens/' + id + '/b'), g = new R.BucketStore('geo/' + id + '/b'); try { await Promise.all([b.load(), g.load()]); } finally { b.detach(); g.detach(); } items = b.map; geo = g.map; }
-  const d = { alt: a.alterado, a, items, routes: R.buildRoutes(a, items, geo) }; RS.estudos.set(id, d); return d;
+  const c = RS.estudos.get(id); if (c && c.alt === a.alterado && !(id === st.cur && c.routes !== st.routes)) return c;
+  let items, routes;
+  if (id === st.cur && st.itens) { items = st.itens.map; routes = st.routes; }
+  else { const b = new R.BucketStore('itens/' + id + '/b'), g = new R.BucketStore('geo/' + id + '/b'); try { await Promise.all([b.load(), g.load()]); } finally { b.detach(); g.detach(); } items = b.map; routes = R.buildRoutes(a, items, g.map); }
+  const d = { alt: a.alterado, a, items, routes }; RS.estudos.set(id, d); return d;
 }
-function recsEstudo(d, setores) {
-  const out = [];
+function rotasDeEstudo(d) {
+  if (d.rotasRt) return d.rotasRt;
+  const out = new Map(), a = d.a;
   for (const r of d.routes.values()) {
-    if (setores && !setores.has(r.s)) continue;
-    const pts = r.stops.map(s => { const c = st.cli.get(s); return c && hasXY(c) ? { l: { s, v: r.s, d: [r.d], w: [r.w], nm: c.nome }, lat: c.lat, lng: c.lng } : null; }).filter(Boolean);
-    const set = (d.a.setores || {})[r.s] || {}, col = set.colab && st.col.get(set.colab);
-    out.push({ k: r.k, v: set.colab || r.s, w: r.w, d: r.d, n: r.m.n, km: r.m.km, des: r.m.tDesl, at: r.m.tAtend, jor: r.m.jornada, cli: r.stops.slice(), real: !!r.m.real, r: { k: 'e|' + r.k, v: set.colab || r.s, d: r.d, w: r.w, ord: pts, base: col && hasXY(col) ? { lat: col.lat, lng: col.lng } : null } });
+    const set = (a.setores || {})[r.s] || {}, v = set.colab || 's:' + r.s;
+    if (!set.colab) RS.nomes.set(v, set.nome || 'Setor');
+    const col = set.colab && st.col.get(set.colab), base = col && hasXY(col) ? { lat: col.lat, lng: col.lng } : null;
+    const ls = r.stops.map(s => ({ s, v, d: [r.d], w: [r.w] }));
+    out.set(r.k, { k: r.k, v, w: r.w, d: r.d, ls, ord: ls.map(l => ({ l, ...info(l) })).filter(x => x.ok), base, m: r.m, sig: r.sig });
   }
-  return out;
+  d.rotasRt = out; return out;
 }
-function abaCmp(b, routes) {
-  const vf = valoresFiltro(b, routes), c = RS.cmp;
-  if (c.vend !== '__todos' && !vf.vend.some(([v]) => v === c.vend)) c.vend = '';
-  if (!c.vend) c.vend = RS.f.vend.size === 1 ? [...RS.f.vend][0] : (vf.vend[0] || [''])[0];
-  const estudos = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0));
-  if (!c.estudo && estudos.length) c.estudo = (estudos.find(a => Object.values(a.setores || {}).some(s => s.colab === c.vend)) || estudos[0]).id;
-  const a = st.amb.get(c.estudo), sets = a ? Object.entries(a.setores || {}).sort((x, y) => String(x[1].nome).localeCompare(String(y[1].nome), 'pt-BR', { numeric: true })) : [];
-  if (a && (!c.setor || (c.setor !== '__colab' && c.setor !== '__todos' && !a.setores[c.setor]))) c.setor = sets.some(([, s]) => s.colab === c.vend) ? '__colab' : (sets[0] || [''])[0];
-  const ctl = `<div class="card"><div class="cb rt-cmpctl">
-      <label class="field"><span class="lbl">Rota atual · ${esc(fmtPer(b.periodo))}</span><select data-rc="vend">${vf.vend.map(([v, t]) => `<option value="${esc(v)}"${v === c.vend ? ' selected' : ''}>${esc(t)}</option>`).join('')}<option value="__todos"${c.vend === '__todos' ? ' selected' : ''}>Todos os vendedores</option></select></label>
-      <span class="rt-vs" aria-hidden="true">×</span>
-      <label class="field"><span class="lbl">Estudo salvo</span><select data-rc="estudo">${estudos.map(x => `<option value="${esc(x.id)}"${x.id === c.estudo ? ' selected' : ''}>${esc(x.nome)}</option>`).join('') || '<option value="">Nenhum estudo</option>'}</select></label>
-      <label class="field"><span class="lbl">Setor do estudo</span><select data-rc="setor">${sets.some(([, s]) => s.colab === c.vend) ? `<option value="__colab"${c.setor === '__colab' ? ' selected' : ''}>Setores de ${esc(nomeVend(c.vend))}</option>` : ''}<option value="__todos"${c.setor === '__todos' ? ' selected' : ''}>Todos os setores</option>${sets.map(([id, s]) => `<option value="${esc(id)}"${c.setor === id ? ' selected' : ''}>${esc(s.nome)}${s.colab ? ' · ' + esc(nomeVend(s.colab)) : ''}</option>`).join('')}</select></label>
-    </div></div>`;
-  if (!a) return ctl + '<div class="card"><div class="empty"><p>Crie um estudo no Planejamento para comparar com a rota atual.</p><button class="btn" type="button" data-hub="plan">Abrir Planejamento</button></div></div>';
-  return ctl + '<div id="rtCmp"><p class="muted">Carregando o estudo…</p></div>';
+// { b, routes } de qualquer fonte. b de estudo é um resumo com o ciclo do estudo
+async function carregaFonte(id) {
+  await iniciar();
+  if (ehEstudo(id)) {
+    const d = await estudoDados(id.slice(2)); if (!d) return null;
+    const b = { id, sid: d.a.id, nome: d.a.nome, estudo: true, periodo: '', porData: false, ciclo: R.P(d.a).semanas || 4, n: d.items.size, geo: {}, em: d.a.alterado || d.a.criado };
+    return { b, routes: rotasDeEstudo(d) };
+  }
+  const b = RS.bases && RS.bases.get(id); if (!b || id === PARAM_ID) return null;
+  return { b, routes: calcula(b, await linhasDe(id)) };
 }
-async function montaCmp(b, routes) {
-  const box = $('#rtCmp'); if (!box) return;
-  const c = RS.cmp, d = await estudoDados(c.estudo); if (!d || !$('#rtCmp')) return;
-  // A comparação usa só o vendedor e o setor escolhidos aqui: os filtros das outras visões não se aplicam ao estudo
-  const f = { ...novoFiltro(), vend: c.vend === '__todos' ? new Set() : new Set([c.vend]) };
-  const atual = recsVivos(b, routes, f, eqDe(b, routes));
-  const sets = c.setor === '__todos' ? null : c.setor === '__colab' ? new Set(Object.entries(d.a.setores || {}).filter(([, s]) => s.colab === c.vend).map(([id]) => id)) : new Set([c.setor]);
-  const est = recsEstudo(d, sets);
-  const W2 = R.P(d.a).semanas || 4, A = agrega(atual, fatorMes(b), semanasCiclo(b)), B = agrega(est, 4 / W2, W2), p = params();
+const recsTodos = (b, routes) => recsVivos(b, routes, novoFiltro(), {});
+const vendDe = F => [...new Set([...F.routes.values()].map(r => r.v))].map(v => [v, `${nomeVend(v)}${String(v).startsWith('s:') ? '' : ' · ' + v}`]).sort((x, y) => x[1].localeCompare(y[1], 'pt-BR', { numeric: true }));
+// A fonte tem rotas deste vendedor? (sem carregar as linhas)
+function fonteTem(id, v) {
+  if (ehEstudo(id)) { const a = st.amb.get(id.slice(2)); return !!a && Object.values(a.setores || {}).some(s => s.colab === v); }
+  const b = RS.bases.get(id); return !!(b && b.res && b.res.rotas.some(x => x[0] === v));
+}
+
+/* ---------- Comparação: duas fontes lado a lado (base × estudo, estudo × estudo, base × base) ---------- */
+function abaCmp() { return '<div id="rtCmp" class="stack"><p class="muted">Carregando as rotas…</p></div>'; }
+async function montaCmp() {
+  const c = RS.cmp, fl = fontesLista();
+  if (!c.a || !fl.some(f => f.id === c.a.src)) c.a = { src: RS.base, quem: '' };
+  const FA = await carregaFonte(c.a.src); if (!FA) return;
+  const vA = vendDe(FA);
+  if (!c.a.quem || (c.a.quem !== '__todos' && !vA.some(([v]) => v === c.a.quem))) c.a.quem = RS.f.vend.size === 1 && vA.some(([v]) => RS.f.vend.has(v)) ? [...RS.f.vend][0] : (vA[0] || ['__todos'])[0];
+  if (!c.b || !fl.some(f => f.id === c.b.src)) {
+    const outras = fl.filter(f => f.id !== c.a.src);
+    const pref = outras.find(f => f.tipo !== (ehEstudo(c.a.src) ? 'x' : 'base') && fonteTem(f.id, c.a.quem)) || outras.find(f => fonteTem(f.id, c.a.quem)) || outras[0] || fl[0];
+    c.b = { src: pref ? pref.id : c.a.src, quem: '' };
+  }
+  const FB = await carregaFonte(c.b.src); if (!FB || !$('#rtCmp')) return;
+  const vB = vendDe(FB);
+  if (!c.b.quem || (c.b.quem !== '__todos' && !vB.some(([v]) => v === c.b.quem))) c.b.quem = vB.some(([v]) => v === c.a.quem) ? c.a.quem : '__todos';
+  const lado = (k, F, vs, s) => `<div class="cmpl"><div class="cmph"><i class="sw" style="background:var(--cmp-${k})"></i><b>Lado ${k.toUpperCase()}</b></div>
+    <label class="field"><span class="lbl">Rota, base ou estudo</span><select data-rc="${k}.src">${fonteOpts(s.src)}</select></label>
+    <label class="field"><span class="lbl">Vendedor ou setor</span><select data-rc="${k}.quem">${vs.map(([v, t]) => `<option value="${esc(v)}"${v === s.quem ? ' selected' : ''}>${esc(t)}</option>`).join('')}<option value="__todos"${s.quem === '__todos' ? ' selected' : ''}>Todos</option></select></label></div>`;
+  const recDe = (F, quem) => recsVivos(F.b, F.routes, { ...novoFiltro(), vend: quem === '__todos' ? new Set() : new Set([quem]) }, eqDe(F.b, F.routes));
+  const ra = recDe(FA, c.a.quem), rb = recDe(FB, c.b.quem);
+  const A = agrega(ra, fatorMes(FA.b), semanasCiclo(FA.b)), B = agrega(rb, fatorMes(FB.b), semanasCiclo(FB.b)), p = params();
+  const nomeA = `${nomeFonte(c.a.src)} · ${c.a.quem === '__todos' ? 'todos' : nomeVend(c.a.quem)}`, nomeB = `${nomeFonte(c.b.src)} · ${c.b.quem === '__todos' ? 'todos' : nomeVend(c.b.quem)}`;
   const met = [
     ['Clientes', A.clientes, B.clientes, v => nf0.format(v), 0], ['Visitas no mês', A.visitasMes, B.visitasMes, v => nf0.format(v), 0], ['Dias de rota no mês', A.rotasMes, B.rotasMes, v => nf1.format(v), 1],
     ['KM no mês', A.kmMes, B.kmMes, fkm, 1], ['KM por semana', A.kmSemana, B.kmSemana, fkm, 1], ['KM por dia (média)', A.kmDia, B.kmDia, fkm, 1],
     ['Deslocamento no mês', A.desMes, B.desMes, fhm, 1], ['Atendimento no mês', A.atMes, B.atMes, fhm, 0], ['Horas no mês', A.horasMes, B.horasMes, fhm, 1], ['Horas por dia', A.horasDia, B.horasDia, fhm, 1], ['Ocupação média', A.ocup, B.ocup, fpct, 0]
   ];
   if (p.valorKm) met.push(['Custo no mês', A.custoMes, B.custoMes, brl, 1], ['Custo por dia', A.custoDia, B.custoDia, brl, 1]);
-  // Para KM, tempo e custo, menos é melhor: a diferença negativa (estudo gasta menos) aparece como economia
+  // Para KM, tempo e custo, menos é melhor: a diferença negativa (B gasta menos) aparece como economia
   const dif = (x, y, f, menor) => {
     const dd = y - x, txt = f(Math.abs(dd)), zero = txt === f(0), pc = x ? Math.round(dd / x * 100) : 0;
     const cls = zero ? '' : menor ? (dd < 0 ? 'down' : 'up') : '', sinal = zero ? '' : dd > 0 ? '+' : '−';
     return `<td class="n"><span class="${cls}">${sinal}${txt}</span></td><td class="n"><span class="${cls}">${x ? (pc > 0 ? '+' : pc < 0 ? '−' : '') + nf0.format(Math.abs(pc)) + '%' : '—'}</span></td>`;
   };
-  const tabela = `<div class="tblwrap"><table class="t"><thead><tr><th>Indicador</th><th class="n"><i class="sw" style="background:var(--cmp-a)"></i> Rota atual</th><th class="n"><i class="sw" style="background:var(--cmp-b)"></i> Estudo</th><th class="n">Diferença</th><th class="n">Δ %</th></tr></thead><tbody>
+  const tabela = `<div class="tblwrap flat"><table class="t"><thead><tr><th>Indicador</th><th class="n"><i class="sw" style="background:var(--cmp-a)"></i> A</th><th class="n"><i class="sw" style="background:var(--cmp-b)"></i> B</th><th class="n">Diferença</th><th class="n">Δ %</th></tr></thead><tbody>
     ${met.map(([n, x, y, fm, menor]) => `<tr><td>${n}</td><td class="n">${fm(x)}</td><td class="n">${fm(y)}</td>${dif(x, y, fm, menor)}</tr>`).join('')}</tbody></table></div>`;
-  // Barras lado a lado: cada indicador na própria escala (pequenos múltiplos, não um eixo comum)
-  const barras = `<div class="cmpbars">${met.filter(m => m[4] || m[0] === 'Clientes').map(([n, x, y, fm]) => { const mx = Math.max(x, y) || 1; return `<div class="cb2"><span class="cn">${n}</span><div class="cr" data-tip="${esc(`${n}\nRota atual: ${fm(x)}\nEstudo: ${fm(y)}`)}"><span class="ct"><i style="width:${Math.max(x ? 2 : 0, x / mx * 100)}%;background:var(--cmp-a)"></i></span><span class="cv num">${fm(x)}</span><span class="ct"><i style="width:${Math.max(y ? 2 : 0, y / mx * 100)}%;background:var(--cmp-b)"></i></span><span class="cv num">${fm(y)}</span></div></div>`; }).join('')}</div>`;
-  const dias = [...new Set([...atual, ...est].map(r => r.d))].sort((x, y) => x - y);
-  const porDia = `<div class="tblwrap"><table class="t"><thead><tr><th>Dia</th><th class="n">Atual · clientes</th><th class="n">Atual · KM/rota</th><th class="n">Estudo · clientes</th><th class="n">Estudo · KM/rota</th><th class="n">Δ KM/rota</th></tr></thead><tbody>
-    ${dias.map(dd => { const x = agrega(atual.filter(r => r.d === dd), fatorMes(b), semanasCiclo(b)), y = agrega(est.filter(r => r.d === dd), 4 / W2, W2), df = y.kmDia - x.kmDia; return `<tr><td>${DIA_L[dd]}</td><td class="n">${nf0.format(x.clientes)}</td><td class="n">${fkm(x.kmDia)}</td><td class="n">${nf0.format(y.clientes)}</td><td class="n">${fkm(y.kmDia)}</td><td class="n"><span class="${df < 0 ? 'down' : df > 0 ? 'up' : ''}">${df > 0 ? '+' : df < 0 ? '−' : ''}${fkm(Math.abs(df))}</span></td></tr>`; }).join('')}</tbody></table></div>`;
-  const sa = new Set(atual.flatMap(r => r.cli)), sb = new Set(est.flatMap(r => r.cli));
+  const barras = `<div class="cmpbars">${met.filter(m => m[4] || m[0] === 'Clientes').map(([n, x, y, fm]) => { const mx = Math.max(x, y) || 1; return `<div class="cb2"><span class="cn">${n}</span><div class="cr" data-tip="${esc(`${n}\nA: ${fm(x)}\nB: ${fm(y)}`)}"><span class="ct"><i style="width:${Math.max(x ? 2 : 0, x / mx * 100)}%;background:var(--cmp-a)"></i></span><span class="cv num">${fm(x)}</span><span class="ct"><i style="width:${Math.max(y ? 2 : 0, y / mx * 100)}%;background:var(--cmp-b)"></i></span><span class="cv num">${fm(y)}</span></div></div>`; }).join('')}</div>`;
+  const dias = [...new Set([...ra, ...rb].map(r => r.d))].sort((x, y) => x - y);
+  const porDia = `<div class="tblwrap flat"><table class="t"><thead><tr><th>Dia</th><th class="n">A · clientes</th><th class="n">A · KM/rota</th><th class="n">B · clientes</th><th class="n">B · KM/rota</th><th class="n">Δ KM/rota</th></tr></thead><tbody>
+    ${dias.map(dd => { const x = agrega(ra.filter(r => r.d === dd), fatorMes(FA.b), semanasCiclo(FA.b)), y = agrega(rb.filter(r => r.d === dd), fatorMes(FB.b), semanasCiclo(FB.b)), df = y.kmDia - x.kmDia, zero = fkm(Math.abs(df)) === fkm(0); return `<tr><td>${DIA_L[dd]}</td><td class="n">${nf0.format(x.clientes)}</td><td class="n">${fkm(x.kmDia)}</td><td class="n">${nf0.format(y.clientes)}</td><td class="n">${fkm(y.kmDia)}</td><td class="n"><span class="${zero ? '' : df < 0 ? 'down' : 'up'}">${zero ? '' : df > 0 ? '+' : '−'}${fkm(Math.abs(df))}</span></td></tr>`; }).join('')}</tbody></table></div>`;
+  const sa = new Set(ra.flatMap(r => r.cli)), sb = new Set(rb.flatMap(r => r.cli));
   const soA = [...sa].filter(s => !sb.has(s)), soB = [...sb].filter(s => !sa.has(s)), ambos = [...sa].filter(s => sb.has(s)).length;
   const nomeCli = s => { const cc = st.cli.get(s); return cc && cc.nome ? cc.nome : s; };
   const listaCli = l => l.length ? `<ul class="cmpcli">${l.slice(0, 40).map(s => `<li><span class="mono">${esc(s)}</span> ${esc(nomeCli(s))}</li>`).join('')}${l.length > 40 ? `<li class="muted">e mais ${l.length - 40}</li>` : ''}</ul>` : '<p class="muted" style="margin:0">Nenhum.</p>';
-  box.innerHTML = `<div class="cmpmaps"><div class="cmpm"><div class="cmph"><i class="sw" style="background:var(--cmp-a)"></i><b>Rota atual</b><span class="muted">${esc(c.vend === '__todos' ? 'vendedores filtrados' : nomeVend(c.vend))} · ${esc(fmtPer(b.periodo))}</span></div><div id="rtMapA" class="rt-map sm"></div></div>
-      <div class="cmpm"><div class="cmph"><i class="sw" style="background:var(--cmp-b)"></i><b>Estudo</b><span class="muted">${esc(d.a.nome)}</span></div><div id="rtMapB" class="rt-map sm"></div></div></div>
+  $('#rtCmp').innerHTML = `<div class="card"><div class="cb rt-cmpctl">${lado('a', FA, vA, c.a)}<button class="btn sm" type="button" data-ra="cmptroca" title="Trocar os lados">⇄</button>${lado('b', FB, vB, c.b)}</div></div>
+    <div class="cmpmaps"><div class="cmpm"><div class="cmph"><i class="sw" style="background:var(--cmp-a)"></i><b>A</b><span class="muted">${esc(nomeA)}</span></div><div id="rtMapA" class="rt-map sm"></div></div>
+      <div class="cmpm"><div class="cmph"><i class="sw" style="background:var(--cmp-b)"></i><b>B</b><span class="muted">${esc(nomeB)}</span></div><div id="rtMapB" class="rt-map sm"></div></div></div>
     <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12.5px">Pinos coloridos pelo dia de visita. Contorno escuro = cliente que só existe daquele lado. Os mapas se movem juntos.</span><span class="legend-row">${dias.map(dd => `<span class="li"><i class="sw" style="background:${COR_DIA[dd]}"></i>${DIA_C[dd]}</span>`).join('')}</span></div>
-    <div class="cgrid"><div class="card"><div class="ch"><h2>Diferença</h2><span class="muted" style="font-size:12px">estudo − rota atual · verde = economia</span></div><div class="cb" style="padding:0">${tabela}</div></div>
-      <div class="card"><div class="ch"><h2>Lado a lado</h2><span class="legend-row"><span class="li"><i class="sw" style="background:var(--cmp-a)"></i>Rota atual</span><span class="li"><i class="sw" style="background:var(--cmp-b)"></i>Estudo</span></span></div><div class="cb">${barras}</div></div></div>
+    <div class="cgrid"><div class="card"><div class="ch"><h2>Diferença</h2><span class="muted" style="font-size:12px">B − A · verde = B gasta menos</span></div><div class="cb" style="padding:0">${tabela}</div></div>
+      <div class="card"><div class="ch"><h2>Lado a lado</h2><span class="legend-row"><span class="li"><i class="sw" style="background:var(--cmp-a)"></i>A</span><span class="li"><i class="sw" style="background:var(--cmp-b)"></i>B</span></span></div><div class="cb">${barras}</div></div></div>
     <div class="card"><div class="ch"><h2>Por dia da semana</h2></div><div class="cb" style="padding:0">${porDia}</div></div>
-    <div class="card"><div class="ch"><h2>Clientes</h2><span class="muted" style="font-size:12px">${nf0.format(ambos)} nos dois · ${nf0.format(soA.length)} só na rota atual · ${nf0.format(soB.length)} só no estudo</span></div><div class="cb cgrid"><div><div class="lbl">Só na rota atual</div>${listaCli(soA)}</div><div><div class="lbl">Só no estudo</div>${listaCli(soB)}</div></div></div>`;
+    <div class="card"><div class="ch"><h2>Clientes</h2><span class="muted" style="font-size:12px">${nf0.format(ambos)} nos dois · ${nf0.format(soA.length)} só em A · ${nf0.format(soB.length)} só em B</span></div><div class="cb cgrid"><div><div class="lbl">Só em A</div>${listaCli(soA)}</div><div><div class="lbl">Só em B</div>${listaCli(soB)}</div></div></div>`;
   const mA = criaMapa($('#rtMapA')), mB = criaMapa($('#rtMapB'));
   const corD = r => COR_DIA[r.d] || '#7d8a84';
-  const bA = desenhaRotas(mA, atual.map(x => ({ ...x.r, polyKey: b.id + '|' + x.k })), corD, { destaque: new Set(soA), destaqueTxt: 'Só na rota atual', corBase: () => '#3B4742' });
-  const bB = desenhaRotas(mB, est.map(x => x.r), corD, { destaque: new Set(soB), destaqueTxt: 'Só no estudo', corBase: () => '#3B4742' });
+  const bA = desenhaRotas(mA, ra.map(x => ({ ...x.r, polyKey: FA.b.id + '|' + x.k })), corD, { destaque: new Set(soA), destaqueTxt: 'Só em A', corBase: () => '#3B4742' });
+  const bB = desenhaRotas(mB, rb.map(x => ({ ...x.r, polyKey: FB.b.id + '|' + x.k })), corD, { destaque: new Set(soB), destaqueTxt: 'Só em B', corBase: () => '#3B4742' });
   const all = bA.concat(bB);
   if (all.length) { const bb = L.latLngBounds(all).pad(0.06); mA.fitBounds(bb, { maxZoom: 15 }); mB.fitBounds(bb, { maxZoom: 15 }); } else { mA.setView([-23.55, -46.63], 10); mB.setView([-23.55, -46.63], 10); }
   let movendo = false; const sync = (de, para) => de.on('move', () => { if (movendo) return; movendo = true; para.setView(de.getCenter(), de.getZoom(), { animate: false }); movendo = false; });
   sync(mA, mB); sync(mB, mA);
 }
-
 /* ---------- Parâmetros ---------- */
 function paramForm() {
   const p = params();
@@ -6256,50 +6410,56 @@ async function render(el = $('#homeView')) {
   const seq = ++renderSeq, keep = el.scrollTop;
   limpar(); liga(el);
   if (!RS.bases) { el.innerHTML = `<div class="page home">${R.migalha('Rotas')}<p class="muted">Carregando as bases de rotas…</p></div>`; await iniciar(); if (seq !== renderSeq) return; }
-  const lista = basesList(), b = baseAtual(), p = params();
-  const topo = `${R.migalha('Rotas')}<div class="ph"><div><h1>Rotas</h1><p>As rotas em uso, mês a mês: KM, tempo e custo por vendedor, mapa com pinos e regiões, histórico e comparação com os estudos do Planejamento.</p></div>
+  const lista = basesList(), fl = fontesLista(), p = params();
+  if (!fl.some(f => f.id === RS.base)) RS.base = (lista[0] && lista[0].id) || (fl[0] && fl[0].id) || '';
+  const topo = `${R.migalha('Rotas')}<div class="ph"><div><h1>Rotas</h1><p>As rotas em uso mês a mês e os estudos do Planejamento: KM, tempo e custo por vendedor, mapa com pinos e regiões, histórico e comparação.</p></div>
     <div class="row"><button class="btn" type="button" data-ra="param">Parâmetros${p.valorKm ? ` · ${brl(p.valorKm)}/km` : ''}</button><button class="btn" type="button" data-ra="modelo">Modelo (.xlsx)</button><button class="btn primary" type="button" data-ra="importa"${st.ro ? ' disabled' : ''}>Importar base</button></div></div>
     ${st.rotasSemTabela ? '<div class="banner bad">O banco de dados ainda não tem as tabelas de Rotas: o que for importado vale só nesta sessão. Rode <b>supabase/migracao_05_rotas.sql</b> no Supabase.</div>' : ''}`;
-  if (!b) {
-    el.innerHTML = `<div class="page home">${topo}<div class="card"><div class="empty"><span class="mod-i lg">${R.ICON_MOD.rotas}</span><h3>Nenhuma base de roteiros ainda</h3>
-      <p>Baixe o modelo, preencha com o roteiro em uso (cliente, vendedor, dia e semana, ou a data de cada visita) e importe. Uma planilha com vários meses gera o histórico de uma vez.</p>
+  if (!RS.base) {
+    el.innerHTML = `<div class="page home">${topo}<div class="card"><div class="empty"><span class="mod-i xl">${R.ICON_MOD.rotas}</span><h3>Nenhuma base de roteiros ainda</h3>
+      <p>Baixe o modelo, preencha com o roteiro em uso (cliente, vendedor, dia e semana, ou a data de cada visita) e importe. Uma planilha com vários meses gera o histórico de uma vez. Os estudos do Planejamento também aparecem aqui.</p>
       <div class="row" style="justify-content:center"><button class="btn" type="button" data-ra="modelo">Baixar modelo</button><button class="btn primary" type="button" data-ra="importa"${st.ro ? ' disabled' : ''}>Importar base</button></div></div></div></div>`;
     return;
   }
-  RS.base = b.id;
-  if (!RS.linhas.has(b.id)) { el.innerHTML = `<div class="page home">${topo}<p class="muted">Carregando ${esc(fmtPerLongo(b.periodo))}…</p></div>`; try { await linhasDe(b.id); } catch (e) { toast('Não foi possível carregar a base: ' + (e.message || e.code || e)); return; } if (seq !== renderSeq) return; }
-  const linhas = await linhasDe(b.id), routes = calcula(b, linhas);
-  if (!b.res || b.res.p !== psig(p)) guardaResumo(b, routes);
+  if (!ehEstudo(RS.base) && !RS.linhas.has(RS.base) || ehEstudo(RS.base) && !RS.estudos.has(RS.base.slice(2))) el.innerHTML = `<div class="page home">${topo}<p class="muted">Carregando ${esc(nomeFonte(RS.base))}…</p></div>`;
+  let F; try { F = await carregaFonte(RS.base); } catch (e) { toast('Não foi possível carregar: ' + (e.message || e.code || e)); return; }
+  if (seq !== renderSeq || !F) return;
+  const { b, routes } = F; RS.ultimo = F;
+  if (!b.estudo && (!b.res || b.res.p !== psig(p))) guardaResumo(b, routes);
   const eqV = eqDe(b, routes), recs = recsVivos(b, routes, RS.f, eqV), ag = agrega(recs, fatorMes(b), semanasCiclo(b)), vf = valoresFiltro(b, routes);
-  const ABAS = [['geral', 'Visão geral'], ['tabela', 'Tabela'], ['mapa', 'Mapa'], ['hist', `Histórico${lista.length > 1 ? ' · ' + lista.length : ''}`], ['cmp', 'Comparar com estudo']];
+  if (b.estudo && RS.aba === 'hist') RS.aba = 'geral';
+  const ABAS = [['geral', 'Visão geral'], ['tabela', 'Tabela'], ['mapa', 'Mapa'], ...(b.estudo ? [] : [['hist', `Histórico${lista.length > 1 ? ' · ' + lista.length : ''}`]]), ['cmp', 'Comparar']];
+  const info2 = b.estudo
+    ? `Estudo do Planejamento · ${nf0.format(b.n)} cliente(s) · ciclo de ${semanasCiclo(b)} semana(s) · alterado em ${fdh(b.em)}`
+    : `${nf0.format(b.n)} linha(s)${b.arquivo ? ' · ' + esc(b.arquivo) : ''} · importada em ${fdh(b.em)}${b.usuario ? ' por ' + esc(b.usuario) : ''}${b.porData ? ' · por data de visita' : ` · ciclo de ${semanasCiclo(b)} semana(s)`}`;
   const barra = `<div class="card rt-base"><div class="cb row">
-      <label class="row"><span class="lbl">Base</span><select data-rbase aria-label="Base de roteiros">${lista.map(x => `<option value="${esc(x.id)}"${x.id === b.id ? ' selected' : ''}>${esc(fmtPer(x.periodo))} · ${esc(x.nome)}</option>`).join('')}</select></label>
-      <span class="muted" style="font-size:12.5px">${nf0.format(b.n)} linha(s)${b.arquivo ? ' · ' + esc(b.arquivo) : ''} · importada em ${fdh(b.em)}${b.usuario ? ' por ' + esc(b.usuario) : ''}${b.porData ? ' · por data de visita' : ` · ciclo de ${semanasCiclo(b)} semana(s)`}</span>
-      <span class="sp"></span><button class="btn sm danger" type="button" data-ra="delbase"${st.ro ? ' disabled' : ''}>Excluir base</button></div></div>`;
+      <label class="row"><span class="lbl">Ver</span><select data-rbase aria-label="Base de rotas ou estudo">${fonteOpts(b.id)}</select></label>
+      <span class="muted" style="font-size:12.5px">${info2}</span>
+      <span class="sp"></span>${b.estudo ? `<button class="btn sm" type="button" data-enter="${esc(b.sid)}">Abrir no Planner</button>` : `<button class="btn sm danger" type="button" data-ra="delbase"${st.ro ? ' disabled' : ''}>Excluir base</button>`}</div></div>`;
   let corpo = '';
   if (RS.aba === 'geral') corpo = kpisHtml(ag, b) + abaGeral(b, recs);
   else if (RS.aba === 'tabela') corpo = kpisHtml(ag, b) + abaTabela(b, recs, routes);
   else if (RS.aba === 'mapa') corpo = abaMapa(b, recs);
   else if (RS.aba === 'hist') corpo = abaHist(b);
-  else corpo = abaCmp(b, routes);
+  else corpo = abaCmp();
   el.innerHTML = `<div class="page home rotas">${topo}${barra}
     <nav class="rt-abas seg" aria-label="Visões">${ABAS.map(([k, t]) => chip('raba', k, t, RS.aba === k)).join('')}</nav>
     ${RS.aba === 'cmp' ? '' : filtrosHtml(vf)}
     ${corpo}</div>`;
   el.scrollTop = keep;
   if (RS.aba === 'mapa') montaMapa(b, recs);
-  if (RS.aba === 'cmp') montaCmp(b, routes).catch(e => { const x = $('#rtCmp'); if (x) x.innerHTML = `<div class="banner bad">Não foi possível carregar o estudo: ${esc(e.message || e.code || e)}</div>`; });
+  if (RS.aba === 'cmp') montaCmp().catch(e => { const x = $('#rtCmp'); if (x) x.innerHTML = `<div class="banner bad">Não foi possível carregar a comparação: ${esc(e.message || e.code || e)}</div>`; });
 }
 async function exportaXls() {
-  const b = baseAtual(); if (!b || !window.XLSX) return;
-  const routes = calcula(b, await linhasDe(b.id)), eqV = eqDe(b, routes), recs = recsVivos(b, routes, RS.f, eqV), fm = fatorMes(b), W = semanasCiclo(b), p = params();
+  const F = RS.ultimo; if (!F || !window.XLSX) return;
+  const { b, routes } = F, eqV = eqDe(b, routes), recs = recsVivos(b, routes, RS.f, eqV), fm = fatorMes(b), W = semanasCiclo(b), p = params();
   const vend = porVendedor(recs, fm, W).map(x => ({ Vendedor: nomeVend(x.v), Codigo: x.v, Equipe: eqV[x.v] || '', Clientes: x.a.clientes, 'Visitas/mes': Math.round(x.a.visitasMes), 'Dias de rota/mes': +x.a.rotasMes.toFixed(1), 'KM/mes': +x.a.kmMes.toFixed(1), 'KM/semana': +x.a.kmSemana.toFixed(1), 'KM/dia': +x.a.kmDia.toFixed(1), 'Horas/dia': +(x.a.horasDia / 60).toFixed(2), Ocupacao: +(x.a.ocup * 100).toFixed(0), 'R$/dia': +x.a.custoDia.toFixed(2), 'R$/semana': +x.a.custoSemana.toFixed(2), 'R$/mes': +x.a.custoMes.toFixed(2) }));
   const rotas = recs.map(r => ({ Vendedor: nomeVend(r.v), Codigo: r.v, Semana: r.w, Dia: DIA_L[r.d], Visitas: r.n, KM: +r.km.toFixed(1), 'Deslocamento (min)': Math.round(r.des), 'Atendimento (min)': Math.round(r.at), 'Pelas ruas': r.real ? 'sim' : 'não', 'R$': +(r.km * p.valorKm).toFixed(2) }));
   const cli = clientesDe(recs).map(o => ({ SOLD: o.l.s, Cliente: o.x.nome, Vendedor: o.v, Cidade: o.x.cidade, Regiao: o.x.rg, Segmento: o.x.sg, Dias: [...o.d].sort().map(d => DIA_C[d]).join('/'), Semanas: [...o.w].sort().join(','), 'Atendimento (min)': o.x.t }));
-  saveFile(`rotas_${slug(fmtPer(b.periodo))}_${dstamp()}.xlsx`, xlsxBlob([['Vendedores', vend], ['Rotas', rotas], ['Clientes', cli]]));
-  R.audita('exportacao', 'Rotas ' + fmtPer(b.periodo));
+  const nome = b.estudo ? b.nome : fmtPer(b.periodo);
+  saveFile(`rotas_${slug(nome)}_${dstamp()}.xlsx`, xlsxBlob([['Vendedores', vend], ['Rotas', rotas], ['Clientes', cli]]));
+  R.audita('exportacao', 'Rotas ' + nome);
 }
-
 /* ---------- Eventos (ligados uma vez na área da página inicial) ---------- */
 function liga(el) {
   if (RS.ligado) return; RS.ligado = true;
@@ -6314,7 +6474,8 @@ function liga(el) {
     if (ds.rtab) { RS.tab = ds.rtab; render(); return; }
     if (ds.rcor) { RS.cor = ds.rcor; render(); return; }
     if (ds.rhm) { RS.hist.met = ds.rhm; render(); return; }
-    const a = ds.ra, b = baseAtual();
+    const a = ds.ra, F = RS.ultimo && RS.ultimo.b.id === RS.base ? RS.ultimo : null, b = F && F.b;
+    if (a === 'cmptroca') { const x = RS.cmp.a; RS.cmp.a = RS.cmp.b; RS.cmp.b = x; render(); return; }
     if (a === 'importa') R.openImport('rotas');
     else if (a === 'modelo') R.downloadModelo('rotas');
     else if (a === 'param') paramForm();
@@ -6325,14 +6486,14 @@ function liga(el) {
     else if (a === 'xls') exportaXls();
     else if (a === 'recalc') recalcTodas();
     else if (a === 'jobstop') { if (RS.job) RS.job.parar = true; }
-    else if (a === 'ruas' && b) { const routes = calcula(b, await linhasDe(b.id)); calculaRuas(b, recsVivos(b, routes, RS.f, eqDe(b, routes))); }
-    else if (a === 'delbase' && b) R.armButton(t, async () => { const nome = `${fmtPer(b.periodo)} · ${b.nome}`; await excluiBase(b.id); R.audita('exclusao', 'Base de rotas ' + nome); toast('Base excluída'); render(); }, 'Confirmar exclusão');
+    else if (a === 'ruas' && b) { if (b.estudo) { toast('Para calcular um estudo pelas ruas, use o Planner'); return; } calculaRuas(b, recsVivos(b, F.routes, RS.f, eqDe(b, F.routes))); }
+    else if (a === 'delbase' && b && !b.estudo) R.armButton(t, async () => { const nome = `${fmtPer(b.periodo)} · ${b.nome}`; await excluiBase(b.id); R.audita('exclusao', 'Base de rotas ' + nome); toast('Base excluída'); render(); }, 'Confirmar exclusão');
   });
   // Clique numa barra do gráfico de vendedores filtra o vendedor
   el.addEventListener('click', e => {
     if (!ativo()) return; const hb = e.target.closest('.rt-hb'); if (!hb) return;
-    const b = baseAtual(); if (!b) return; const nome = hb.querySelector('.hl span:last-child'); if (!nome) return;
-    const routes = calcula(b, RS.linhas.get(b.id).map), v = [...new Set([...routes.values()].map(r => r.v))].find(x => nomeVend(x) === nome.textContent);
+    const F = RS.ultimo; if (!F) return; const nome = hb.querySelector('.hl span:last-child'); if (!nome) return;
+    const v = [...new Set([...F.routes.values()].map(r => r.v))].find(x => nomeVend(x) === nome.textContent);
     if (v) { RS.f.vend = new Set([v]); render(); }
   });
   el.addEventListener('change', e => {
@@ -6342,7 +6503,7 @@ function liga(el) {
     else if (ds.rft !== undefined) { RS.f.tempo = t.value; render(); }
     else if (ds.ropt) { RS[ds.ropt] = t.checked; render(); }
     else if (ds.rh) { RS.hist[ds.rh] = t.value; render(); }
-    else if (ds.rc) { RS.cmp[ds.rc] = t.value; if (ds.rc === 'vend' || ds.rc === 'estudo') RS.cmp.setor = ''; render(); }
+    else if (ds.rc) { const [lado, campo] = ds.rc.split('.'); RS.cmp[lado] = { ...(RS.cmp[lado] || {}), [campo]: t.value }; if (campo === 'src') RS.cmp[lado].quem = ''; render(); }
   });
   let qT;
   el.addEventListener('input', e => {
@@ -6362,7 +6523,730 @@ function resumoHub() {
   return { bases: l.length, ultimo: fmtPer(b.periodo), km: fkm(a.kmMes) };
 }
 
-window.RotasMod = { iniciar, render, limpar, resumoHub, opcoesImport, ligaOpcoesImport, importar };
+// Usado pela Verba Indenizatória: as mesmas fontes, rotas e nomes
+window.RotasMod = { iniciar, render, limpar, resumoHub, opcoesImport, ligaOpcoesImport, importar, fontesLista, fonteOpts, nomeFonte, carregaFonte, recsTodos, nomeVend, semanasCiclo, fmtPer, fmtPerLongo, ehEstudo };
+})();
+
+</script>
+    <script>
+/* Módulo Calendário: calendário anual e mensal com dias úteis, feriados nacionais (fixos e móveis), pontos facultativos
+   e eventos que o administrador inclui (reembolso, reunião, pagamento de verba ou outra categoria que ele criar).
+   Ao lado de cada semana, a semana do ciclo de roteiro (S1 a S4) e a quinzena (1,3 ou 2,4), contadas a partir de uma
+   semana de referência (padrão: a semana de 16/11/2026 é a S1). A Verba Indenizatória usa esta mesma contagem.
+   Usa as funções internas expostas pelo app.js em window.RRM. */
+(function () {
+'use strict';
+const R = window.RRM; if (!R) return;
+const { st, $, $$, esc, toast, openModal, closeModal, ICON, nf0, uid, DIA_C, DIA_L, COR_SEM } = R;
+
+const MES_L = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const CFG_ID = '__cfg', CATS_ID = '__cats';
+const CATS_PADRAO = [
+  { id: 'reembolso', nome: 'Reembolso', cor: '#2F6FB3' },
+  { id: 'reuniao', nome: 'Reunião', cor: '#8A4FB0' },
+  { id: 'pagamento', nome: 'Pagamento de verba', cor: '#3E8E5C' },
+  { id: 'feriadolocal', nome: 'Feriado local', cor: '#C23C6E', semRota: true },
+  { id: 'outro', nome: 'Outro', cor: '#B0892F' }
+];
+const CS = { store: null, carregando: null, ano: new Date().getFullYear(), mes: new Date().getMonth(), vista: 'ano', ocultas: new Set(), ligado: false };
+
+/* ---------- Datas (sempre em UTC, como texto AAAA-MM-DD) ---------- */
+const pad2 = n => String(n).padStart(2, '0');
+const isoDe = d => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+const dataDe = iso => { const [y, m, d] = String(iso).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+const somaDias = (iso, n) => { const d = dataDe(iso); d.setUTCDate(d.getUTCDate() + n); return isoDe(d); };
+const dowDe = iso => ((dataDe(iso).getUTCDay() + 6) % 7) + 1; // 1 = segunda … 7 = domingo
+const hojeIso = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const fmtData = iso => { const [y, m, d] = String(iso).split('-'); return `${d}/${m}/${y}`; };
+const fmtLonga = iso => `${DIA_L[dowDe(iso)].toLowerCase()}, ${+iso.slice(8)} de ${MES_L[+iso.slice(5, 7) - 1].toLowerCase()} de ${iso.slice(0, 4)}`;
+
+/* ---------- Feriados nacionais ---------- */
+function pascoa(y) { // algoritmo de Meeus/Jones/Butcher
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return `${y}-${pad2(mes)}-${pad2(dia)}`;
+}
+const memoFer = new Map();
+// tipo: nacional (sem rota), facultativo (sem rota se a configuração mandar) e informativo (só aparece)
+function feriadosAno(y) {
+  if (memoFer.has(y)) return memoFer.get(y);
+  const p = pascoa(y), m = new Map();
+  const add = (iso, nome, tipo = 'nacional') => m.set(iso, { nome, tipo });
+  add(`${y}-01-01`, 'Confraternização Universal');
+  add(somaDias(p, -48), 'Carnaval', 'facultativo'); add(somaDias(p, -47), 'Carnaval', 'facultativo');
+  add(somaDias(p, -46), 'Quarta-feira de Cinzas (até 14h)', 'informativo');
+  add(somaDias(p, -2), 'Sexta-feira Santa');
+  add(`${y}-04-21`, 'Tiradentes'); add(`${y}-05-01`, 'Dia do Trabalho');
+  add(somaDias(p, 60), 'Corpus Christi', 'facultativo');
+  add(`${y}-09-07`, 'Independência do Brasil'); add(`${y}-10-12`, 'Nossa Senhora Aparecida');
+  add(`${y}-11-02`, 'Finados'); add(`${y}-11-15`, 'Proclamação da República');
+  if (y >= 2024) add(`${y}-11-20`, 'Dia Nacional de Zumbi e da Consciência Negra');
+  add(`${y}-12-24`, 'Véspera de Natal (após 14h)', 'informativo'); add(`${y}-12-25`, 'Natal'); add(`${y}-12-31`, 'Véspera de Ano-Novo (após 14h)', 'informativo');
+  memoFer.set(y, m); return m;
+}
+
+/* ---------- Dados: configuração, categorias e eventos ---------- */
+async function iniciar() {
+  if (CS.store) return;
+  if (!CS.carregando) CS.carregando = (async () => { const s = new R.BucketStore('calendario'); try { await s.load(); } catch (e) { /* segue vazio */ } CS.store = s; })();
+  await CS.carregando;
+}
+const cfg = () => ({ ancora: '2026-11-16', facultSemRota: true, ...((CS.store && CS.store.get(CFG_ID)) || {}) });
+const cats = () => { const c = CS.store && CS.store.get(CATS_ID); return c && Array.isArray(c.lista) && c.lista.length ? c.lista : CATS_PADRAO; };
+const catDe = id => cats().find(c => c.id === id) || { id, nome: 'Outro', cor: '#7d8a84' };
+const eventos = () => (CS.store ? [...CS.store.values()].filter(e => e && e.tipo === 'evento') : []);
+const admin = () => !!(st.usuario && st.usuario.papel === 'admin' && !st.ro);
+// Índice data → eventos, expandindo os de vários dias
+function indiceEventos() {
+  const idx = new Map();
+  for (const e of eventos()) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.data || '')) continue;
+    const fim = e.ate && e.ate >= e.data ? e.ate : e.data;
+    for (let d = e.data, n = 0; d <= fim && n < 370; d = somaDias(d, 1), n++) { if (!idx.has(d)) idx.set(d, []); idx.get(d).push(e); }
+  }
+  return idx;
+}
+
+/* ---------- Semana do ciclo ----------
+   Semanas de segunda a domingo. A semana que contém a data de referência é a S1; daí em diante S2, S3, S4, S1…
+   (e para trás também). Com ciclo de W semanas, a conta é a mesma com W no lugar de 4. */
+function semana(iso, W = 4) {
+  const seg = somaDias(iso, 1 - dowDe(iso)), a = cfg().ancora, ref = somaDias(a, 1 - dowDe(a));
+  const n = Math.round((dataDe(seg) - dataDe(ref)) / 6048e5);
+  return ((n % W) + W) % W + 1;
+}
+const quinzena = s4 => (s4 % 2 ? '1,3' : '2,4');
+
+/* Informação de um dia: feriado, eventos, se tem rota e se é dia útil */
+function diaInfo(iso, idx = indiceEventos()) {
+  const dow = dowDe(iso), fer = feriadosAno(+iso.slice(0, 4)).get(iso) || null, evs = idx.get(iso) || [], c = cfg();
+  const semRotaEv = evs.find(e => catDe(e.cat).semRota);
+  const semRota = !!(fer && (fer.tipo === 'nacional' || (fer.tipo === 'facultativo' && c.facultSemRota))) || !!semRotaEv;
+  const motivo = fer && fer.tipo !== 'informativo' && semRota ? fer.nome : semRotaEv ? semRotaEv.titulo || catDe(semRotaEv.cat).nome : '';
+  return { iso, dow, s4: semana(iso, 4), fer, evs, semRota, motivo, util: dow <= 5 && !semRota, fds: dow >= 6 };
+}
+function diasDoMes(ym) {
+  const [y, m] = ym.split('-').map(Number), idx = indiceEventos(), out = [];
+  for (let d = 1; d <= new Date(Date.UTC(y, m, 0)).getUTCDate(); d++) out.push(diaInfo(`${y}-${pad2(m)}-${pad2(d)}`, idx));
+  return out;
+}
+function resumoMes(ym) {
+  const ds = diasDoMes(ym);
+  return { uteis: ds.filter(d => d.util).length, sabados: ds.filter(d => d.dow === 6 && !d.semRota).length, semRota: ds.filter(d => d.semRota && !d.fds).length, feriados: ds.filter(d => d.fer && d.fer.tipo !== 'informativo'), eventos: ds.flatMap(d => d.evs.map(e => ({ ...e, dia: d.iso }))) };
+}
+
+/* ---------- Desenho de um mês: tabela com S1–S4 à esquerda e 1,3/2,4 à direita ----------
+   marca(dia) pode devolver { cls, tip, txt } para destacar dias (a Verba usa isso no extrato). */
+function mesHtml(y, m, opts = {}) {
+  const ym = `${y}-${pad2(m + 1)}`, ds = diasDoMes(ym), hoje = hojeIso(), semHoje = somaDias(hoje, 1 - dowDe(hoje)), grande = !!opts.grande;
+  const primeiro = ds[0], cel = [];
+  for (let i = 1; i < primeiro.dow; i++) cel.push(null);
+  ds.forEach(d => cel.push(d)); while (cel.length % 7) cel.push(null);
+  const linhas = [];
+  for (let i = 0; i < cel.length; i += 7) {
+    const sem = cel.slice(i, i + 7), ref = sem.find(Boolean), seg = somaDias(ref.iso, 1 - ref.dow), s4 = semana(ref.iso, 4);
+    const tds = sem.map(d => {
+      if (!d) return '<td class="cd vazio"></td>';
+      const vis = d.evs.filter(e => !CS.ocultas.has(e.cat)), ferVis = d.fer && !CS.ocultas.has('__fer' + d.fer.tipo);
+      const mk = opts.marca ? opts.marca(d) : null;
+      const cls = ['cd', d.fds ? 'fds' : '', d.semRota && !d.fds ? 'semrota' : '', ferVis && d.fer.tipo !== 'informativo' ? 'fer' : '', d.iso === hoje ? 'hoje' : '', mk && mk.cls ? mk.cls : ''].filter(Boolean).join(' ');
+      const tip = [fmtLonga(d.iso), `Semana S${d.s4} · quinzena ${quinzena(d.s4)}`, ferVis ? `${d.fer.nome}${d.fer.tipo === 'facultativo' ? ' (ponto facultativo)' : d.fer.tipo === 'informativo' ? '' : ' (feriado)'}` : '', ...vis.map(e => `${catDe(e.cat).nome}: ${e.titulo || ''}`), d.semRota && !d.fds ? 'Sem rota neste dia' : d.util ? 'Dia útil' : '', mk && mk.tip ? mk.tip : ''].filter(Boolean).join('\n');
+      const pontos = vis.slice(0, 4).map(e => `<i style="background:${esc(catDe(e.cat).cor)}"></i>`).join('');
+      const txt = grande ? `${ferVis ? `<span class="ev fer">${esc(d.fer.nome)}</span>` : ''}${vis.slice(0, 3).map(e => `<span class="ev" style="--c:${esc(catDe(e.cat).cor)}">${esc(e.titulo || catDe(e.cat).nome)}</span>`).join('')}${vis.length > 3 ? `<span class="muted">+${vis.length - 3}</span>` : ''}${mk && mk.txt ? mk.txt : ''}` : '';
+      return `<td class="${cls}" data-cdia="${d.iso}" data-tip="${esc(tip)}" tabindex="0"><span class="dn">${+d.iso.slice(8)}</span>${grande ? txt : pontos ? `<span class="dots">${pontos}</span>` : ''}</td>`;
+    }).join('');
+    linhas.push(`<tr class="${seg === semHoje ? 'atual' : ''}"><td class="cw"><span class="wk" style="--c:${COR_SEM[s4]}">S${s4}</span></td>${tds}<td class="cw"><span class="qz q${s4 % 2 ? 13 : 24}">${quinzena(s4)}</span></td></tr>`);
+  }
+  const r = resumoMes(ym);
+  return `<div class="cal-mes${grande ? ' grande' : ''}"><div class="cal-mh"><b>${MES_L[m]}${opts.comAno ? ' ' + y : ''}</b><span class="muted">${r.uteis} dias úteis${r.sabados ? ` · ${r.sabados} sáb.` : ''}${r.feriados.length ? ` · ${r.feriados.length} feriado${r.feriados.length > 1 ? 's' : ''}` : ''}</span></div>
+    <table class="cal"><thead><tr><th class="cw" title="Semana do ciclo de 4 semanas">Sem.</th>${[1, 2, 3, 4, 5, 6, 7].map(d => `<th class="${d >= 6 ? 'fds' : ''}">${grande ? DIA_C[d] : DIA_C[d][0]}</th>`).join('')}<th class="cw" title="Quinzena: semanas 1 e 3 ou 2 e 4">Quinz.</th></tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
+}
+
+/* ---------- Página ---------- */
+function legendaHtml() {
+  const chipC = (id, cor, nome, extra = '') => `<button type="button" class="cal-leg${CS.ocultas.has(id) ? ' off' : ''}" data-cleg="${esc(id)}" aria-pressed="${!CS.ocultas.has(id)}"><i style="background:${esc(cor)}"></i>${esc(nome)}${extra}</button>`;
+  return `<div class="cal-legs">${chipC('__fernacional', 'var(--feriado)', 'Feriado nacional')}${chipC('__ferfacultativo', 'color-mix(in srgb, var(--feriado) 45%, var(--surface))', 'Ponto facultativo')}${cats().map(c => chipC(c.id, c.cor, c.nome, c.semRota ? ' <span class="muted">· sem rota</span>' : '')).join('')}
+    <span class="cal-leg fixa"><i class="hojei"></i>Hoje</span><span class="cal-leg fixa"><i class="fdsi"></i>Fim de semana</span></div>`;
+}
+function listaEventosHtml(ano) {
+  const evs = eventos().filter(e => (e.data || '').startsWith(String(ano)) || (e.ate || '').startsWith(String(ano))).sort((a, b) => a.data.localeCompare(b.data));
+  const fer = [...feriadosAno(ano)].filter(([, f]) => f.tipo !== 'informativo').sort((a, b) => a[0].localeCompare(b[0]));
+  const hoje = hojeIso();
+  return `<div class="cgrid">
+    <div class="card"><div class="ch"><h2>Eventos de ${ano}</h2>${admin() ? '<button class="btn sm primary" type="button" data-ca="novo">Novo evento</button>' : ''}</div><div class="cb">${evs.length ? `<ul class="cal-lista">${evs.map(e => { const c = catDe(e.cat); return `<li class="${(e.ate || e.data) < hoje ? 'passou' : ''}"><span class="cl-d num">${fmtData(e.data).slice(0, 5)}${e.ate && e.ate !== e.data ? '–' + fmtData(e.ate).slice(0, 5) : ''}</span><span class="cl-c" style="--c:${esc(c.cor)}">${esc(c.nome)}</span><span class="cl-t"><b>${esc(e.titulo || c.nome)}</b>${e.desc ? `<span class="muted"> · ${esc(e.desc)}</span>` : ''}</span>${admin() ? `<span class="cl-a"><button class="btn sm" type="button" data-ca="edita" data-id="${esc(e.id)}">Editar</button></span>` : ''}</li>`; }).join('')}</ul>` : `<p class="muted" style="margin:0">Nenhum evento em ${ano}.${admin() ? ' Clique em um dia do calendário ou em “Novo evento”.' : ''}</p>`}</div></div>
+    <div class="card"><div class="ch"><h2>Feriados nacionais de ${ano}</h2><span class="muted" style="font-size:12px">${cfg().facultSemRota ? 'pontos facultativos sem rota' : 'pontos facultativos com rota'}</span></div><div class="cb"><ul class="cal-lista">${fer.map(([iso, f]) => `<li class="${iso < hoje ? 'passou' : ''}"><span class="cl-d num">${fmtData(iso).slice(0, 5)}</span><span class="cl-c" style="--c:var(--feriado)">${f.tipo === 'facultativo' ? 'Facultativo' : 'Feriado'}</span><span class="cl-t">${esc(f.nome)} <span class="muted">· ${DIA_L[dowDe(iso)].toLowerCase()}</span></span></li>`).join('')}</ul></div></div></div>`;
+}
+let renderSeq = 0;
+async function render(el = $('#homeView')) {
+  if (!el || st.screen !== 'home' || st.homeSec !== 'cal') return;
+  const seq = ++renderSeq; liga(el);
+  if (!CS.store) { el.innerHTML = `<div class="page home">${R.migalha('Calendário')}<p class="muted">Carregando…</p></div>`; await iniciar(); if (seq !== renderSeq) return; }
+  const keep = el.scrollTop, hoje = hojeIso(), di = diaInfo(hoje), prox = proximos(3), c = cfg();
+  const ano = CS.ano, rAno = Array.from({ length: 12 }, (_, m) => resumoMes(`${ano}-${pad2(m + 1)}`));
+  const uteisAno = rAno.reduce((s, r) => s + r.uteis, 0);
+  const corpo = CS.vista === 'ano'
+    ? `<div class="cal-ano">${Array.from({ length: 12 }, (_, m) => mesHtml(ano, m)).join('')}</div>`
+    : `<div class="cal-unico">${mesHtml(ano, CS.mes, { grande: true, comAno: true })}</div>`;
+  el.innerHTML = `<div class="page home cal-pg">${R.migalha('Calendário')}
+    <div class="ph"><div><h1>Calendário</h1><p>Dias úteis, feriados, eventos da empresa e as semanas do ciclo de roteiro (S1 a S4 e quinzenas 1,3 e 2,4).</p></div>
+      <div class="row">${admin() ? '<button class="btn" type="button" data-ca="cats">Categorias</button><button class="btn" type="button" data-ca="ciclo">Ciclo e feriados</button><button class="btn primary" type="button" data-ca="novo">Novo evento</button>' : ''}</div></div>
+    <div class="cal-hoje card"><div class="cb row">
+      <span><b>Hoje</b> · ${esc(fmtLonga(hoje))}</span><span class="wk gr" style="--c:${COR_SEM[di.s4]}">Semana S${di.s4}</span><span class="qz gr q${di.s4 % 2 ? 13 : 24}">Quinzena ${quinzena(di.s4)}</span>
+      ${di.motivo ? `<span class="pill bad">${esc(di.motivo)}</span>` : di.util ? '<span class="pill ok">dia útil</span>' : '<span class="pill idle">fim de semana</span>'}
+      <span class="sp"></span>${prox.length ? `<span class="muted" style="font-size:12.5px">Próximo: <b>${esc(prox[0].titulo)}</b> em ${fmtData(prox[0].dia)}</span>` : ''}</div></div>
+    <div class="cal-bar">
+      <div class="row"><button class="btn sm" type="button" data-ca="ant" aria-label="Anterior">‹</button><b class="cal-tit num">${CS.vista === 'ano' ? ano : `${MES_L[CS.mes]} ${ano}`}</b><button class="btn sm" type="button" data-ca="prox" aria-label="Próximo">›</button><button class="btn sm" type="button" data-ca="hoje">Hoje</button></div>
+      <div class="seg">${[['ano', 'Ano'], ['mes', 'Mês']].map(([v, t]) => `<button type="button" data-cvista="${v}" aria-pressed="${CS.vista === v}">${t}</button>`).join('')}</div>
+      <span class="muted" style="font-size:12.5px">${ano}: ${uteisAno} dias úteis · referência do ciclo: semana de ${fmtData(c.ancora)} = S1</span>
+    </div>
+    ${legendaHtml()}
+    ${corpo}
+    ${listaEventosHtml(ano)}
+  </div>`;
+  el.scrollTop = keep;
+}
+function proximos(n = 5) {
+  const hoje = hojeIso(), out = [];
+  for (const e of eventos()) if ((e.ate || e.data) >= hoje) out.push({ ...e, dia: e.data < hoje ? hoje : e.data, titulo: e.titulo || catDe(e.cat).nome });
+  const y = +hoje.slice(0, 4);
+  for (const yy of [y, y + 1]) for (const [iso, f] of feriadosAno(yy)) if (iso >= hoje && f.tipo !== 'informativo') out.push({ dia: iso, titulo: f.nome, cat: '__fer' });
+  return out.sort((a, b) => a.dia.localeCompare(b.dia)).slice(0, n);
+}
+
+/* ---------- Formulários ---------- */
+function diaForm(iso) {
+  const d = diaInfo(iso), adm = admin();
+  openModal(`<div class="dh"><div><h2>${esc(fmtLonga(iso))}</h2><div class="muted" style="font-size:12.5px">Semana S${d.s4} · quinzena ${quinzena(d.s4)} · ${d.semRota && !d.fds ? 'sem rota' : d.util ? 'dia útil' : 'fim de semana'}</div></div><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+    <div class="db">${d.fer ? `<div class="banner ${d.fer.tipo === 'nacional' ? 'bad' : ''}">${esc(d.fer.nome)}${d.fer.tipo === 'facultativo' ? ' · ponto facultativo' : d.fer.tipo === 'informativo' ? '' : ' · feriado nacional'}</div>` : ''}
+      ${d.evs.length ? `<ul class="cal-lista">${d.evs.map(e => { const c = catDe(e.cat); return `<li><span class="cl-c" style="--c:${esc(c.cor)}">${esc(c.nome)}</span><span class="cl-t"><b>${esc(e.titulo || c.nome)}</b>${e.desc ? `<br><span class="muted">${esc(e.desc)}</span>` : ''}${e.ate && e.ate !== e.data ? `<br><span class="muted">${fmtData(e.data)} a ${fmtData(e.ate)}</span>` : ''}</span>${adm ? `<span class="cl-a"><button class="btn sm" type="button" data-ca="edita" data-id="${esc(e.id)}">Editar</button></span>` : ''}</li>`; }).join('')}</ul>` : `<p class="muted" style="margin:0">Nenhum evento neste dia.</p>`}</div>
+    <div class="df">${adm ? `<button class="btn primary" type="button" data-ca="novo" data-dia="${iso}">Incluir evento neste dia</button>` : ''}<button class="btn" type="button" data-close>Fechar</button></div>`, 'sm');
+}
+function eventoForm(ev = {}, dia) {
+  if (!admin()) return;
+  const e = { data: dia || hojeIso(), cat: cats()[0].id, ...ev }, novo = !ev.id;
+  openModal(`<div class="dh"><h2>${novo ? 'Novo evento' : 'Editar evento'}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+    <form id="calEv"><div class="db"><div class="fgrid">
+      <label class="field"><span class="lbl">Categoria</span><select name="cat">${cats().map(c => `<option value="${esc(c.id)}"${c.id === e.cat ? ' selected' : ''}>${esc(c.nome)}${c.semRota ? ' (sem rota)' : ''}</option>`).join('')}</select></label>
+      <label class="field"><span class="lbl">Título</span><input type="text" name="titulo" maxlength="80" value="${esc(e.titulo || '')}" placeholder="Ex.: Pagamento da verba de novembro" required></label>
+      <label class="field"><span class="lbl">Data</span><input type="date" name="data" value="${esc(e.data)}" required></label>
+      <label class="field"><span class="lbl">Até (opcional)</span><input type="date" name="ate" value="${esc(e.ate || '')}"><span class="hint">Para eventos de mais de um dia</span></label></div>
+      <label class="field"><span class="lbl">Descrição (opcional)</span><textarea name="desc" maxlength="300">${esc(e.desc || '')}</textarea></label>
+      <p class="muted" style="margin:0;font-size:12.5px">Categorias marcadas como “sem rota” (ex.: feriado local) tiram o dia do cálculo da Verba Indenizatória.</p></div>
+    <div class="df">${novo ? '' : '<button class="btn danger" type="button" id="calDel">Excluir</button>'}<button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`, 'sm');
+  $('#calEv').onsubmit = ev2 => {
+    ev2.preventDefault(); const f = new FormData(ev2.target);
+    const data = String(f.get('data')), ate = String(f.get('ate') || '');
+    if (ate && ate < data) { toast('A data final é antes da inicial'); return; }
+    const id = e.id || uid('ev');
+    CS.store.put(id, { id, tipo: 'evento', cat: String(f.get('cat')), titulo: String(f.get('titulo')).trim(), data, ate: ate && ate !== data ? ate : '', desc: String(f.get('desc') || '').trim(), usuario: (st.usuario && st.usuario.nome) || '', em: Date.now() });
+    R.audita('calendario', `${novo ? 'Incluiu' : 'Alterou'} ${catDe(f.get('cat')).nome}: ${f.get('titulo')} (${fmtData(data)})`);
+    closeModal(); CS.ano = +data.slice(0, 4); render(); toast('Evento salvo');
+  };
+  const del = $('#calDel'); if (del) del.onclick = () => R.armButton(del, () => { CS.store.del(e.id); R.audita('calendario', `Excluiu ${e.titulo || ''} (${fmtData(e.data)})`); closeModal(); render(); toast('Evento excluído'); }, 'Confirmar exclusão');
+}
+function catsForm() {
+  if (!admin()) return;
+  let lista = cats().map(c => ({ ...c }));
+  const linha = (c, i) => `<div class="cat-row"><input type="color" data-ci="${i}" data-ck="cor" value="${esc(c.cor)}" aria-label="Cor"><input type="text" data-ci="${i}" data-ck="nome" value="${esc(c.nome)}" maxlength="40" aria-label="Nome"><label class="chk"><input type="checkbox" data-ci="${i}" data-ck="semRota"${c.semRota ? ' checked' : ''}> sem rota</label><button class="btn sm ghost" type="button" data-crm="${i}" aria-label="Remover">${ICON.close}</button></div>`;
+  const desenha = () => {
+    openModal(`<div class="dh"><h2>Categorias de evento</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+      <div class="db"><p class="muted" style="margin:0;font-size:12.5px">Cada categoria tem uma cor no calendário. “Sem rota” tira o dia do cálculo de dias úteis e da verba (use para feriados municipais e estaduais).</p>
+        <div class="stack" id="catLista">${lista.map(linha).join('')}</div><div class="row"><button class="btn sm" type="button" id="catAdd">Incluir categoria</button></div></div>
+      <div class="df"><button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="button" id="catOk">Salvar</button></div>`, 'sm');
+    $('#catLista').oninput = $('#catLista').onchange = ev => { const t = ev.target, i = +t.dataset.ci; if (!lista[i]) return; lista[i][t.dataset.ck] = t.type === 'checkbox' ? t.checked : t.value; };
+    $('#catLista').onclick = ev => { const b = ev.target.closest('[data-crm]'); if (!b) return; const i = +b.dataset.crm; if (eventos().some(e => e.cat === lista[i].id)) { toast('Há eventos nesta categoria: mude a categoria deles antes'); return; } lista.splice(i, 1); desenha(); };
+    $('#catAdd').onclick = () => { lista.push({ id: uid('c'), nome: 'Nova categoria', cor: R.E.PALETA[lista.length % R.E.PALETA.length] }); desenha(); };
+    $('#catOk').onclick = () => { lista = lista.filter(c => String(c.nome).trim()); if (!lista.length) { toast('Mantenha ao menos uma categoria'); return; } CS.store.put(CATS_ID, { id: CATS_ID, tipo: 'cats', lista }); R.audita('calendario', 'Alterou as categorias'); closeModal(); render(); };
+  };
+  desenha();
+}
+function cicloForm() {
+  if (!admin()) return;
+  const c = cfg();
+  openModal(`<div class="dh"><h2>Ciclo e feriados</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+    <form id="calCiclo"><div class="db">
+      <label class="field"><span class="lbl">Semana de referência (S1)</span><input type="date" name="ancora" value="${esc(c.ancora)}" required><span class="hint">A semana (segunda a domingo) desta data é a S1; as seguintes são S2, S3, S4 e o ciclo recomeça.</span></label>
+      <div class="muted" id="calPrev" style="font-size:12.5px"></div>
+      <label class="chk"><input type="checkbox" name="facult"${c.facultSemRota ? ' checked' : ''}> Pontos facultativos (Carnaval e Corpus Christi) são dias sem rota</label>
+      <p class="muted" style="margin:0;font-size:12.5px">Feriados estaduais e municipais: inclua como evento da categoria “Feriado local” (ou outra marcada como sem rota).</p></div>
+    <div class="df"><button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`, 'sm');
+  const f = $('#calCiclo'), prev = () => { const a = f.ancora.value; if (!a) return; const n = Math.round((dataDe(somaDias(hojeIso(), 1 - dowDe(hojeIso()))) - dataDe(somaDias(a, 1 - dowDe(a)))) / 6048e5), s = ((n % 4) + 4) % 4 + 1; $('#calPrev').textContent = `Com esta referência, a semana de hoje é a S${s} (quinzena ${quinzena(s)}).`; };
+  f.ancora.oninput = prev; prev();
+  f.onsubmit = ev => { ev.preventDefault(); CS.store.put(CFG_ID, { id: CFG_ID, tipo: 'cfg', ancora: f.ancora.value, facultSemRota: f.facult.checked }); R.audita('calendario', `Ciclo: S1 na semana de ${fmtData(f.ancora.value)}`); closeModal(); render(); toast('Ciclo salvo'); };
+}
+
+/* ---------- Eventos da página ---------- */
+function liga(el) {
+  if (CS.ligado) return; CS.ligado = true;
+  const ativo = () => st.screen === 'home' && st.homeSec === 'cal';
+  el.addEventListener('click', e => {
+    if (!ativo()) return;
+    const t = e.target.closest('[data-ca],[data-cvista],[data-cleg],[data-cdia]'); if (!t) return;
+    const ds = t.dataset;
+    if (ds.cdia) { diaForm(ds.cdia); return; }
+    if (ds.cvista) { CS.vista = ds.cvista; render(); return; }
+    if (ds.cleg) { CS.ocultas.has(ds.cleg) ? CS.ocultas.delete(ds.cleg) : CS.ocultas.add(ds.cleg); render(); return; }
+    const a = ds.ca;
+    if (a === 'ant' || a === 'prox') { const s = a === 'ant' ? -1 : 1; if (CS.vista === 'ano') CS.ano += s; else { CS.mes += s; if (CS.mes < 0) { CS.mes = 11; CS.ano--; } if (CS.mes > 11) { CS.mes = 0; CS.ano++; } } render(); }
+    else if (a === 'hoje') { const d = new Date(); CS.ano = d.getFullYear(); CS.mes = d.getMonth(); render(); }
+    else if (a === 'novo') eventoForm({}, ds.dia);
+    else if (a === 'edita') eventoForm(CS.store.get(ds.id));
+    else if (a === 'cats') catsForm();
+    else if (a === 'ciclo') cicloForm();
+  });
+  el.addEventListener('keydown', e => { if (!ativo() || e.key !== 'Enter') return; const t = e.target.closest('[data-cdia]'); if (t) diaForm(t.dataset.cdia); });
+  // Os botões dentro do diálogo (fora da página) também usam data-ca
+  $('#modal').addEventListener('click', e => {
+    if (!ativo()) return; const t = e.target.closest('[data-ca]'); if (!t) return;
+    if (t.dataset.ca === 'novo') eventoForm({}, t.dataset.dia); else if (t.dataset.ca === 'edita') eventoForm(CS.store.get(t.dataset.id));
+  });
+}
+
+function resumoHub() {
+  if (!CS.store) return null;
+  const hoje = hojeIso(), s = semana(hoje), p = proximos(1)[0];
+  return { semana: `S${s}`, quinzena: quinzena(s), proximo: p ? `${p.titulo} · ${fmtData(p.dia).slice(0, 5)}` : '—', uteis: resumoMes(hoje.slice(0, 7)).uteis };
+}
+
+window.CalMod = { iniciar, render, resumoHub, semana, quinzena, diaInfo, diasDoMes, resumoMes, mesHtml, fmtData, fmtLonga, dowDe, hojeIso, cfg, MES_L };
+})();
+
+</script>
+    <script>
+/* Módulo Verba Indenizatória.
+   Racional por KM = preço médio do combustível ÷ KM por litro + cesta de serviço (pedágio e manutenção, por KM).
+   Verba de uma rota no mês = KM daquele dia de rota × racional × dias do mês em que aquela rota acontece.
+   Os dias vêm do Calendário: o dia da semana da rota, nas semanas do ciclo dela (S1 a S4, ou 1,3 e 2,4),
+   tirando feriados e dias marcados como sem rota. Ex.: 50 km × R$ 0,90 numa segunda das semanas 2 e 4 = 2 dias → R$ 90,00.
+   As rotas podem vir de uma base de Rotas ou de um estudo do Planejamento. Reembolsos somam e descontos subtraem.
+   Usa window.RRM (app.js), window.RotasMod (rotas.js) e window.CalMod (calendario.js). */
+(function () {
+'use strict';
+const R = window.RRM, Rot = window.RotasMod, Cal = window.CalMod; if (!R || !Rot || !Cal) return;
+const { st, $, $$, esc, toast, openModal, closeModal, ICON, nf0, nf1, fkm, isNum, uid, numBR, hbars, vcols, saveFile, xlsxBlob, slug, dstamp, fdh, DIA_C, DIA_L, COR_SEM } = R;
+
+const nf2 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nf4 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+const brl = v => (v < 0 ? '−' : '') + 'R$ ' + nf2.format(Math.abs(v || 0));
+const brl4 = v => 'R$ ' + nf4.format(v || 0);
+const cent = v => Math.round((v || 0) * 100) / 100;
+const mesAtual = () => new Date().toISOString().slice(0, 7);
+const pad2 = n => String(n).padStart(2, '0');
+const fmtMes = ym => Rot.fmtPer(ym);
+const ANEXO_MAX = 4;
+const VS = { store: null, carregando: null, aba: 'calc', mes: mesAtual(), fonte: '', rac: '', vend: '', ext: '', lf: { vend: '', todos: false }, cmp: { a: { fonte: '', rac: '' }, b: { fonte: '', rac: '' } }, ligado: false };
+
+/* ---------- Dados ---------- */
+async function iniciar() {
+  if (VS.store) return;
+  if (!VS.carregando) VS.carregando = (async () => { const s = new R.BucketStore('verba'); try { await s.load(); } catch (e) { /* segue vazio */ } VS.store = s; })();
+  await VS.carregando;
+}
+const todos = t => (VS.store ? [...VS.store.values()].filter(x => x && x.tipo === t) : []);
+const racionais = () => todos('racional').sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+const lancs = () => todos('lanc');
+const apuracoes = () => todos('apuracao').sort((a, b) => b.mes.localeCompare(a.mes) || (b.em || 0) - (a.em || 0));
+const valorRac = r => (r && r.kmL > 0 ? r.preco / r.kmL : 0) + ((r && r.cesta) || 0);
+const formulaRac = r => `${brl4(r.preco)} ÷ ${nf1.format(r.kmL)} km/L + ${brl4(r.cesta)} = <b>${brl4(valorRac(r))} por km</b>`;
+const admin = () => !!(st.usuario && st.usuario.papel === 'admin' && !st.ro);
+const vendedoresConhecidos = extra => { const m = new Map(); for (const c of st.col.values()) m.set(c.codigo, c.nome || c.codigo); for (const [v, n] of extra || []) if (!m.has(v)) m.set(v, n); return [...m].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'pt-BR', { numeric: true })); };
+
+// Para bases importadas por data: o dia exato da rota (semana do mês × dia da semana)
+function dataPorSemana(ym, w, d) {
+  const [y, m] = ym.split('-').map(Number), fim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  for (let dia = (w - 1) * 7 + 1; dia <= Math.min(w * 7, fim); dia++) { const iso = `${ym}-${pad2(dia)}`; if (Cal.dowDe(iso) === d) return iso; }
+  return '';
+}
+/* Cálculo de um mês para uma fonte e um racional */
+async function calcular(fonteId, ym, racId) {
+  await iniciar(); await Cal.iniciar();
+  const rac = VS.store.get(racId); if (!rac) return null;
+  const F = await Rot.carregaFonte(fonteId); if (!F) return null;
+  const { b, routes } = F, recs = Rot.recsTodos(b, routes), vk = valorRac(rac), dias = Cal.diasDoMes(ym), W = Rot.semanasCiclo(b);
+  const porV = new Map(), get = (v, nome) => { if (!porV.has(v)) porV.set(v, { v, nome: nome || Rot.nomeVend(v), km: 0, verba: 0, dias: new Set(), itens: [], perdidos: [], rotas: new Map(), reemb: 0, desc: 0, lancs: [] }); return porV.get(v); };
+  for (const rec of recs) {
+    const o = get(rec.v); const rk = rec.w + '|' + rec.d; if (!o.rotas.has(rk)) o.rotas.set(rk, { w: rec.w, d: rec.d, km: 0, n: 0, vezes: 0 }); const rr = o.rotas.get(rk); rr.km += rec.km; rr.n += rec.n;
+    const ok = [], perd = [];
+    if (b.porData) { if (b.periodo === ym) { const iso = dataPorSemana(ym, rec.w, rec.d); if (iso) ok.push(Cal.diaInfo(iso)); } }
+    else for (const x of dias) if (x.dow === rec.d && Cal.semana(x.iso, W) === rec.w) (x.semRota ? perd : ok).push(x);
+    rr.vezes = ok.length;
+    for (const x of ok) { o.itens.push({ iso: x.iso, d: rec.d, w: rec.w, km: rec.km, n: rec.n, valor: rec.km * vk, real: rec.real }); o.km += rec.km; o.verba += rec.km * vk; o.dias.add(x.iso); }
+    for (const x of perd) o.perdidos.push({ iso: x.iso, motivo: x.motivo, km: rec.km });
+  }
+  for (const l of lancs().filter(l => l.mes === ym)) { const o = get(l.vend, l.vendNome); if (l.natureza === 'reembolso') o.reemb += +l.valor || 0; else o.desc += +l.valor || 0; o.lancs.push(l); }
+  const linhas = [...porV.values()].map(o => { o.itens.sort((a, c) => a.iso.localeCompare(c.iso)); o.verba = cent(o.verba); return { ...o, diasN: o.dias.size, liq: cent(o.verba + o.reemb - o.desc) }; })
+    .sort((a, c) => String(a.nome).localeCompare(String(c.nome), 'pt-BR', { numeric: true }));
+  const tot = linhas.reduce((t, o) => ({ km: t.km + o.km, verba: t.verba + o.verba, reemb: t.reemb + o.reemb, desc: t.desc + o.desc, liq: t.liq + o.liq, dias: t.dias + o.diasN, perd: t.perd + o.perdidos.length }), { km: 0, verba: 0, reemb: 0, desc: 0, liq: 0, dias: 0, perd: 0 });
+  return { b, ym, rac, vk, dias, linhas, tot, res: Cal.resumoMes(ym), foraDoMes: b.porData && b.periodo !== ym };
+}
+const filtraVend = (c, v) => (v ? { ...c, linhas: c.linhas.filter(o => o.v === v), tot: c.linhas.filter(o => o.v === v).reduce((t, o) => ({ km: t.km + o.km, verba: t.verba + o.verba, reemb: t.reemb + o.reemb, desc: t.desc + o.desc, liq: t.liq + o.liq, dias: t.dias + o.diasN, perd: t.perd + o.perdidos.length }), { km: 0, verba: 0, reemb: 0, desc: 0, liq: 0, dias: 0, perd: 0 }) } : c);
+
+/* ---------- Escolhas padrão ---------- */
+function padroes() {
+  const fl = Rot.fontesLista();
+  if (!fl.some(f => f.id === VS.fonte)) { const daquele = fl.find(f => f.tipo === 'base' && f.periodo === VS.mes); VS.fonte = (daquele || fl.find(f => f.tipo === 'base') || fl[0] || {}).id || ''; }
+  const rs = racionais(); if (!rs.some(r => r.id === VS.rac)) VS.rac = (rs.find(r => !r.desde || r.desde <= VS.mes) || rs[0] || {}).id || '';
+  for (const k of ['a', 'b']) { const s = VS.cmp[k]; if (!fl.some(f => f.id === s.fonte)) s.fonte = VS.fonte; if (!rs.some(r => r.id === s.rac)) s.rac = k === 'b' && rs[1] ? rs[1].id : VS.rac; }
+}
+
+/* ---------- Partes comuns ---------- */
+const kc = (k, v, s, cls = '') => `<div class="kc ${cls}"><span class="k">${k}</span><span class="v${String(v).includes('R$') ? ' rs' : ''}">${v}</span><span class="s">${s}</span></div>`;
+const racOpts = sel => racionais().map(r => `<option value="${esc(r.id)}"${r.id === sel ? ' selected' : ''}>${esc(r.nome)} · ${brl4(valorRac(r))}/km</option>`).join('');
+function controles(c, extra = '', semFormula) {
+  return `<div class="card"><div class="cb vb-ctl">
+    <label class="field"><span class="lbl">Mês</span><input type="month" data-vf="mes" value="${esc(VS.mes)}"></label>
+    <label class="field"><span class="lbl">Rotas de</span><select data-vf="fonte">${Rot.fonteOpts(VS.fonte)}</select></label>
+    <label class="field"><span class="lbl">Racional</span><select data-vf="rac">${racOpts(VS.rac)}</select></label>
+    ${extra}</div>${c && c.rac && !semFormula ? `<div class="vb-form">Racional: ${formulaRac(c.rac)} · ${esc(c.rac.nome)}</div>` : ''}</div>`;
+}
+function vazio() {
+  const semFonte = !Rot.fontesLista().length, semRac = !racionais().length;
+  if (!semFonte && !semRac) return '';
+  return `<div class="card"><div class="empty"><span class="mod-i xl">${R.ICON_MOD.verba}</span><h3>${semRac ? 'Cadastre um racional de verba' : 'Falta uma rota para calcular'}</h3>
+    <p>${semRac ? 'O racional é o preço médio do combustível dividido pelo KM por litro, mais a cesta de serviço (pedágio e manutenção). Ex.: R$ 6,20 ÷ 10 km/L + R$ 0,28 = R$ 0,90 por km.' : 'Importe uma base em Rotas ou monte um estudo no Planejamento: a verba é calculada sobre os KM das rotas.'}</p>
+    <div class="row" style="justify-content:center">${semRac ? `<button class="btn primary" type="button" data-va="racnovo"${admin() ? '' : ' disabled'}>Novo racional</button>` : '<button class="btn primary" type="button" data-hub="rotas">Abrir Rotas</button>'}</div></div></div>`;
+}
+const diasMesTxt = r => `seg a sex${r.sabados ? ` · +${r.sabados} sábados` : ''}`;
+
+/* ---------- Cálculo ---------- */
+function abaCalc(c) {
+  const v = VS.vend, cc = filtraVend(c, v), t = cc.tot;
+  const vends = c.linhas.map(o => [o.v, o.nome]);
+  const ctl = controles(c, `<label class="field"><span class="lbl">Vendedor</span><select data-vf="vend"><option value="">Todos</option>${vends.map(([x, n]) => `<option value="${esc(x)}"${x === v ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`);
+  const perdas = cc.linhas.flatMap(o => o.perdidos), motivos = [...new Set(perdas.map(p => `${Cal.fmtData(p.iso).slice(0, 5)} ${p.motivo}`))];
+  const linha = o => `<tr><td><b>${esc(o.nome)}</b> <span class="muted">${esc(String(o.v).startsWith('s:') ? '' : o.v)}</span></td><td class="n">${nf0.format(o.rotas.size)}</td><td class="n">${nf0.format(o.diasN)}</td><td class="n">${fkm(o.km)}</td><td class="n">${brl(o.verba)}</td><td class="n">${o.reemb ? brl(o.reemb) : '—'}</td><td class="n">${o.desc ? '−' + brl(o.desc) : '—'}</td><td class="n"><b>${brl(o.liq)}</b></td><td class="n"><button class="btn sm" type="button" data-va="extrato" data-v="${esc(o.v)}">Extrato</button></td></tr>`;
+  return `${ctl}
+    ${c.foraDoMes ? `<div class="banner">Esta base é de ${esc(fmtMes(c.b.periodo))}, por data de visita: ela não tem rotas em ${esc(fmtMes(c.ym))}. Escolha o mês ${esc(fmtMes(c.b.periodo))} ou outra fonte.</div>` : ''}
+    <div class="kgrid">
+      ${kc('KM no mês', fkm(t.km), `${nf0.format(cc.linhas.length)} vendedor(es)`)}
+      ${kc('Dias úteis do mês', nf0.format(c.res.uteis), diasMesTxt(c.res))}
+      ${kc('Dias calculados', nf0.format(t.dias), 'soma dos vendedores')}
+      ${kc('Verba', brl(t.verba), `${brl4(c.vk)} por km`)}
+      ${kc('Reembolsos', brl(t.reemb), 'somam ao valor')}
+      ${kc('Descontos', t.desc ? '−' + brl(t.desc) : brl(0), 'subtraem do valor')}
+      ${kc('Total a pagar', brl(t.liq), fmtMes(c.ym), 'tot')}</div>
+    ${perdas.length ? `<div class="banner info">Feriados e dias sem rota tiraram ${nf0.format(perdas.length)} dia(s) de rota do cálculo (${fkm(perdas.reduce((s, p) => s + p.km, 0))} km): ${esc(motivos.slice(0, 6).join(' · '))}${motivos.length > 6 ? '…' : ''}.</div>` : ''}
+    <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12.5px">Verba = KM do dia de rota × racional × dias daquela rota no mês (semanas do ciclo do Calendário).</span>
+      <span class="row"><button class="btn sm" type="button" data-va="xls">Exportar (.xlsx)</button><button class="btn sm primary" type="button" data-va="salvar"${admin() ? '' : ' disabled'}>Salvar no histórico</button></span></div>
+    <div class="tblwrap"><table class="t"><thead><tr><th>Vendedor</th><th class="n">Rotas por ciclo</th><th class="n">Dias calculados</th><th class="n">KM no mês</th><th class="n">Verba</th><th class="n">Reembolso</th><th class="n">Desconto</th><th class="n">Total</th><th></th></tr></thead>
+      <tbody>${cc.linhas.map(linha).join('') || '<tr><td colspan="9" class="muted">Nenhuma rota nesta fonte.</td></tr>'}
+      ${cc.linhas.length > 1 ? `<tr class="tot"><td>Total</td><td></td><td class="n">${nf0.format(t.dias)}</td><td class="n">${fkm(t.km)}</td><td class="n">${brl(t.verba)}</td><td class="n">${brl(t.reemb)}</td><td class="n">${t.desc ? '−' + brl(t.desc) : '—'}</td><td class="n">${brl(t.liq)}</td><td></td></tr>` : ''}</tbody></table></div>`;
+}
+
+/* ---------- Extrato de um vendedor ---------- */
+function abaExtrato(c) {
+  if (!c.linhas.some(o => o.v === VS.ext)) VS.ext = (c.linhas[0] || {}).v || '';
+  const o = c.linhas.find(x => x.v === VS.ext);
+  const ctl = controles(c, `<label class="field"><span class="lbl">Vendedor</span><select data-vf="ext">${''}${c.linhas.map(x => `<option value="${esc(x.v)}"${x.v === VS.ext ? ' selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>`, true);
+  if (!o) return ctl + '<div class="card"><div class="cb muted">Nenhum vendedor nesta fonte.</div></div>';
+  const [y, m] = c.ym.split('-').map(Number), porDia = new Map(), perd = new Map();
+  for (const it of o.itens) { if (!porDia.has(it.iso)) porDia.set(it.iso, []); porDia.get(it.iso).push(it); }
+  for (const p of o.perdidos) perd.set(p.iso, p);
+  const cal = Cal.mesHtml(y, m - 1, { grande: true, comAno: true, marca: d => { const its = porDia.get(d.iso); if (its) { const km = its.reduce((s, i) => s + i.km, 0); return { cls: 'rota', tip: `Rota: ${fkm(km)} km · ${brl(km * c.vk)}`, txt: `<span class="ev km">${fkm(km)}</span>` }; } const p = perd.get(d.iso); return p ? { cls: 'perdido', tip: `Rota não calculada: ${p.motivo}`, txt: '<span class="ev perd">sem rota</span>' } : null; } });
+  const linhas = [...porDia].map(([iso, its]) => { const km = its.reduce((s, i) => s + i.km, 0), s4 = Cal.semana(iso); return [iso, `<tr><td class="num">${Cal.fmtData(iso)}</td><td>${DIA_L[Cal.dowDe(iso)]}</td><td><span class="wk" style="--c:${COR_SEM[s4]}">S${s4}</span> <span class="qz q${s4 % 2 ? 13 : 24}">${Cal.quinzena(s4)}</span></td><td class="n">${nf0.format(its.reduce((s, i) => s + i.n, 0))}</td><td class="n">${fkm(km)}</td><td class="n">${brl(km * c.vk)}</td></tr>`]; });
+  const perdL = [...perd.values()].map(p => [p.iso, `<tr class="perd"><td class="num">${Cal.fmtData(p.iso)}</td><td>${DIA_L[Cal.dowDe(p.iso)]}</td><td colspan="2">${esc(p.motivo)}</td><td class="n muted">${fkm(p.km)}</td><td class="n muted">fora</td></tr>`]);
+  const lancL = o.lancs.map(l => `<tr><td>${l.natureza === 'reembolso' ? '<span class="pill ok">Reembolso</span>' : '<span class="pill bad">Desconto</span>'}</td><td class="wrap">${esc(l.motivo || '')}${l.ref ? `<div class="muted" style="font-size:12px">${esc(l.ref)}</div>` : ''}</td><td>${l.data ? Cal.fmtData(l.data) : '—'}</td><td>${anexosHtml(l)}</td><td class="n">${l.natureza === 'reembolso' ? '' : '−'}${brl(l.valor)}</td></tr>`).join('');
+  return `${ctl}
+    <div class="extrato" id="vbExtrato">
+      <div class="ext-h"><div><span class="lbl">Extrato de KM e verba indenizatória</span><h2>${esc(o.nome)} <span class="muted">${esc(String(o.v).startsWith('s:') ? '' : o.v)}</span></h2><span class="muted">${esc(Rot.fmtPerLongo(c.ym))} · rotas de ${esc(Rot.nomeFonte(c.b.id))}</span></div>
+        <div class="row no-print"><button class="btn sm" type="button" data-va="xlsext">Exportar (.xlsx)</button><button class="btn sm" type="button" data-va="imprimir">Imprimir</button></div></div>
+      <div class="kgrid">
+        ${kc('KM no mês', fkm(o.km), `${nf0.format(o.rotas.size)} rota(s) no ciclo`)}
+        ${kc('Dias úteis do mês', nf0.format(c.res.uteis), diasMesTxt(c.res))}
+        ${kc('Dias calculados', nf0.format(o.diasN), o.perdidos.length ? `${o.perdidos.length} sem rota (feriado)` : 'dias com rota')}
+        ${kc('Verba', brl(o.verba), `${brl4(c.vk)} por km`)}
+        ${kc('Reembolso', brl(o.reemb), `${o.lancs.filter(l => l.natureza === 'reembolso').length} lançamento(s)`)}
+        ${kc('Desconto', o.desc ? '−' + brl(o.desc) : brl(0), `${o.lancs.filter(l => l.natureza !== 'reembolso').length} lançamento(s)`)}
+        ${kc('Total a pagar', brl(o.liq), 'verba + reemb. − desc.', 'tot')}</div>
+      <div class="vb-form">Racional: ${formulaRac(c.rac)} · ${esc(c.rac.nome)}</div>
+      <div class="ext-g"><div>${cal}<div class="legend-row" style="margin-top:6px"><span class="li"><i class="sw" style="background:var(--accent)"></i>Dia com rota</span><span class="li"><i class="sw" style="background:var(--feriado)"></i>Feriado / sem rota</span></div></div>
+        <div class="stack"><div class="tblwrap"><table class="t"><thead><tr><th>Data</th><th>Dia</th><th>Semana</th><th class="n">Visitas</th><th class="n">KM</th><th class="n">Verba</th></tr></thead><tbody>
+          ${[...linhas, ...perdL].sort((a, b) => a[0].localeCompare(b[0])).map(x => x[1]).join('') || '<tr><td colspan="6" class="muted">Nenhum dia de rota neste mês.</td></tr>'}
+          <tr class="tot"><td colspan="3">Total · ${nf0.format(o.diasN)} dia(s)</td><td></td><td class="n">${fkm(o.km)}</td><td class="n">${brl(o.verba)}</td></tr></tbody></table></div>
+          <div class="tblwrap"><table class="t"><thead><tr><th>Lançamento</th><th>Motivo</th><th>Data</th><th>Anexos</th><th class="n">Valor</th></tr></thead><tbody>${lancL || '<tr><td colspan="5" class="muted">Nenhum reembolso ou desconto neste mês.</td></tr>'}</tbody></table></div></div></div>
+    </div>`;
+}
+
+/* ---------- Reembolsos e descontos ---------- */
+const anexosHtml = l => (l.anexos || []).length ? `<span class="thumbs">${l.anexos.map((a, i) => `<button type="button" class="thumb" data-va="anexo" data-id="${esc(l.id)}" data-i="${i}" title="${esc(a.nome || 'Imagem')}"><img src="${esc(a.url)}" alt="${esc(a.nome || 'Anexo')}"></button>`).join('')}</span>` : '<span class="muted">—</span>';
+function abaLanc(natureza) {
+  const nome = natureza === 'reembolso' ? 'Reembolsos' : 'Descontos', lf = VS.lf;
+  const lista = lancs().filter(l => l.natureza === natureza && (lf.todos || l.mes === VS.mes) && (!lf.vend || l.vend === lf.vend)).sort((a, b) => b.mes.localeCompare(a.mes) || (b.data || '').localeCompare(a.data || '') || (b.em || 0) - (a.em || 0));
+  const total = lista.reduce((s, l) => s + (+l.valor || 0), 0), vends = vendedoresConhecidos(lancs().map(l => [l.vend, l.vendNome || l.vend]));
+  return `<div class="card"><div class="cb vb-ctl">
+      <label class="field"><span class="lbl">Mês</span><input type="month" data-vf="mes" value="${esc(VS.mes)}"${lf.todos ? ' disabled' : ''}></label>
+      <label class="chk" style="align-self:center"><input type="checkbox" data-vl="todos"${lf.todos ? ' checked' : ''}> Todos os meses</label>
+      <label class="field"><span class="lbl">Vendedor</span><select data-vl="vend"><option value="">Todos</option>${vends.map(([v, n]) => `<option value="${esc(v)}"${v === lf.vend ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+      <span class="sp"></span><span class="row"><button class="btn sm" type="button" data-va="lmodelo">Modelo (.xlsx)</button><button class="btn sm" type="button" data-va="limport" data-nat="${natureza}"${admin() ? '' : ' disabled'}>Importar planilha</button><button class="btn sm primary" type="button" data-va="lnovo" data-nat="${natureza}"${admin() ? '' : ' disabled'}>Incluir ${natureza}</button></span></div></div>
+    <div class="kgrid k4">${kc(`Total de ${nome.toLowerCase()}`, (natureza === 'desconto' && total ? '−' : '') + brl(total), lf.todos ? 'todos os meses' : fmtMes(VS.mes))}${kc('Lançamentos', nf0.format(lista.length), `${nf0.format(new Set(lista.map(l => l.vend)).size)} vendedor(es)`)}${kc('Com anexo', nf0.format(lista.filter(l => (l.anexos || []).length).length), 'imagens de comprovante ou evidência')}</div>
+    ${natureza === 'desconto' ? '<p class="muted" style="margin:0;font-size:12.5px">Registre o motivo de cada desconto e anexe as imagens que o justificam (comprovante, foto, print da rota). A referência pode indicar a rota ou o dia (ex.: “segunda S2 · 10/11”).</p>' : ''}
+    <div class="tblwrap"><table class="t"><thead><tr><th>Mês</th><th>Data</th><th>Vendedor</th><th>Motivo</th><th>Referência</th><th>Anexos</th><th class="n">Valor</th><th></th></tr></thead><tbody>
+      ${lista.map(l => `<tr><td>${esc(fmtMes(l.mes))}</td><td>${l.data ? Cal.fmtData(l.data) : '—'}</td><td><b>${esc(l.vendNome || Rot.nomeVend(l.vend))}</b> <span class="muted">${esc(l.vend)}</span></td><td class="wrap">${esc(l.motivo || '—')}</td><td class="wrap muted">${esc(l.ref || '')}</td><td>${anexosHtml(l)}</td><td class="n">${natureza === 'desconto' ? '−' : ''}${brl(l.valor)}</td><td class="n">${admin() ? `<button class="btn sm" type="button" data-va="ledita" data-id="${esc(l.id)}">Editar</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="8" class="muted">Nenhum ${natureza} ${lf.todos ? '' : 'em ' + fmtMes(VS.mes)}.</td></tr>`}
+    </tbody></table></div>`;
+}
+// Imagem reduzida (lado maior até 1280 px, JPEG), para caber no banco sem perder a leitura
+function comprime(file, max = 1280, q = 0.72) {
+  return new Promise((res, rej) => {
+    if (!/^image\//.test(file.type)) { rej(new Error('Envie imagens (JPG, PNG ou WEBP)')); return; }
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', q)); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Não foi possível ler a imagem')); };
+    img.src = url;
+  });
+}
+function lancForm(l0 = {}, natureza) {
+  if (!admin()) return;
+  const l = { natureza: natureza || l0.natureza || 'reembolso', mes: VS.mes, anexos: [], ...l0 }, novo = !l0.id;
+  let anexos = (l.anexos || []).slice();
+  const vends = vendedoresConhecidos(Rot.fontesLista().length ? [] : []);
+  const MOT = l.natureza === 'reembolso' ? ['Pedágio', 'Estacionamento', 'Combustível extra', 'Manutenção', 'Alimentação', 'Outro'] : ['KM não realizado', 'Rota não cumprida', 'Uso pessoal do veículo', 'Multa de trânsito', 'Adiantamento', 'Outro'];
+  const desenhaAnexos = () => { const b = $('#lfAnexos'); if (b) b.innerHTML = anexos.map((a, i) => `<span class="thumb"><img src="${esc(a.url)}" alt="${esc(a.nome)}"><button type="button" class="thumb-x" data-ax="${i}" aria-label="Remover anexo">${ICON.close}</button></span>`).join('') || '<span class="muted">Nenhum anexo</span>'; };
+  openModal(`<div class="dh"><h2>${novo ? 'Incluir' : 'Editar'} ${l.natureza}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+    <form id="lfForm"><div class="db"><div class="fgrid">
+      <label class="field"><span class="lbl">Tipo</span><select name="natureza"><option value="reembolso"${l.natureza === 'reembolso' ? ' selected' : ''}>Reembolso (soma)</option><option value="desconto"${l.natureza === 'desconto' ? ' selected' : ''}>Desconto (subtrai)</option></select></label>
+      <label class="field"><span class="lbl">Vendedor</span><input type="text" name="vend" list="lfVends" value="${esc(l.vend || '')}" placeholder="Código do vendedor" required><datalist id="lfVends">${vends.map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('')}</datalist></label>
+      <label class="field"><span class="lbl">Mês da verba</span><input type="month" name="mes" value="${esc(l.mes)}" required></label>
+      <label class="field"><span class="lbl">Data (opcional)</span><input type="date" name="data" value="${esc(l.data || '')}"></label>
+      <label class="field"><span class="lbl">Valor (R$)</span><input type="text" name="valor" inputmode="decimal" value="${l.valor !== undefined ? esc(nf2.format(l.valor)) : ''}" required></label>
+      <label class="field"><span class="lbl">Motivo</span><input type="text" name="motivo" list="lfMot" maxlength="120" value="${esc(l.motivo || '')}" required><datalist id="lfMot">${MOT.map(m => `<option value="${esc(m)}">`).join('')}</datalist></label></div>
+      <label class="field"><span class="lbl">Referência (opcional)</span><input type="text" name="ref" maxlength="160" value="${esc(l.ref || '')}" placeholder="Rota, dia ou documento. Ex.: segunda S2 · 10/11 · NF 1234"></label>
+      <label class="field"><span class="lbl">Observação (opcional)</span><textarea name="obs" maxlength="400">${esc(l.obs || '')}</textarea></label>
+      <div class="field"><span class="lbl">Imagens (até ${ANEXO_MAX})</span><div class="thumbs lg" id="lfAnexos"></div><input type="file" id="lfArq" accept="image/*" multiple><span class="hint">Comprovantes ou evidências. As imagens são reduzidas antes de salvar. Evite fotos de documentos pessoais que não sejam necessários.</span></div></div>
+    <div class="df">${novo ? '' : '<button class="btn danger" type="button" id="lfDel">Excluir</button>'}<button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  desenhaAnexos();
+  $('#lfAnexos').onclick = e => { const b = e.target.closest('[data-ax]'); if (!b) return; anexos.splice(+b.dataset.ax, 1); desenhaAnexos(); };
+  $('#lfArq').onchange = async e => {
+    for (const f of [...e.target.files]) { if (anexos.length >= ANEXO_MAX) { toast(`No máximo ${ANEXO_MAX} imagens`); break; } try { anexos.push({ nome: f.name.slice(0, 80), url: await comprime(f) }); } catch (err) { toast(err.message); } }
+    e.target.value = ''; desenhaAnexos();
+  };
+  $('#lfForm').onsubmit = ev => {
+    ev.preventDefault(); const f = new FormData(ev.target), valor = numBR(f.get('valor'));
+    if (!isNum(valor) || valor <= 0) { toast('Valor inválido'); return; }
+    const vend = String(f.get('vend')).trim(), id = l.id || uid('vl');
+    const rec = { id, tipo: 'lanc', natureza: String(f.get('natureza')), vend, vendNome: Rot.nomeVend(vend), mes: String(f.get('mes')), data: String(f.get('data') || ''), valor: cent(valor), motivo: String(f.get('motivo')).trim(), ref: String(f.get('ref') || '').trim(), obs: String(f.get('obs') || '').trim(), anexos, usuario: (st.usuario && st.usuario.nome) || '', em: Date.now() };
+    VS.store.put(id, rec); R.audita('verba', `${novo ? 'Incluiu' : 'Alterou'} ${rec.natureza} de ${brl(rec.valor)} para ${vend} (${fmtMes(rec.mes)})`);
+    closeModal(); VS.mes = rec.mes; render(); toast(`${rec.natureza === 'reembolso' ? 'Reembolso' : 'Desconto'} salvo`);
+  };
+  const del = $('#lfDel'); if (del) del.onclick = () => R.armButton(del, () => { VS.store.del(l.id); R.audita('verba', `Excluiu ${l.natureza} de ${brl(l.valor)} de ${l.vend} (${fmtMes(l.mes)})`); closeModal(); render(); toast('Lançamento excluído'); }, 'Confirmar exclusão');
+}
+function verAnexo(id, i) {
+  const l = VS.store.get(id), a = l && (l.anexos || [])[i]; if (!a) return;
+  openModal(`<div class="dh"><h2>${esc(a.nome || 'Anexo')}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div><div class="db"><img class="anexo-full" src="${esc(a.url)}" alt="${esc(a.nome || 'Anexo')}"><p class="muted" style="margin:0">${esc(l.natureza === 'reembolso' ? 'Reembolso' : 'Desconto')} · ${esc(l.vendNome || l.vend)} · ${esc(fmtMes(l.mes))} · ${brl(l.valor)} · ${esc(l.motivo || '')}</p></div>`, 'lg');
+}
+
+/* ---------- Histórico de apurações ---------- */
+function salvarApuracao(c, btn) {
+  if (!admin()) return;
+  const ja = apuracoes().find(a => a.mes === c.ym && a.fonte && a.fonte.id === c.b.id);
+  const grava = () => {
+    const id = ja ? ja.id : uid('va');
+    VS.store.put(id, { id, tipo: 'apuracao', mes: c.ym, fonte: { id: c.b.id, nome: Rot.nomeFonte(c.b.id) }, rac: { nome: c.rac.nome, preco: c.rac.preco, kmL: c.rac.kmL, cesta: c.rac.cesta, valor: c.vk },
+      res: { uteis: c.res.uteis, sabados: c.res.sabados }, linhas: c.linhas.map(o => ({ v: o.v, nome: o.nome, km: Math.round(o.km * 10) / 10, dias: o.diasN, verba: o.verba, reemb: cent(o.reemb), desc: cent(o.desc), liq: o.liq, itens: o.itens.map(i => [i.iso, Math.round(i.km * 10) / 10]) })),
+      tot: { km: Math.round(c.tot.km * 10) / 10, verba: cent(c.tot.verba), reemb: cent(c.tot.reemb), desc: cent(c.tot.desc), liq: cent(c.tot.liq), dias: c.tot.dias }, usuario: (st.usuario && st.usuario.nome) || '', em: Date.now() });
+    R.audita('verba', `Salvou a apuração de ${fmtMes(c.ym)}: ${brl(c.tot.liq)}`); toast('Apuração salva no histórico'); render();
+  };
+  if (ja) R.armButton(btn, grava, 'Substituir a apuração já salva'); else grava();
+}
+function abaHist() {
+  const l = apuracoes();
+  if (!l.length) return '<div class="card"><div class="empty"><h3>Nenhuma apuração salva</h3><p>Em Cálculo, confira os valores do mês e clique em “Salvar no histórico”. A apuração guarda o racional, os KM, os dias e os valores daquele momento.</p></div></div>';
+  const porMes = new Map(); for (const a of l) if (!porMes.has(a.mes)) porMes.set(a.mes, a);
+  const ult = [...porMes.values()].slice(0, 12).reverse();
+  const cols = ult.map(a => ({ label: fmtMes(a.mes).replace('/20', '/'), v: Math.round(a.tot.liq), cor: 'var(--accent)', tip: `${Rot.fmtPerLongo(a.mes)}\nTotal: ${brl(a.tot.liq)}\nVerba ${brl(a.tot.verba)} · reembolso ${brl(a.tot.reemb)} · desconto ${brl(a.tot.desc)}\n${fkm(a.tot.km)} km · ${a.rac.nome} (${brl4(a.rac.valor)}/km)` }));
+  const vends = [...new Map(ult.flatMap(a => a.linhas.map(o => [o.v, o.nome]))).entries()];
+  const mx = Math.max(1, ...ult.flatMap(a => a.linhas.map(o => o.liq)));
+  return `<div class="card"><div class="ch"><h2>Total a pagar por mês</h2><span class="muted" style="font-size:12px">última apuração de cada mês</span></div><div class="cb">${vcols(cols)}</div></div>
+    <div class="tblwrap"><table class="t"><thead><tr><th>Mês</th><th>Rotas de</th><th>Racional</th><th class="n">Vendedores</th><th class="n">KM</th><th class="n">Verba</th><th class="n">Reembolsos</th><th class="n">Descontos</th><th class="n">Total</th><th>Salvo</th><th></th></tr></thead><tbody>
+      ${l.map(a => `<tr><td><b>${esc(fmtMes(a.mes))}</b></td><td class="wrap">${esc(a.fonte ? a.fonte.nome : '—')}</td><td>${esc(a.rac.nome)} · ${brl4(a.rac.valor)}</td><td class="n">${nf0.format(a.linhas.length)}</td><td class="n">${fkm(a.tot.km)}</td><td class="n">${brl(a.tot.verba)}</td><td class="n">${brl(a.tot.reemb)}</td><td class="n">${a.tot.desc ? '−' + brl(a.tot.desc) : '—'}</td><td class="n"><b>${brl(a.tot.liq)}</b></td><td class="muted">${fdh(a.em)}${a.usuario ? ' · ' + esc(a.usuario) : ''}</td><td class="n"><button class="btn sm" type="button" data-va="apver" data-id="${esc(a.id)}">Ver</button>${admin() ? ` <button class="btn sm danger" type="button" data-va="apdel" data-id="${esc(a.id)}">Excluir</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
+    ${ult.length > 1 ? `<div class="card"><div class="ch"><h2>Total por vendedor e mês</h2><span class="muted" style="font-size:12px">fundo mais forte = maior valor</span></div><div class="tblwrap" style="border:0;border-radius:0"><table class="t heat"><thead><tr><th>Vendedor</th>${ult.map(a => `<th class="n">${esc(fmtMes(a.mes))}</th>`).join('')}</tr></thead><tbody>
+      ${vends.map(([v, n]) => `<tr><td><b>${esc(n)}</b></td>${ult.map(a => { const o = a.linhas.find(x => x.v === v); return o ? `<td class="n" style="background:color-mix(in srgb, var(--accent) ${Math.round(8 + 50 * Math.max(0, o.liq) / mx)}%, transparent)" data-tip="${esc(`${n} · ${Rot.fmtPerLongo(a.mes)}\n${fkm(o.km)} km · ${o.dias} dias\nTotal ${brl(o.liq)}`)}">${brl(o.liq)}</td>` : '<td class="n muted">—</td>'; }).join('')}</tr>`).join('')}</tbody></table></div></div>` : ''}`;
+}
+function verApuracao(id) {
+  const a = VS.store.get(id); if (!a) return;
+  openModal(`<div class="dh"><div><h2>Apuração de ${esc(Rot.fmtPerLongo(a.mes))}</h2><div class="muted" style="font-size:12.5px">${esc(a.fonte ? a.fonte.nome : '')} · ${esc(a.rac.nome)}: ${brl4(a.rac.preco)} ÷ ${nf1.format(a.rac.kmL)} km/L + ${brl4(a.rac.cesta)} = ${brl4(a.rac.valor)}/km · salva em ${fdh(a.em)}${a.usuario ? ' por ' + esc(a.usuario) : ''}</div></div><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+    <div class="db"><div class="tblwrap"><table class="t"><thead><tr><th>Vendedor</th><th class="n">Dias</th><th class="n">KM</th><th class="n">Verba</th><th class="n">Reembolso</th><th class="n">Desconto</th><th class="n">Total</th></tr></thead><tbody>
+      ${a.linhas.map(o => `<tr><td>${esc(o.nome)}</td><td class="n">${o.dias}</td><td class="n">${fkm(o.km)}</td><td class="n">${brl(o.verba)}</td><td class="n">${brl(o.reemb)}</td><td class="n">${o.desc ? '−' + brl(o.desc) : '—'}</td><td class="n"><b>${brl(o.liq)}</b></td></tr>`).join('')}
+      <tr class="tot"><td>Total</td><td class="n">${a.tot.dias}</td><td class="n">${fkm(a.tot.km)}</td><td class="n">${brl(a.tot.verba)}</td><td class="n">${brl(a.tot.reemb)}</td><td class="n">${a.tot.desc ? '−' + brl(a.tot.desc) : '—'}</td><td class="n">${brl(a.tot.liq)}</td></tr></tbody></table></div></div>
+    <div class="df"><button class="btn" type="button" data-va="apxls" data-id="${esc(a.id)}">Exportar (.xlsx)</button><button class="btn primary" type="button" data-close>Fechar</button></div>`, 'lg');
+}
+
+/* ---------- Comparativo: mesmo KM com racionais diferentes, ou KM diferentes com o mesmo racional ---------- */
+function abaCmp(A, B) {
+  const c = VS.cmp, lado = k => `<div class="cmpl"><div class="cmph"><i class="sw" style="background:var(--cmp-${k})"></i><b>Lado ${k.toUpperCase()}</b></div>
+    <label class="field"><span class="lbl">Rotas de</span><select data-vc="${k}.fonte">${Rot.fonteOpts(c[k].fonte)}</select></label>
+    <label class="field"><span class="lbl">Racional</span><select data-vc="${k}.rac">${racOpts(c[k].rac)}</select></label></div>`;
+  const ctl = `<div class="card"><div class="cb rt-cmpctl"><label class="field" style="max-width:180px"><span class="lbl">Mês</span><input type="month" data-vf="mes" value="${esc(VS.mes)}"></label>${lado('a')}<button class="btn sm" type="button" data-va="cmptroca" title="Trocar os lados">⇄</button>${lado('b')}</div>
+    <div class="cb row" style="padding-top:0"><span class="muted" style="font-size:12.5px">Atalhos:</span><button class="btn sm" type="button" data-va="mesmokm">Mesmos KM, outro racional</button><button class="btn sm" type="button" data-va="mesmorac">Mesmo racional, outros KM</button></div></div>`;
+  if (!A || !B) return ctl + '<div class="card"><div class="cb muted">Escolha as rotas e os racionais dos dois lados.</div></div>';
+  const vs = new Map(); for (const o of A.linhas) vs.set(o.v, o.nome); for (const o of B.linhas) if (!vs.has(o.v)) vs.set(o.v, o.nome);
+  const sinal = (x, f) => { const z = f(Math.abs(x)) === f(0); return `<span class="${z ? '' : x < 0 ? 'down' : 'up'}">${z ? '' : x > 0 ? '+' : '−'}${f(Math.abs(x))}</span>`; };
+  const rows = [...vs].map(([v, n]) => { const a = A.linhas.find(o => o.v === v) || { km: 0, verba: 0, diasN: 0 }, b = B.linhas.find(o => o.v === v) || { km: 0, verba: 0, diasN: 0 }; return { v, n, a, b }; }).sort((x, y) => Math.abs(y.b.verba - y.a.verba) - Math.abs(x.b.verba - x.a.verba));
+  const pct = (x, y) => (x ? `${nf0.format(Math.round((y - x) / x * 100))}%` : '—');
+  const card = (t, a, b, f, menor = true) => `<div class="kc"><span class="k">${t}</span><span class="v rs">${f(a)} <span class="muted">→</span> ${f(b)}</span><span class="s">${sinal(b - a, f)} · ${pct(a, b)}</span></div>`;
+  const mx = Math.max(1, ...rows.flatMap(r => [r.a.verba, r.b.verba]));
+  return `${ctl}
+    <div class="kgrid k4">${card('KM no mês', A.tot.km, B.tot.km, fkm)}${card('Racional por km', A.vk, B.vk, brl4)}${card('Verba', A.tot.verba, B.tot.verba, brl)}${card('Total a pagar', A.tot.liq, B.tot.liq, brl)}</div>
+    <p class="muted" style="margin:0;font-size:12.5px">A: ${esc(Rot.nomeFonte(A.b.id))} · ${esc(A.rac.nome)} (${formulaRac(A.rac)}). B: ${esc(Rot.nomeFonte(B.b.id))} · ${esc(B.rac.nome)} (${formulaRac(B.rac)}). Diferença = B − A; verde = B custa menos.</p>
+    <div class="cgrid"><div class="card"><div class="ch"><h2>Verba por vendedor</h2><span class="legend-row"><span class="li"><i class="sw" style="background:var(--cmp-a)"></i>A</span><span class="li"><i class="sw" style="background:var(--cmp-b)"></i>B</span></span></div><div class="cb"><div class="cmpbars">
+      ${rows.slice(0, 14).map(r => `<div class="cb2"><span class="cn">${esc(r.n)}</span><div class="cr" data-tip="${esc(`${r.n}\nA: ${fkm(r.a.km)} km · ${brl(r.a.verba)}\nB: ${fkm(r.b.km)} km · ${brl(r.b.verba)}`)}"><span class="ct"><i style="width:${r.a.verba / mx * 100}%;background:var(--cmp-a)"></i></span><span class="cv num">${brl(r.a.verba)}</span><span class="ct"><i style="width:${r.b.verba / mx * 100}%;background:var(--cmp-b)"></i></span><span class="cv num">${brl(r.b.verba)}</span></div></div>`).join('')}</div></div></div>
+    <div class="card"><div class="ch"><h2>Dias do mês</h2></div><div class="cb stack"><div class="dbrow"><div><div class="lbl">Dias úteis de ${esc(fmtMes(VS.mes))}</div><b class="num">${A.res.uteis}</b> <span class="muted">${diasMesTxt(A.res)}</span></div></div>
+      <div class="dbrow"><div><div class="lbl">Dias calculados</div><span class="num">A: <b>${nf0.format(A.tot.dias)}</b> · B: <b>${nf0.format(B.tot.dias)}</b></span></div></div>
+      <div class="dbrow"><div><div class="lbl">Reembolsos e descontos</div><span class="muted">São os mesmos dos dois lados (lançados por vendedor e mês): ${brl(A.tot.reemb)} e −${brl(A.tot.desc)}</span></div></div></div></div></div>
+    <div class="tblwrap"><table class="t"><thead><tr><th>Vendedor</th><th class="n">KM A</th><th class="n">KM B</th><th class="n">Δ KM</th><th class="n">Dias A</th><th class="n">Dias B</th><th class="n">Verba A</th><th class="n">Verba B</th><th class="n">Δ verba</th><th class="n">Δ %</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td><b>${esc(r.n)}</b></td><td class="n">${fkm(r.a.km)}</td><td class="n">${fkm(r.b.km)}</td><td class="n">${sinal(r.b.km - r.a.km, fkm)}</td><td class="n">${r.a.diasN}</td><td class="n">${r.b.diasN}</td><td class="n">${brl(r.a.verba)}</td><td class="n">${brl(r.b.verba)}</td><td class="n">${sinal(r.b.verba - r.a.verba, brl)}</td><td class="n">${pct(r.a.verba, r.b.verba)}</td></tr>`).join('')}
+      <tr class="tot"><td>Total</td><td class="n">${fkm(A.tot.km)}</td><td class="n">${fkm(B.tot.km)}</td><td class="n">${sinal(B.tot.km - A.tot.km, fkm)}</td><td class="n">${A.tot.dias}</td><td class="n">${B.tot.dias}</td><td class="n">${brl(A.tot.verba)}</td><td class="n">${brl(B.tot.verba)}</td><td class="n">${sinal(B.tot.verba - A.tot.verba, brl)}</td><td class="n">${pct(A.tot.verba, B.tot.verba)}</td></tr></tbody></table></div>`;
+}
+
+/* ---------- Racionais ---------- */
+function abaRac() {
+  const l = racionais();
+  return `<div class="row" style="justify-content:space-between"><p class="muted" style="margin:0;max-width:80ch">Racional por km = preço médio do combustível pesquisado ÷ KM por litro + cesta de serviço (pedágio e manutenção, em R$ por km). Cadastre um por tipo de veículo, região ou período para comparar.</p><button class="btn primary" type="button" data-va="racnovo"${admin() ? '' : ' disabled'}>Novo racional</button></div>
+    <div class="tblwrap"><table class="t"><thead><tr><th>Racional</th><th class="n">Combustível (R$/L)</th><th class="n">KM por litro</th><th class="n">Combustível por km</th><th class="n">Cesta (R$/km)</th><th class="n">Racional (R$/km)</th><th>Vale desde</th><th></th></tr></thead><tbody>
+      ${l.map(r => `<tr><td class="wrap"><b>${esc(r.nome)}</b>${r.obs ? `<div class="muted" style="font-size:12px">${esc(r.obs)}</div>` : ''}</td><td class="n">${brl4(r.preco)}</td><td class="n">${nf1.format(r.kmL)}</td><td class="n">${brl4(r.preco / r.kmL)}</td><td class="n">${brl4(r.cesta)}</td><td class="n"><b>${brl4(valorRac(r))}</b></td><td>${r.desde ? esc(fmtMes(r.desde)) : '—'}</td><td class="n">${admin() ? `<button class="btn sm" type="button" data-va="racedita" data-id="${esc(r.id)}">Editar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum racional cadastrado.</td></tr>'}</tbody></table></div>`;
+}
+function racForm(r0 = {}) {
+  if (!admin()) return;
+  const r = { nome: '', preco: 6.2, kmL: 10, cesta: 0.28, desde: '', obs: '', ...r0 }, novo = !r0.id;
+  openModal(`<div class="dh"><h2>${novo ? 'Novo racional' : 'Editar racional'}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+    <form id="racForm"><div class="db"><div class="fgrid">
+      <label class="field"><span class="lbl">Nome</span><input type="text" name="nome" maxlength="60" value="${esc(r.nome)}" placeholder="Ex.: Carro 1.0 · novembro" required></label>
+      <label class="field"><span class="lbl">Combustível (R$ por litro)</span><input type="text" name="preco" inputmode="decimal" value="${esc(nf4.format(r.preco))}" required><span class="hint">Preço médio pesquisado</span></label>
+      <label class="field"><span class="lbl">KM por litro</span><input type="text" name="kmL" inputmode="decimal" value="${esc(nf1.format(r.kmL))}" required></label>
+      <label class="field"><span class="lbl">Cesta de serviço (R$ por km)</span><input type="text" name="cesta" inputmode="decimal" value="${esc(nf4.format(r.cesta))}" required><span class="hint">Pedágio e manutenção</span></label>
+      <label class="field"><span class="lbl">Vale desde (opcional)</span><input type="month" name="desde" value="${esc(r.desde || '')}"></label></div>
+      <label class="field"><span class="lbl">Observação</span><input type="text" name="obs" maxlength="160" value="${esc(r.obs || '')}" placeholder="Fonte da pesquisa de preço, tipo de veículo…"></label>
+      <div class="vb-form" id="racPrev"></div></div>
+    <div class="df">${novo ? '' : '<button class="btn danger" type="button" id="racDel">Excluir</button>'}<button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`, 'sm');
+  const f = $('#racForm'), le = () => ({ preco: numBR(f.preco.value), kmL: numBR(f.kmL.value), cesta: numBR(f.cesta.value) });
+  const prev = () => { const x = le(); $('#racPrev').innerHTML = isNum(x.preco) && x.kmL > 0 && isNum(x.cesta) ? formulaRac(x) + ` · 50 km por dia em 2 dias no mês = ${brl(50 * valorRac(x) * 2)}` : 'Preencha os valores'; };
+  f.oninput = prev; prev();
+  f.onsubmit = ev => {
+    ev.preventDefault(); const x = le();
+    if (!isNum(x.preco) || x.preco <= 0 || !(x.kmL > 0) || !isNum(x.cesta) || x.cesta < 0) { toast('Confira os valores'); return; }
+    const id = r.id || uid('vr'), rec = { id, tipo: 'racional', nome: f.nome.value.trim(), ...x, desde: f.desde.value || '', obs: f.obs.value.trim(), em: Date.now() };
+    VS.store.put(id, rec); R.audita('verba', `${novo ? 'Criou' : 'Alterou'} o racional ${rec.nome}: ${brl4(valorRac(rec))}/km`);
+    if (!VS.rac) VS.rac = id; closeModal(); render(); toast('Racional salvo');
+  };
+  const del = $('#racDel'); if (del) del.onclick = () => R.armButton(del, () => { VS.store.del(r.id); R.audita('verba', `Excluiu o racional ${r.nome}`); closeModal(); render(); }, 'Confirmar exclusão');
+}
+
+/* ---------- Exportação ---------- */
+function exportaCalc(c, v) {
+  const cc = filtraVend(c, v);
+  const resumo = cc.linhas.map(o => ({ Vendedor: o.nome, Codigo: o.v, 'Rotas por ciclo': o.rotas.size, 'Dias calculados': o.diasN, 'KM no mes': +o.km.toFixed(1), 'Racional R$/km': +c.vk.toFixed(4), Verba: o.verba, Reembolso: cent(o.reemb), Desconto: cent(o.desc), Total: o.liq }));
+  const extrato = cc.linhas.flatMap(o => o.itens.map(i => ({ Vendedor: o.nome, Codigo: o.v, Data: Cal.fmtData(i.iso), Dia: DIA_L[i.d], Semana: 'S' + Cal.semana(i.iso), Quinzena: Cal.quinzena(Cal.semana(i.iso)), KM: +i.km.toFixed(1), Verba: cent(i.valor) })));
+  const lan = cc.linhas.flatMap(o => o.lancs.map(l => ({ Vendedor: o.nome, Codigo: o.v, Tipo: l.natureza, Data: l.data ? Cal.fmtData(l.data) : '', Motivo: l.motivo, Referencia: l.ref || '', Valor: l.natureza === 'reembolso' ? l.valor : -l.valor })));
+  saveFile(`verba_${slug(fmtMes(c.ym))}${v ? '_' + slug(v) : ''}_${dstamp()}.xlsx`, xlsxBlob([['Resumo', resumo], ['Extrato de KM', extrato], ['Reembolsos e descontos', lan], ['Racional', [{ Racional: c.rac.nome, 'Combustivel R$/L': c.rac.preco, 'KM por litro': c.rac.kmL, 'Cesta R$/km': c.rac.cesta, 'Racional R$/km': +c.vk.toFixed(4), 'Rotas de': Rot.nomeFonte(c.b.id), Mes: fmtMes(c.ym), 'Dias uteis': c.res.uteis }]]]));
+  R.audita('exportacao', `Verba de ${fmtMes(c.ym)}${v ? ' · ' + v : ''}`);
+}
+
+/* ---------- Importação de reembolsos e descontos (pelo assistente do app) ---------- */
+function opcoesImport(wz) {
+  if (!wz.vb) wz.vb = { natureza: wz.natPadrao || 'reembolso', mes: VS.mes };
+  return `<div class="fgrid"><label class="field"><span class="lbl">Tipo, quando a planilha não tiver a coluna</span><select id="vbNat"><option value="reembolso"${wz.vb.natureza === 'reembolso' ? ' selected' : ''}>Reembolso</option><option value="desconto"${wz.vb.natureza === 'desconto' ? ' selected' : ''}>Desconto</option></select></label>
+    <label class="field"><span class="lbl">Mês, quando a planilha não tiver Mês nem Data</span><input type="month" id="vbMes" value="${esc(wz.vb.mes)}"></label></div>`;
+}
+function ligaOpcoesImport(wz) { const n = $('#vbNat'), m = $('#vbMes'); if (n) n.onchange = () => { wz.vb.natureza = n.value; }; if (m) m.onchange = () => { wz.vb.mes = m.value || VS.mes; }; }
+const parseDataBR = v => { if (typeof v === 'number' && v > 20000 && v < 80000) { const d = new Date(Math.round((v - 25569) * 864e5)); return d.toISOString().slice(0, 10); } const s = String(v || '').trim(); let m; if ((m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/.exec(s))) return `${+m[3] < 100 ? 2000 + +m[3] : m[3]}-${pad2(m[2])}-${pad2(m[1])}`; if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s))) return m[0]; return ''; };
+const parseMes = v => { const d = parseDataBR(v); if (d) return d.slice(0, 7); const s = String(v || '').trim(); let m; if ((m = /^(\d{1,2})[/.-](\d{4})$/.exec(s))) return `${m[2]}-${pad2(m[1])}`; if ((m = /^(\d{4})[-/.](\d{1,2})$/.exec(s))) return `${m[1]}-${pad2(m[2])}`; return ''; };
+async function importar(wz, cellOf) {
+  if (!admin()) { toast('Só o administrador inclui reembolsos e descontos'); return null; }
+  await iniciar();
+  let n = 0, ign = 0, nR = 0, nD = 0, soma = 0;
+  for (const row of wz.rows) {
+    const c = cellOf(row), vend = String(c('vend') ?? '').trim(), valor = numBR(c('valor'));
+    if (!vend || !isNum(valor) || valor === 0) { ign++; continue; }
+    const t = R.norm(c('tipo')), natureza = /desc|debit|abat/.test(t) ? 'desconto' : /reemb|credit|ressarc/.test(t) ? 'reembolso' : valor < 0 ? 'desconto' : wz.vb.natureza;
+    const data = parseDataBR(c('data')), mes = parseMes(c('mes')) || (data ? data.slice(0, 7) : '') || wz.vb.mes;
+    const id = uid('vl');
+    VS.store.put(id, { id, tipo: 'lanc', natureza, vend, vendNome: Rot.nomeVend(vend), mes, data, valor: cent(Math.abs(valor)), motivo: String(c('motivo') ?? '').trim().slice(0, 120) || (natureza === 'reembolso' ? 'Reembolso' : 'Desconto'), ref: String(c('ref') ?? '').trim().slice(0, 160), anexos: [], usuario: (st.usuario && st.usuario.nome) || '', em: Date.now(), importado: wz.arquivo || '' });
+    n++; soma += Math.abs(valor); if (natureza === 'reembolso') nR++; else nD++;
+  }
+  const lines = [['info', `${nf0.format(n)} lançamento(s) importados: ${nR} reembolso(s) e ${nD} desconto(s), somando ${brl(soma)}.`]];
+  if (ign) lines.push(['', `${nf0.format(ign)} linha(s) ignoradas por falta de vendedor ou valor.`]);
+  if (st.verbaSemTabela) lines.push(['bad', 'O banco ainda não tem as tabelas da Verba: os lançamentos valem só nesta sessão. Rode <b>supabase/migracao_06_calendario_verba.sql</b>.']);
+  R.audita('verba', `Importou ${n} lançamento(s) de ${wz.arquivo || 'planilha'}`);
+  VS.aba = nD > nR ? 'desc' : 'reemb';
+  return { lines, reg: { linhas: wz.rows.length, alteracoes: n, novos: n, ignorados: ign } };
+}
+
+/* ---------- Página ---------- */
+let renderSeq = 0;
+async function render(el = $('#homeView')) {
+  if (!el || st.screen !== 'home' || st.homeSec !== 'verba') return;
+  const seq = ++renderSeq; liga(el);
+  if (!VS.store) { el.innerHTML = `<div class="page home">${R.migalha('Verba Indenizatória')}<p class="muted">Carregando…</p></div>`; await Promise.all([iniciar(), Rot.iniciar(), Cal.iniciar()]); if (seq !== renderSeq) return; }
+  padroes();
+  const keep = el.scrollTop;
+  const ABAS = [['calc', 'Cálculo'], ['ext', 'Extrato'], ['reemb', 'Reembolsos'], ['desc', 'Descontos'], ['hist', 'Histórico'], ['cmp', 'Comparativo'], ['rac', 'Racionais']];
+  const topo = `${R.migalha('Verba Indenizatória')}<div class="ph"><div><h1>Verba Indenizatória</h1><p>KM das rotas × racional × dias de rota no mês, com reembolsos, descontos, extrato por vendedor e histórico.</p></div></div>
+    ${st.verbaSemTabela ? '<div class="banner bad">O banco ainda não tem as tabelas da Verba e do Calendário: o que for salvo vale só nesta sessão. Rode <b>supabase/migracao_06_calendario_verba.sql</b> no Supabase.</div>' : ''}
+    ${admin() ? '' : '<div class="banner info">Somente leitura: só o administrador do ambiente altera racionais, lançamentos e apurações.</div>'}
+    <nav class="rt-abas seg" aria-label="Visões">${ABAS.map(([k, t]) => `<button type="button" data-vaba="${k}" aria-pressed="${VS.aba === k}">${t}</button>`).join('')}</nav>`;
+  let corpo = '';
+  const precisa = VS.aba === 'calc' || VS.aba === 'ext' || VS.aba === 'cmp';
+  if (precisa && vazio()) corpo = vazio();
+  else if (VS.aba === 'calc' || VS.aba === 'ext') {
+    el.innerHTML = `<div class="page home verba">${topo}<p class="muted">Calculando…</p></div>`;
+    const c = await calcular(VS.fonte, VS.mes, VS.rac); if (seq !== renderSeq) return;
+    VS.ult = c;
+    corpo = !c ? '<div class="card"><div class="cb muted">Não foi possível calcular com estas escolhas.</div></div>' : VS.aba === 'calc' ? abaCalc(c) : abaExtrato(c);
+  } else if (VS.aba === 'cmp') {
+    el.innerHTML = `<div class="page home verba">${topo}<p class="muted">Calculando os dois lados…</p></div>`;
+    const [A, B] = await Promise.all([calcular(VS.cmp.a.fonte, VS.mes, VS.cmp.a.rac), calcular(VS.cmp.b.fonte, VS.mes, VS.cmp.b.rac)]); if (seq !== renderSeq) return;
+    corpo = abaCmp(A, B);
+  }
+  else if (VS.aba === 'reemb') corpo = abaLanc('reembolso');
+  else if (VS.aba === 'desc') corpo = abaLanc('desconto');
+  else if (VS.aba === 'hist') corpo = abaHist();
+  else corpo = abaRac();
+  el.innerHTML = `<div class="page home verba">${topo}${corpo}</div>`;
+  el.scrollTop = keep;
+}
+
+function liga(el) {
+  if (VS.ligado) return; VS.ligado = true;
+  const ativo = () => st.screen === 'home' && st.homeSec === 'verba';
+  const acao = (t, e) => {
+    const ds = t.dataset, a = ds.va;
+    if (ds.vaba) { VS.aba = ds.vaba; render(); return; }
+    if (a === 'extrato') { VS.ext = ds.v; VS.aba = 'ext'; render(); $('#homeView').scrollTop = 0; }
+    else if (a === 'xls' && VS.ult) exportaCalc(VS.ult, VS.vend);
+    else if (a === 'xlsext' && VS.ult) exportaCalc(VS.ult, VS.ext);
+    else if (a === 'imprimir') { document.body.classList.add('imprime-extrato'); setTimeout(() => { window.print(); document.body.classList.remove('imprime-extrato'); }, 50); }
+    else if (a === 'salvar' && VS.ult) salvarApuracao(VS.ult, t);
+    else if (a === 'lnovo') lancForm({}, ds.nat);
+    else if (a === 'ledita') lancForm(VS.store.get(ds.id));
+    else if (a === 'anexo') verAnexo(ds.id, +ds.i);
+    else if (a === 'limport') R.openImport('lancamentos', { natPadrao: ds.nat });
+    else if (a === 'lmodelo') R.downloadModelo('lancamentos');
+    else if (a === 'racnovo') racForm();
+    else if (a === 'racedita') racForm(VS.store.get(ds.id));
+    else if (a === 'apver') verApuracao(ds.id);
+    else if (a === 'apdel') R.armButton(t, () => { const x = VS.store.get(ds.id); VS.store.del(ds.id); R.audita('verba', `Excluiu a apuração de ${x ? fmtMes(x.mes) : ''}`); render(); }, 'Confirmar exclusão');
+    else if (a === 'apxls') { const x = VS.store.get(ds.id); if (x) { saveFile(`verba_apuracao_${slug(fmtMes(x.mes))}.xlsx`, xlsxBlob([['Apuracao', x.linhas.map(o => ({ Vendedor: o.nome, Codigo: o.v, Dias: o.dias, KM: o.km, Verba: o.verba, Reembolso: o.reemb, Desconto: o.desc, Total: o.liq }))], ['Extrato de KM', x.linhas.flatMap(o => (o.itens || []).map(([iso, km]) => ({ Vendedor: o.nome, Data: Cal.fmtData(iso), KM: km, Verba: cent(km * x.rac.valor) })))]])); R.audita('exportacao', `Apuração da verba de ${fmtMes(x.mes)}`); } }
+    else if (a === 'cmptroca') { const x = VS.cmp.a; VS.cmp.a = VS.cmp.b; VS.cmp.b = x; render(); }
+    else if (a === 'mesmokm') { VS.cmp.b.fonte = VS.cmp.a.fonte; const outro = racionais().find(r => r.id !== VS.cmp.a.rac); if (outro) VS.cmp.b.rac = outro.id; else toast('Cadastre outro racional para comparar'); render(); }
+    else if (a === 'mesmorac') { VS.cmp.b.rac = VS.cmp.a.rac; const outra = Rot.fontesLista().find(f => f.id !== VS.cmp.a.fonte); if (outra) VS.cmp.b.fonte = outra.id; render(); }
+  };
+  el.addEventListener('click', e => { if (!ativo()) return; const t = e.target.closest('[data-va],[data-vaba]'); if (t && !t.disabled) acao(t, e); });
+  $('#modal').addEventListener('click', e => { if (!ativo()) return; const t = e.target.closest('[data-va]'); if (t) acao(t, e); });
+  el.addEventListener('change', e => {
+    if (!ativo()) return; const t = e.target, ds = t.dataset;
+    if (ds.vf) { VS[ds.vf] = t.value || (ds.vf === 'mes' ? mesAtual() : ''); render(); }
+    else if (ds.vl) { VS.lf[ds.vl] = t.type === 'checkbox' ? t.checked : t.value; render(); }
+    else if (ds.vc) { const [k, campo] = ds.vc.split('.'); VS.cmp[k][campo] = t.value; render(); }
+  });
+}
+
+function resumoHub() {
+  if (!VS.store) return null;
+  const r = racionais().find(x => x.id === VS.rac) || racionais()[0], ap = apuracoes()[0];
+  return { racional: r ? brl4(valorRac(r)) + '/km' : '—', ultimo: ap ? `${fmtMes(ap.mes)} · ${brl(ap.tot.liq)}` : '—', lanc: lancs().filter(l => l.mes === mesAtual()).length };
+}
+
+window.VerbaMod = { iniciar, render, resumoHub, opcoesImport, ligaOpcoesImport, importar, calcular, valorRac };
 })();
 
 </script>

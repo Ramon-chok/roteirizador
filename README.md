@@ -17,9 +17,11 @@ Alternativa sem extensão (precisa do Node.js instalado): no terminal do VS Code
 ## Como o sistema está organizado
 
 - **Acesso**: a pessoa escolhe o ambiente (G4 Distribuidora, J.Arantes, Chok Distribuidora ou Grupo Arantes) e faz login. Cada ambiente tem usuários, clientes, colaboradores e estudos separados. Veja [Ambientes e login](#ambientes-e-login).
-- **Início** (tela de abertura): quatro módulos com acesso rápido. **Planejamento**, **Rotas**, **Verba Indenizatória** (em breve) e **Configurações**. Cada cartão mostra os números principais do módulo.
-- **Planejamento**: o painel que antes era o início. Atalhos para Listagens, Estudos, Importações e Configurações, botão **Mapa da base**, indicadores gerais (estudos, clientes, bases de saída, cidades), indicadores e gráficos do estudo em foco (KM por estudo e por setor, ocupação da jornada, visitas por dia), mapa de cobertura das bases, lista de colaboradores e tabela de estudos.
-- **Rotas**: bases de roteiros importadas mês a mês, com visão geral, tabela, mapa, histórico e comparação com os estudos. Veja [Rotas](#rotas).
+- **Início** (tela de abertura): os módulos com acesso rápido. **Planejamento**, **Rotas**, **Verba Indenizatória**, **Calendário** e **Configurações**. Cada cartão mostra os números principais do módulo (no Calendário, a semana atual do ciclo e o próximo evento).
+- **Planejamento**: painel enxuto dos estudos. Quatro indicadores (estudos, clientes, colaboradores, cidades), a lista de estudos com setores, clientes, KM no ciclo e ocupação, o estudo em foco (rotas, KM, tempo, ocupação e KM por setor) e, recolhido em **Bases e cobertura**, o mapa de cobertura, as bases de dados, os clientes por cidade, as bases de saída e o backup.
+- **Rotas**: bases de roteiros importadas mês a mês e os estudos do Planejamento, com visão geral, tabela, mapa, histórico e comparação. Veja [Rotas](#rotas).
+- **Verba Indenizatória**: cálculo da verba pelo KM das rotas, com racionais, reembolsos, descontos, extrato e histórico. Veja [Verba Indenizatória](#verba-indenizatória).
+- **Calendário**: o ano com dias úteis, feriados, eventos da empresa e as semanas do ciclo. Veja [Calendário](#calendário).
 - **Planner**: o sistema de mapa, roteiros, estudos, clientes e colaboradores. Entre pelo botão **Abrir Planner**, que oferece: abrir um **estudo existente**, criar um **planner vazio e novo** ou **importar** um roteiro (Excel/CSV). Para voltar, clique em **Roteirizador RRM** no topo.
 - **Importação** (aba do Planner, também acessível pela página inicial): baixe os modelos .xlsx de colaboradores, clientes e roteiro (cada um com exemplos e uma aba “Instruções”) e importe-os. Ordem recomendada: colaboradores → clientes → roteiro.
 - **Configurações** (aba do Planner, também acessível pela página inicial): Minha conta, mapa de fundo, busca de endereços, servidores de rota, backup e dados de exemplo.
@@ -82,7 +84,7 @@ O sistema grava no Supabase: clientes, colaboradores, estudos, setores, roteiros
 - **Dados do navegador:** no login, se o banco do ambiente estiver vazio e o navegador tiver dados, o sistema oferece enviá-los. Eles continuam no navegador.
 - **Várias pessoas ao mesmo tempo:** cada alteração é gravada linha a linha, e a última gravação vale. O que outra pessoa alterou aparece ao recarregar a página.
 
-Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, depois `supabase/migracao_04_seguranca.sql` e `supabase/migracao_05_rotas.sql`, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do `schema.sql`. Quem já tinha o schema roda também, nesta ordem, `migracao_02_usuarios.sql`, `migracao_03_importacoes.sql` (histórico de importações), `migracao_04_seguranca.sql` (duas etapas, privacidade e registro de atividades) e `migracao_05_rotas.sql` (módulo Rotas). Todas podem rodar mais de uma vez. Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
+Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, depois `supabase/migracao_04_seguranca.sql`, `supabase/migracao_05_rotas.sql` e `supabase/migracao_06_calendario_verba.sql`, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do `schema.sql`. Quem já tinha o schema roda também, nesta ordem, `migracao_02_usuarios.sql`, `migracao_03_importacoes.sql` (histórico de importações), `migracao_04_seguranca.sql` (duas etapas, privacidade e registro de atividades) , `migracao_05_rotas.sql` (módulo Rotas) e `migracao_06_calendario_verba.sql` (Calendário e Verba Indenizatória). Todas podem rodar mais de uma vez. Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
 
 ## Rotas
 
@@ -93,7 +95,25 @@ O módulo **Rotas** guarda os roteiros em uso, por período (mês/ano), para aco
 - **Visões:** Visão geral (indicadores e gráficos), Tabela (por vendedor, com os dias ao clicar, ou por cliente; exporta para Excel), Mapa (pinos coloridos por vendedor, dia, semana, cidade ou segmento, linhas das rotas, regiões e bases de saída), Histórico (KM, visitas, clientes, horas e custo por mês, com a matriz vendedor × mês) e Comparar com estudo.
 - **Filtros:** vendedor, equipe, cidade, região, segmento, dia, semana, tempo de atendimento e busca por cliente. No histórico, os filtros valem pela rota (uma rota entra se atende algum cliente do filtro); atendimento e busca valem só na base aberta.
 - **KM e custo:** o KM é estimado como no Planejamento (linha reta × fator de rota, com ida e volta da base do colaborador) e pode ser recalculado pelas ruas em **Mapa → Calcular KM pelas ruas** (até 300 rotas por vez, cerca de 1 por segundo no servidor público). O valor do KM (R$) e os demais parâmetros ficam em **Rotas → Parâmetros** e valem para o ambiente todo. O mês considera 4 semanas: KM do mês = KM do ciclo × 4 ÷ semanas do ciclo; para bases por data, é o total do mês.
-- **Comparar com estudo:** escolha o vendedor da base aberta, um estudo salvo e o setor (por padrão, os setores do mesmo colaborador). Os dois mapas ficam lado a lado e se movem juntos; a tabela mostra a diferença de clientes, visitas, dias de rota, KM por mês, semana e dia, horas e custo, e a lista de clientes que só existem de um lado.
+- **Estudos em Rotas:** no seletor **Ver** aparecem as bases de rotas e, logo abaixo, os estudos do Planejamento. Um estudo abre com as mesmas visões (geral, tabela e mapa) e os mesmos filtros; o KM pelas ruas do estudo continua sendo calculado no Planner.
+- **Comparar:** cada lado escolhe uma base ou um estudo e um vendedor (ou todos). Vale base × estudo, estudo × estudo e base × base. Os dois mapas ficam lado a lado e se movem juntos; a tabela mostra a diferença de clientes, visitas, dias de rota, KM por mês, semana e dia, horas e custo, e a lista de clientes que só existem de um lado. O botão ⇄ troca os lados.
+
+## Calendário
+
+- **Ano e mês:** o ano inteiro em 12 meses, ou um mês grande com os nomes dos eventos. Cada mês mostra os dias úteis (segunda a sexta sem feriado), os sábados e os feriados. Hoje e a semana atual ficam destacados. Clique em um dia para ver o que há nele.
+- **Semanas do ciclo:** à esquerda de cada semana, a semana do ciclo de 4 semanas (S1 a S4); à direita, a quinzena (1,3 ou 2,4). As semanas vão de segunda a domingo e a referência padrão é a semana de 16/11/2026 = S1 (depois S2, S3, S4 e o ciclo recomeça, para frente e para trás). O administrador muda a referência em **Ciclo e feriados**.
+- **Feriados nacionais:** calculados para qualquer ano, inclusive os móveis (Carnaval, Sexta-feira Santa e Corpus Christi, a partir da Páscoa) e o Dia da Consciência Negra (desde 2024). Carnaval e Corpus Christi são pontos facultativos; em **Ciclo e feriados** o administrador define se eles têm rota ou não.
+- **Eventos:** o administrador inclui eventos de um ou mais dias em categorias com cor (Reembolso, Reunião, Pagamento de verba, Feriado local, Outro, ou as que criar em **Categorias**). Categorias marcadas como “sem rota” tiram o dia do cálculo, como os feriados municipais. Os chips da legenda mostram ou escondem cada categoria.
+
+## Verba Indenizatória
+
+- **Racional:** preço médio do combustível pesquisado (R$ por litro) ÷ KM por litro + cesta de serviço (pedágio e manutenção, em R$ por km). Ex.: R$ 6,20 ÷ 10 km/L + R$ 0,28 = R$ 0,90 por km. Cadastre quantos quiser em **Racionais** (por veículo, região ou período).
+- **Cálculo:** escolha o mês, as rotas (uma base de Rotas ou um estudo) e o racional. Para cada rota (vendedor × semana do ciclo × dia), a verba é o KM daquele dia de rota × racional × o número de dias do mês em que a rota acontece, pela contagem do Calendário. Ex.: 50 km às segundas das semanas 2 e 4 = 2 dias no mês × 50 km × R$ 0,90 = R$ 90,00. Feriados e dias sem rota ficam de fora e aparecem no aviso. Em bases importadas por data, vale a data de cada visita.
+- **Extrato:** por vendedor, com KM do mês, dias úteis, dias calculados, verba, reembolso, desconto e total, o calendário do mês com o KM de cada dia e os feriados, a lista dia a dia e os lançamentos. Exporta para Excel e imprime.
+- **Reembolsos e descontos:** inclua um a um (com motivo, data, referência da rota ou do documento e até 4 imagens, reduzidas antes de salvar) ou importe por planilha (modelo em **Modelo (.xlsx)**). Reembolsos somam e descontos subtraem do total do vendedor no mês. A página de descontos guarda o motivo e as evidências de cada um.
+- **Histórico:** **Salvar no histórico** grava a apuração do mês (racional, KM, dias e valores daquele momento). O histórico mostra o total por mês, a tabela das apurações e o total por vendedor e mês.
+- **Comparativo:** dois lados, cada um com rotas e racional, no mesmo mês. Os atalhos montam “mesmos KM, outro racional” e “mesmo racional, outros KM”. Mostra KM, racional, verba e total, a verba por vendedor lado a lado e a diferença.
+- **Quem altera:** só o administrador do ambiente cria racionais, lançamentos e apurações (o banco também exige isso, com a migração 06). Os demais veem em modo de leitura.
 
 ## Segurança e privacidade (LGPD)
 
@@ -129,12 +149,15 @@ Fica em **Configurações → Segurança e privacidade** (também em **Minha con
 | `js/config.js` | **Configurações**: ambientes de login, chave do Google e servidores de rotas (OSRM e Valhalla) |
 | `js/engine.js` | Motor de cálculo: setorização (k-means balanceado), distribuição em dias/semanas pela frequência, sequência (vizinho mais próximo + 2-opt + Or-opt), métricas de KM e tempo |
 | `js/app.js` | Aplicação: bases, estudos, mapa (Leaflet), pinos de GPS, laço, régua, seleção, importação/exportação Excel, roteirização pelas ruas (OSRM), Google opcional, login, duas etapas, privacidade e registro de atividades |
-| `js/rotas.js` | Módulo Rotas: bases de roteiros por período, tabela, mapa, histórico e comparação com estudos |
+| `js/rotas.js` | Módulo Rotas: bases de roteiros por período e estudos, tabela, mapa, histórico e comparação |
+| `js/calendario.js` | Módulo Calendário: feriados, eventos, dias úteis e semanas do ciclo (S1 a S4, 1,3 e 2,4) |
+| `js/verba.js` | Módulo Verba Indenizatória: racionais, cálculo, extrato, reembolsos, descontos, histórico e comparativo |
 | `exemplos/` | Modelos CSV de clientes, colaboradores e roteiro (os modelos .xlsx com instruções são baixados na aba Importação) |
 | `ferramentas/build.py` | Gera `dist/roteirizador.html`, um arquivo único com tudo embutido |
 | `supabase/schema.sql` | Estrutura do banco para o Supabase: tabelas, regras de acesso e consultas prontas |
 | `supabase/migracao_04_seguranca.sql` | Duas etapas exigida pelo banco, política do ambiente, aceite de privacidade e registro de atividades |
 | `supabase/migracao_05_rotas.sql` | Tabelas do módulo Rotas |
+| `supabase/migracao_06_calendario_verba.sql` | Tabelas do Calendário e da Verba Indenizatória (escrita só do administrador) |
 | `ferramentas/backup_para_sql.py` | Converte um backup do sistema em SQL para carregar no Supabase |
 | `dist/roteirizador.html` | Versão em arquivo único, pronta para enviar ou hospedar |
 

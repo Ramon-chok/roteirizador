@@ -103,6 +103,18 @@ const SB_MAPA = {
     linha: (k, x) => ({ id: k, tipo: x.tipo || 'roteiro', arquivo: nulo(x.arquivo), estudo_id: nulo(x.estudo), estudo_nome: nulo(x.estudoNome), usuario: nulo(x.usuario), usuario_login: nulo(x.login), importado_em: emISO(x.em), linhas: x.linhas || 0, alteracoes: x.alteracoes || 0, novos: x.novos || 0, atualizados: x.atualizados || 0, ignorados: x.ignorados || 0, pendencias: x.pend || 0, resumo: x.resumo || [], mensagem: nulo(x.msg) }),
     item: r => [r.id, semVazios({ id: r.id, tipo: r.tipo, arquivo: r.arquivo, estudo: r.estudo_id, estudoNome: r.estudo_nome, usuario: r.usuario, login: r.usuario_login, em: deISO(r.importado_em), linhas: r.linhas, alteracoes: r.alteracoes, novos: r.novos, atualizados: r.atualizados, ignorados: r.ignorados, pend: r.pendencias, resumo: r.resumo || [], msg: r.mensagem })]
   },
+  // Calendário: eventos, categorias e a semana de referência do ciclo
+  calendario: {
+    tab: 'calendario', pk: ['id'],
+    linha: (k, x) => ({ id: k, data: /^\d{4}-\d{2}-\d{2}$/.test(x.data || '') ? x.data : null, dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
+  // Verba Indenizatória: racionais, reembolsos e descontos (com as imagens) e apurações salvas
+  verba: {
+    tab: 'verba', pk: ['id'],
+    linha: (k, x) => ({ id: k, tipo: x.tipo || 'outro', mes: nulo(x.mes), vendedor: nulo(x.vend), dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
   // Rotas: cada base de roteiros (um período) é uma linha; o resumo calculado fica em "dados"
   rotasbase: {
     tab: 'rotas_bases', pk: ['id'],
@@ -165,7 +177,7 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
   };
   const semTabela = e => !!e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist/i.test(e.message || ''));
   // Tabelas criadas por migrações: sem elas, o sistema segue funcionando e avisa (o que for gravado fica só nesta sessão)
-  const opcional = c => (c === 'importacoes' ? 'impSemTabela' : c === 'rotasbase' || c.startsWith('rotasl/') ? 'rotasSemTabela' : '');
+  const opcional = c => (c === 'importacoes' ? 'impSemTabela' : c === 'rotasbase' || c.startsWith('rotasl/') ? 'rotasSemTabela' : c === 'calendario' || c === 'verba' ? 'verbaSemTabela' : '');
   const ler = async coll => { try { return await ler0(coll); } catch (e) { const f = opcional(coll); if (f && semTabela(e)) { st[f] = true; return {}; } throw e; } };
   const escreve = async (...a) => { try { return await escreve0(...a); } catch (e) { const f = opcional(a[0]); if (f && semTabela(e)) { st[f] = true; return; } throw e; } };
   const ler0 = async coll => {
@@ -2225,21 +2237,31 @@ const FIELDS = {
     { k: 'seq', l: 'Sequência', al: ['sequencia', 'seq', 'ordem'] },
     { k: 'lat', l: 'Latitude do cliente', al: ['lat', 'latitude'] },
     { k: 'lng', l: 'Longitude do cliente', al: ['lng', 'lon', 'long', 'longitude'] }
+  ],
+  // Reembolsos e descontos da Verba Indenizatória
+  lancamentos: [
+    { k: 'vend', l: 'SOLD do vendedor', req: 1, al: ['soldvendedor', 'vendedor', 'codvendedor', 'codigovendedor', 'colaborador', 'rca', 'matricula', 'codigo'] },
+    { k: 'valor', l: 'Valor (R$)', req: 1, al: ['valor', 'valorr', 'total', 'quantia', 'montante'] },
+    { k: 'tipo', l: 'Tipo (reembolso ou desconto)', al: ['tipo', 'natureza', 'lancamento', 'operacao'] },
+    { k: 'mes', l: 'Mês da verba', al: ['mes', 'mesano', 'periodo', 'competencia', 'referencia'] },
+    { k: 'data', l: 'Data', al: ['data', 'dia', 'datadodespesa', 'datadespesa'] },
+    { k: 'motivo', l: 'Motivo', al: ['motivo', 'descricao', 'historico', 'justificativa', 'observacao'] },
+    { k: 'ref', l: 'Referência (rota, dia, documento)', al: ['ref', 'referencia', 'rota', 'documento', 'nf', 'notafiscal'] }
   ]
 };
 const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 let wz = null;
 function openImport(kind, opts = {}) {
   if (!window.XLSX) { toast('O leitor de planilhas não carregou. Use “Colar dados”.'); }
-  wz = { kind, step: 1, rows: null, headers: [], map: {}, wb: null, sheet: '', toPlanner: !!opts.toPlanner, target: kind === 'roteiro' ? (amb() && !opts.toPlanner ? 'atual' : 'novo') : '', modo: 'mesclar', novoNome: 'Roteiro importado ' + new Date().toLocaleDateString('pt-BR'), update: true, geo: true };
+  wz = { natPadrao: opts.natPadrao, kind, step: 1, rows: null, headers: [], map: {}, wb: null, sheet: '', toPlanner: !!opts.toPlanner, target: kind === 'roteiro' ? (amb() && !opts.toPlanner ? 'atual' : 'novo') : '', modo: 'mesclar', novoNome: 'Roteiro importado ' + new Date().toLocaleDateString('pt-BR'), update: true, geo: true };
   renderWz();
 }
 function renderWz() {
-  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro', rotas: 'Importar base de roteiros (Rotas)' }[wz.kind];
+  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro', rotas: 'Importar base de roteiros (Rotas)', lancamentos: 'Importar reembolsos e descontos' }[wz.kind];
   const steps = `<div class="steps"><span class="${wz.step === 1 ? 'on' : ''}">1 · Arquivo</span>›<span class="${wz.step === 2 ? 'on' : ''}">2 · Colunas</span>›<span class="${wz.step === 3 ? 'on' : ''}">3 · Resultado</span></div>`;
   let body = '', foot = '';
   if (wz.step === 1) {
-    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.', rotas: 'Uma linha por cliente e vendedor, com o Dia e a Semana do roteiro, ou a Data de cada visita. Com uma coluna de Período (ou datas de meses diferentes), cada mês vira uma base separada no histórico. Equipe, Região e Segmento são opcionais e viram filtros. A posição do cliente vem da base de clientes ou da Latitude/Longitude da planilha.' }[wz.kind];
+    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.', rotas: 'Uma linha por cliente e vendedor, com o Dia e a Semana do roteiro, ou a Data de cada visita. Com uma coluna de Período (ou datas de meses diferentes), cada mês vira uma base separada no histórico. Equipe, Região e Segmento são opcionais e viram filtros. A posição do cliente vem da base de clientes ou da Latitude/Longitude da planilha.', lancamentos: 'Uma linha por lançamento: SOLD do vendedor e Valor. Opcionais: Tipo (reembolso ou desconto; valor negativo também conta como desconto), Mês ou Data, Motivo e Referência. As imagens de comprovante podem ser incluídas depois, editando cada lançamento.' }[wz.kind];
     body = `<p class="muted" style="margin:0">${help}</p>
       <div class="row"><button class="btn sm" type="button" data-modelo="${wz.kind}">Baixar modelo (.xlsx)</button><span class="muted" style="font-size:12px">Planilha pronta com as colunas, exemplos e uma aba de instruções.</span></div>
       <label class="field"><span class="lbl">Planilha (.xlsx, .xls, .csv)</span><input type="file" id="wzFile" accept=".xlsx,.xls,.xlsm,.csv,.txt"></label>
@@ -2252,20 +2274,20 @@ function renderWz() {
     const opt = sel => `<option value="-1">— não importar —</option>` + wz.headers.map((h, i) => `<option value="${i}"${sel === i ? ' selected' : ''}>${esc(h || 'Coluna ' + (i + 1))}</option>`).join('');
     const prev = wz.rows.slice(0, 4);
     body = `<div style="overflow-x:auto"><table class="t maptbl"><thead><tr><th>Campo do sistema</th><th>Coluna da planilha</th><th>Exemplo</th></tr></thead><tbody>${F.map(f => `<tr><td>${esc(f.l)}${f.req ? ' *' : ''}</td><td><select data-wzf="${f.k}">${opt(wz.map[f.k] ?? -1)}</select></td><td class="muted" style="font-size:12px">${prev.map(r => esc(wz.map[f.k] >= 0 ? r[wz.map[f.k]] : '')).filter(Boolean).slice(0, 2).join(' · ')}</td></tr>`).join('')}</tbody></table></div>
-      ${wz.kind === 'rotas' ? window.RotasMod.opcoesImport(wz) : wz.kind !== 'roteiro' ? `<label class="chk"><input type="checkbox" id="wzUpd" ${wz.update ? 'checked' : ''}> Atualizar registros que já existem (pelo ${wz.kind === 'clientes' ? 'SOLD' : 'código'})</label>` : `
+      ${modImport(wz.kind) ? modImport(wz.kind).opcoesImport(wz) : wz.kind !== 'roteiro' ? `<label class="chk"><input type="checkbox" id="wzUpd" ${wz.update ? 'checked' : ''}> Atualizar registros que já existem (pelo ${wz.kind === 'clientes' ? 'SOLD' : 'código'})</label>` : `
       <div class="fgrid">
         <label class="field"><span class="lbl">Destino</span><select id="wzTgt">${amb() ? `<option value="atual"${wz.target === 'atual' ? ' selected' : ''}>Estudo aberto: ${esc(amb().nome)}</option>` : ''}<option value="novo"${wz.target === 'novo' ? ' selected' : ''}>Novo estudo</option></select></label>
         <label class="field" ${wz.target === 'novo' ? '' : 'hidden'}><span class="lbl">Nome do novo estudo</span><input type="text" id="wzNome" value="${esc(wz.novoNome)}"></label>
         <label class="field" ${wz.target === 'atual' ? '' : 'hidden'}><span class="lbl">Modo</span><select id="wzModo"><option value="mesclar"${wz.modo === 'mesclar' ? ' selected' : ''}>Mesclar com o que existe</option><option value="substituir"${wz.modo === 'substituir' ? ' selected' : ''}>Substituir todo o roteiro do estudo</option></select></label>
       </div>`}
-      ${wz.kind === 'rotas' ? '' : `<div class="row"><label class="chk"><input type="checkbox" id="wzGeo" ${wz.geo ? 'checked' : ''}> Buscar as coordenadas pelo endereço de quem não tiver latitude/longitude</label>${geoSrcSel()}</div>`}`;
+      ${modImport(wz.kind) ? '' : `<div class="row"><label class="chk"><input type="checkbox" id="wzGeo" ${wz.geo ? 'checked' : ''}> Buscar as coordenadas pelo endereço de quem não tiver latitude/longitude</label>${geoSrcSel()}</div>`}`;
     foot = `<button class="btn" id="wzBack">Voltar</button><button class="btn primary" id="wzGo">Importar ${wz.rows.length} linha(s)</button>`;
   } else {
     const r = wz.res, rg = r.regId && st.imp && st.imp.get(r.regId);
     body = `<div class="stack">${r.lines.map(l => `<div class="banner ${l[0]}">${l[1]}</div>`).join('')}
       ${rg ? `<div class="imp-reg"><div class="row" style="justify-content:space-between"><span class="lbl">Registrado no histórico de importações</span><span class="muted" style="font-size:12px">${fdh(rg.em)} · ${esc(rg.usuario || 'sem usuário')}</span></div>
         <label class="field"><span class="lbl">Observação (opcional)</span><textarea id="wzMsg" class="msg" maxlength="500" placeholder="Ex.: roteiro de novembro enviado pelo comercial">${esc(rg.msg || '')}</textarea><span class="hint">Fica no histórico junto com a data, o usuário e as quantidades. Pode ser editada depois.</span></label></div>` : ''}</div>`;
-    foot = wz.kind === 'rotas' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="rotas">Abrir em Rotas</button>` : wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
+    foot = wz.kind === 'rotas' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="rotas">Abrir em Rotas</button>` : wz.kind === 'lancamentos' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="verba">Abrir na Verba</button>` : wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
   }
   openModal(`<div class="dh"><h2>${T}</h2>${steps}<button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div><div class="db">${body}</div><div class="df">${foot}</div>`);
   const wm = $('#wzMsg'); if (wm) wm.oninput = () => impMsg(wz.res.regId, wm.value);
@@ -2278,7 +2300,7 @@ function renderWz() {
     $$('[data-wzf]').forEach(s => { s.onchange = () => { wz.map[s.dataset.wzf] = +s.value; renderWz(); }; });
     const u = $('#wzUpd'); if (u) u.onchange = () => { wz.update = u.checked; };
     const wg = $('#wzGeo'); if (wg) wg.onchange = e => { wz.geo = e.target.checked; };
-    if (wz.kind === 'rotas') window.RotasMod.ligaOpcoesImport(wz);
+    if (modImport(wz.kind)) modImport(wz.kind).ligaOpcoesImport(wz);
     const tg = $('#wzTgt'); if (tg) tg.onchange = () => { wz.target = tg.value; renderWz(); };
     const nm = $('#wzNome'); if (nm) nm.oninput = () => { wz.novoNome = nm.value; };
     const md = $('#wzModo'); if (md) md.onchange = () => { wz.modo = md.value; };
@@ -2286,6 +2308,8 @@ function renderWz() {
     $('#wzGo').onclick = () => runImport();
   }
 }
+// Importações tratadas por módulos em arquivos separados
+function modImport(kind) { return kind === 'rotas' ? window.RotasMod : kind === 'lancamentos' ? window.VerbaMod : null; }
 function loadSheet() { const ws = wz.wb.Sheets[wz.sheet]; const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }); setRows(rows); }
 function parseText(txt) {
   if (window.XLSX) { try { const wb = XLSX.read(txt, { type: 'string' }); setRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' })); return; } catch (e) { /* cai no simples */ } }
@@ -2326,10 +2350,10 @@ function cell(r, k) { const i = wz.map[k]; return i >= 0 ? r[i] : ''; }
 async function runImport() {
   const F = FIELDS[wz.kind]; const req = F.filter(f => f.req);
   for (const f of req) if (!(wz.map[f.k] >= 0)) { toast(`Escolha a coluna de “${f.l}”`); return; }
-  if (wz.kind === 'rotas') {
-    const res = await window.RotasMod.importar(wz, r => k => cell(r, k));
+  if (modImport(wz.kind)) {
+    const res = await modImport(wz.kind).importar(wz, r => k => cell(r, k));
     if (!res) return;
-    const regId = st.rotasSemTabela ? null : registraImport(res.reg, res.lines);
+    const regId = (wz.kind === 'rotas' ? st.rotasSemTabela : st.verbaSemTabela) ? null : registraImport(res.reg, res.lines);
     wz.res = { lines: res.lines, regId }; wz.step = 3; renderWz(); renderHome(); return;
   }
   const lines = [], toGeo = []; let reg = { linhas: wz.rows.length };
@@ -2479,7 +2503,7 @@ async function runImport() {
 /* ================= Histórico de importações =================
    Cada importação fica registrada para a empresa: data e hora, usuário, arquivo, quantidades e uma observação opcional. */
 const IMP_MAX = 400;
-const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro', rotas: 'Base de rotas' };
+const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro', rotas: 'Base de rotas', lancamentos: 'Reembolsos e descontos' };
 const fdh = ts => new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const semHtml = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.trim(); };
 function registraImport(reg, lines) {
@@ -3024,6 +3048,20 @@ MODELOS.rotas = {
   ],
   dicas: ['Uma planilha com vários meses (coluna Período ou Data) gera uma base por mês no histórico.', 'Importar de novo o mesmo mês substitui a base daquele mês, se a opção estiver marcada.', 'O KM é estimado pela distância em linha reta × fator de rota (como no Planejamento) e pode ser recalculado pelas ruas em Rotas → Mapa.', 'O valor do KM (R$) fica em Rotas → Parâmetros.']
 };
+MODELOS.lancamentos = {
+  titulo: 'Reembolsos e descontos (Verba)', aba: 'Lancamentos', arq: 'modelo_reembolsos_descontos.xlsx',
+  desc: 'Lançamentos que somam (reembolso) ou subtraem (desconto) da verba indenizatória do mês.',
+  cols: [
+    ['SOLD vendedor', 1, 'Código do vendedor', '1157', '1157'],
+    ['Valor', 1, 'Em reais. Valor negativo também conta como desconto', '45,90', '30,00'],
+    ['Tipo', 2, 'Reembolso ou Desconto. Vazio = o escolhido na importação', 'Reembolso', 'Desconto'],
+    ['Mês', 0, 'Mês da verba (11/2026). Vazio = o mês da Data, ou o escolhido na importação', '11/2026', '11/2026'],
+    ['Data', 0, 'Data da despesa ou do fato (dd/mm/aaaa)', '10/11/2026', '17/11/2026'],
+    ['Motivo', 2, 'Ex.: Pedágio, Estacionamento, KM não realizado', 'Pedágio', 'Rota não cumprida'],
+    ['Referência', 0, 'Rota, dia ou documento (NF, recibo)', 'NF 1234', 'segunda S2']
+  ],
+  dicas: ['As imagens de comprovante ou evidência são incluídas depois, editando o lançamento em Verba → Reembolsos ou Descontos.', 'Só o administrador do ambiente importa e altera lançamentos.']
+};
 function downloadModelo(kind) {
   const m = MODELOS[kind]; if (!m) return;
   if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
@@ -3304,6 +3342,7 @@ function pageAct(act, btn) {
     case 'newamb': newAmbForm(); break;
     case 'plannerOpen': openPlannerChooser(); break;
     case 'rotasImport': openImport('rotas'); break;
+    case 'focoplan': st.homeFocus = btn.dataset.fid; renderHome(); break;
     case 'seguranca': segurancaForm(); break;
     case 'listagens': openListagens(); break;
     case 'conta': contaForm(); break;
@@ -3469,7 +3508,8 @@ function renderHome() {
   const tipH = $('#tip'); if (tipH) tipH.hidden = true;
   if (st.homeSec === 'rotas' && window.RotasMod) { window.RotasMod.render(el); return; }
   if (window.RotasMod) window.RotasMod.limpar();
-  if (st.homeSec === 'verba') { el.innerHTML = paginaVerba(); el.scrollTop = 0; return; }
+  if (st.homeSec === 'verba' && window.VerbaMod) { window.VerbaMod.render(el); return; }
+  if (st.homeSec === 'cal' && window.CalMod) { window.CalMod.render(el); return; }
   if (st.homeSec !== 'plan') { renderHub(el); return; }
   renderPlanejamento(el);
 }
@@ -3478,13 +3518,14 @@ const ICON_MOD = {
   plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>',
   rotas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10.2A6 6 0 0 1 18 10.8C18 15.7 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.3"/></svg>',
   verba: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg>',
-  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>'
+  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>'
 };
 function renderHub(el) {
   const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   const nome = String((st.usuario && st.usuario.nome) || '').split(' ')[0];
-  const cur = amb(), R = window.RotasMod ? window.RotasMod.resumoHub() : null;
-  const stat = (v, l) => `<span class="ms"><b class="num">${v}</b><span>${l}</span></span>`;
+  const cur = amb(), R = window.RotasMod ? window.RotasMod.resumoHub() : null, C = window.CalMod ? window.CalMod.resumoHub() : null, V = window.VerbaMod ? window.VerbaMod.resumoHub() : null;
+  const stat = (v, l) => `<span class="ms"><b class="num${String(v).length > 12 ? ' longo' : ''}">${v}</b><span>${l}</span></span>`;
   const mod = (k, titulo, desc, stats, extra = '', cls = '') => `<article class="mod ${cls}"><button type="button" class="mod-go" data-hub="${k}" aria-label="Abrir ${esc(titulo)}"></button>
     <div class="mod-h"><span class="mod-i">${ICON_MOD[k]}</span><div><h2>${titulo}</h2><p>${desc}</p></div></div>
     <div class="mod-s">${stats}</div>${extra ? `<div class="mod-a">${extra}</div>` : ''}</article>`;
@@ -3496,7 +3537,10 @@ function renderHub(el) {
         `<button class="btn sm primary" type="button" data-act="plannerOpen">Abrir Planner</button>${cur ? `<button class="btn sm" type="button" data-enter="${esc(cur.id)}">Continuar: ${esc(cur.nome)}</button>` : ''}`)}
       ${mod('rotas', 'Rotas', 'Bases de roteiros por mês e ano: tabela, mapa com pinos e regiões, filtros e comparação com os estudos.', R ? stat(nf0.format(R.bases), R.bases === 1 ? 'base' : 'bases') + stat(R.ultimo || '—', 'último período') + stat(R.km, 'KM/mês') : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn sm" type="button" data-act="rotasImport"${st.ro ? ' disabled' : ''}>Importar base</button>`)}
-      ${mod('verba', 'Verba Indenizatória', 'Reembolso de KM rodado pelos colaboradores, a partir das rotas e do valor do KM.', '<span class="pill idle">Em breve</span>', '', 'breve')}
+      ${mod('verba', 'Verba Indenizatória', 'KM das rotas × racional de combustível e cesta de serviço × dias de rota no mês, com reembolsos, descontos, extrato e histórico.', V ? stat(V.racional, 'racional') + stat(V.ultimo, 'última apuração') + stat(nf0.format(V.lanc), 'lançamentos no mês') : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="verba">Abrir Verba</button>`)}
+      ${mod('cal', 'Calendário', 'Ano inteiro com dias úteis, feriados, eventos da empresa e as semanas do ciclo (S1 a S4 e quinzenas 1,3 e 2,4).', C ? stat(C.semana, `semana atual · ${C.quinzena}`) + stat(nf0.format(C.uteis), 'dias úteis no mês') + stat(esc(C.proximo), 'próximo evento') : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="cal">Abrir Calendário</button>`)}
       ${mod('config', 'Configurações', 'Minha conta, segurança e privacidade, mapa de fundo, servidores de rota e backup.', mfa + (st.usuario && st.usuario.papel === 'admin' ? '<span class="pill idle">Administrador</span>' : ''),
         `<button class="btn sm" type="button" data-hub="config">Abrir</button><button class="btn sm" type="button" data-act="seguranca">Segurança</button>`)}
     </nav>
@@ -3504,12 +3548,7 @@ function renderHub(el) {
   </div>`;
   el.scrollTop = 0;
 }
-function paginaVerba() {
-  return `<div class="page home">${migalha('Verba Indenizatória')}
-    <section class="card"><div class="empty"><span class="mod-i lg">${ICON_MOD.verba}</span><h3>Verba Indenizatória · em breve</h3>
-      <p>Este módulo vai calcular o reembolso de KM rodado por colaborador a partir das bases de Rotas e do valor do KM definido lá. Enquanto isso, o valor do KM por dia, semana e mês já aparece em Rotas.</p>
-      <div class="row" style="justify-content:center"><button class="btn primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn" type="button" data-hub="hub">Voltar ao início</button></div></div></section></div>`;
-}
+
 function renderPlanejamento(el) {
   const tipEl = $('#tip'); if (tipEl) tipEl.hidden = true;
   const keep = el.scrollTop;
@@ -3518,92 +3557,70 @@ function renderPlanejamento(el) {
   const byId = new Map(ready.map(s => [s.id, s]));
   const recent = [...ready].sort((x, y) => y.alterado - x.alterado);
   const f = byId.get(st.homeFocus) || byId.get(st.cur) || recent[0] || null;
-  const cur = amb();
   const clis = [...st.cli.values()], cols = [...st.col.values()];
   const comCoord = clis.filter(c => isNum(c.lat) && isNum(c.lng)).length;
   const cidades = new Map(); for (const c of clis) if (c.cidade) cidades.set(c.cidade, (cidades.get(c.cidade) || 0) + 1);
   const basesOk = cols.filter(c => isNum(c.lat) && isNum(c.lng)).length;
-  const comRotas = ready.filter(s => s.rotas > 0);
-  const melhor = [...comRotas].sort((x, y) => x.km - y.km)[0];
-
-  const hero = `<section class="hero card"><div><span class="lbl">Planejamento territorial · ${esc(st.empresa.nome)}</span><h1>Roteirizador <b>RRM</b></h1>
-    <p>Acompanhe os números dos estudos e abra o Planner para montar setores e rotas sobre o mapa, calcular KM e tempo e comparar cenários.</p></div>
-    <div class="row"><button class="btn primary lg" data-act="plannerOpen">Abrir Planner</button>${st.cli.size ? '<button class="btn lg" data-act="mapabase" title="Todos os clientes da base, com filtro por cidade">Mapa da base</button>' : ''}${cur ? `<button class="btn lg" data-enter="${esc(cur.id)}" title="Abrir o último estudo no mapa">Continuar: ${esc(cur.nome)}</button>` : ''}</div></section>`;
+  const comRotas = ready.filter(s => s.rotas > 0), nSea = seaList().length;
+  const topo = `${migalha('Planejamento')}<div class="ph"><div><h1>Planejamento</h1><p>Estudos de setores e roteiros sobre o mapa.</p></div>
+    <div class="row">${st.cli.size ? '<button class="btn" data-act="mapabase">Mapa da base</button>' : ''}<button class="btn" data-act="plannerImport">Importar roteiro</button><button class="btn primary" data-act="plannerOpen">Abrir Planner</button></div></div>`;
 
   if (!st.amb.size && !st.cli.size) {
-    el.innerHTML = `<div class="page home">${migalha('Planejamento')}${hero}${atalhosHome()}<div class="card"><div class="empty"><h3>Vamos começar</h3><p>Ainda não há clientes nem estudos. Baixe os modelos de planilha e importe colaboradores, clientes e roteiro, abra o Planner para criar um estudo vazio, restaure um backup ou gere dados de exemplo para conhecer o sistema.</p>
-      <div class="row" style="justify-content:center"><button class="btn primary" data-go="importar">Importação e modelos</button><button class="btn" data-act="plannerOpen">Abrir Planner</button><button class="btn" data-act="sample">Gerar dados de exemplo</button><button class="btn" data-act="restore">Restaurar backup</button></div></div></div></div>`;
+    el.innerHTML = `<div class="page home plan">${topo}<div class="card"><div class="empty"><h3>Vamos começar</h3><p>Ainda não há clientes nem estudos. Importe colaboradores, clientes e roteiro, crie um planner vazio, restaure um backup ou gere dados de exemplo para conhecer o sistema.</p>
+      <div class="row" style="justify-content:center"><button class="btn primary" data-go="importar">Importação e modelos</button><button class="btn" data-act="plannerNew">Planner vazio</button><button class="btn" data-act="sample">Dados de exemplo</button><button class="btn" data-act="restore">Restaurar backup</button></div></div></div></div>`;
     el.scrollTop = keep; return;
   }
 
-  const overview = `<div class="kgrid">
-    ${kcard('Estudos', nf0.format(st.amb.size), `${comRotas.length} com rotas montadas`)}
-    ${kcard('Clientes na base', nf0.format(clis.length), clis.length ? `${fpct(comCoord / clis.length)} com coordenadas` : 'base vazia')}
-    ${kcard('Bases de saída', `${nf0.format(basesOk)}<span class="of">/${nf0.format(cols.length)}</span>`, `colaboradores com base localizada`)}
-    ${kcard('Cidades', nf0.format(cidades.size), cidades.size ? esc([...cidades].sort((x, y) => y[1] - x[1])[0][0]) + ' é a maior' : 'sem cidade informada')}
-    ${kcard('Menor KM no ciclo', melhor ? fkm(melhor.km) : '—', melhor ? esc(melhor.nome) : 'sem rotas calculadas')}
-    ${kcard('Última alteração', recent[0] ? fdate(recent[0].alterado) : '—', recent[0] ? esc(recent[0].nome) : '—')}</div>`;
+  const kpis = `<div class="kgrid k4">
+    ${kcard('Estudos', nf0.format(st.amb.size), `${comRotas.length} com rotas`)}
+    ${kcard('Clientes', nf0.format(clis.length), clis.length ? `${fpct(comCoord / clis.length)} no mapa${nSea ? ` · <button type="button" class="linkbtn" data-act="adj">${nf0.format(nSea)} a ajustar</button>` : ''}` : 'base vazia')}
+    ${kcard('Colaboradores', `${nf0.format(basesOk)}<span class="of">/${nf0.format(cols.length)}</span>`, 'com base de saída localizada')}
+    ${kcard('Cidades', nf0.format(cidades.size), cidades.size ? esc([...cidades].sort((x, y) => y[1] - x[1])[0][0]) + ' é a maior' : 'sem cidade informada')}</div>`;
 
-  let focusBlock = '';
+  // Lista de estudos: o essencial de cada um e um clique para abrir
+  const lista = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0)).map(a => {
+    const s = byId.get(a.id), tags = (a.id === st.cur ? ' <span class="pill ok">último aberto</span>' : '') + (a.exemplo ? ' <span class="pill idle">exemplo</span>' : '');
+    return `<tr class="clk${s && f && s.id === f.id ? ' on' : ''}" data-enter="${esc(a.id)}"><td class="wrap"><b>${esc(a.nome)}</b>${tags}${a.desc ? `<div class="muted" style="font-size:12px">${esc(a.desc)}</div>` : ''}</td>
+      ${s ? `<td class="n">${s.setores}</td><td class="n">${nf0.format(s.clientes)}</td><td class="n">${fkm(s.km)}</td><td>${s.rotas ? ocPill(s.oc) : '<span class="muted">sem rotas</span>'}</td>` : '<td class="muted" colspan="4">calculando…</td>'}
+      <td class="muted">${fdate(a.alterado || a.criado)}</td><td class="n"><button class="btn sm" type="button" data-act="focoplan" data-fid="${esc(a.id)}" title="Ver os indicadores abaixo">Indicadores</button> <button class="btn sm primary" type="button" data-enter="${esc(a.id)}">Abrir</button></td></tr>`;
+  }).join('');
+  const estudos = `<section class="card"><div class="ch"><h2>Estudos</h2><span class="row"><button class="btn sm" data-act="plannerNew">Novo estudo</button></span></div>
+    <div class="tblwrap flat"><table class="t"><thead><tr><th>Estudo</th><th class="n">Setores</th><th class="n">Clientes</th><th class="n">KM no ciclo</th><th>Ocupação</th><th>Alterado</th><th></th></tr></thead><tbody>${lista}</tbody></table></div></section>`;
+
+  // Estudo em foco, compacto: quatro números e o KM por setor
+  let foco = '';
   if (f) {
-    const dias = [...new Set([...f.diasP, ...Object.keys(f.dias).map(Number)])].filter(d => d >= 1 && d <= 7).sort((x, y) => x - y);
-    const OCC = [['Com folga', '< 50%', 'var(--muted)'], ['Adequada', '50–90%', 'var(--ok)'], ['No limite', '90–100%', 'var(--warn)'], ['Excede', '> 100%', 'var(--bad)']];
-    const chart = (t, sub, body) => `<div class="card"><div class="ch"><h2>${t}</h2><span class="muted" style="font-size:12px">${sub}</span></div><div class="cb">${body}</div></div>`;
-    const none = msg => `<p class="muted" style="margin:0">${msg}</p>`;
-    const kmRows = [...comRotas].sort((x, y) => x.km - y.km).slice(0, 8).map(s => ({ label: s.nome, v: s.km, fmt: fkm(s.km) + ' km', enter: s.id, strong: s.id === f.id, tip: `${s.nome}\n${fkm(s.km)} km · ${fhm(s.horas)} · ${s.rotas} rotas\nOcupação média ${fpct(s.oc)}\nClique para abrir no Planner` }));
     const setRows = [...f.setoresList].filter(s => s.rotas).sort((x, y) => y.km - x.km).map(s => ({ label: s.nome, cor: s.cor, v: s.km, fmt: fkm(s.km) + ' km', tip: `${s.nome}\n${s.clientes} clientes · ${s.rotas} rotas\n${fkm(s.km)} km · ${fhm(s.horas)}\nOcupação média ${fpct(s.oc)}` }));
-    focusBlock = `<div class="ph"><h2 class="sec">Indicadores do estudo</h2><label class="row"><span class="lbl">Estudo em foco</span><select id="hFocus">${recent.map(s => `<option value="${esc(s.id)}"${s.id === f.id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label></div>
-      <div class="kgrid">
-        ${kcard('Clientes', nf0.format(f.clientes), `${nf0.format(f.setorizados)} com setor`)}
-        ${kcard('Setores', nf0.format(f.setores), `${f.setoresList.filter(s => s.colab).length} com colaborador`)}
-        ${kcard('Rotas', nf0.format(f.rotas), `ciclo de ${f.semanas} semana${f.semanas > 1 ? 's' : ''}`)}
-        ${kcard('KM no ciclo', fkm(f.km), f.rotas ? `${fkm(f.km / f.rotas)} km por rota` : 'sem rotas')}
-        ${kcard('Tempo no ciclo', fhm(f.horas), `${fhm(f.desl)} desloc. · ${fhm(f.atend)} atend.`)}
-        ${kcard('Ocupação média', f.rotas ? fpct(f.oc) : '—', f.rotas ? `maior rota: ${fpct(f.ocMax)}` : 'sem rotas')}</div>
-      ${f.rotas ? '' : `<div class="banner info">Este estudo ainda não tem rotas montadas. <button class="btn sm" data-enter="${esc(f.id)}">Abrir no Planner</button></div>`}
-      <div class="cgrid">
-        ${chart('KM no ciclo por estudo', 'menor = menos deslocamento', kmRows.length ? hbars(kmRows) : none('Monte rotas em um estudo para compará-lo aqui.'))}
-        ${chart('KM por setor', esc(f.nome), setRows.length ? hbars(setRows) : none('Este estudo não tem setores com rotas.'))}
-        ${chart('Ocupação da jornada nas rotas', `${f.rotas} rotas`, f.rotas ? vcols(OCC.map(([n, r, cor], i) => ({ label: n, sub: r, v: f.occ[i], cor, tip: `${n} (${r} da jornada)\n${f.occ[i]} rota(s)` }))) : none('Sem rotas para medir.'))}
-        ${chart('Visitas por dia da semana', 'no ciclo', f.rotas ? vcols(dias.map(d => ({ label: DIA_C[d], v: f.dias[d] || 0, tip: `${DIA_L[d]}\n${nf0.format(f.dias[d] || 0)} visitas no ciclo` }))) : none('Sem rotas para medir.'))}
-      </div>`;
+    const mini = (k, v, s2) => `<div class="mini"><span class="lbl">${k}</span><b class="num">${v}</b><span class="muted">${s2}</span></div>`;
+    foco = `<section class="card"><div class="ch"><h2>${esc(f.nome)}</h2><span class="row"><select id="hFocus" aria-label="Estudo em foco">${recent.map(s => `<option value="${esc(s.id)}"${s.id === f.id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select><button class="btn sm primary" data-enter="${esc(f.id)}">Abrir no mapa</button></span></div>
+      <div class="cb foco"><div class="minis">${mini('Rotas', nf0.format(f.rotas), `ciclo de ${f.semanas} sem.`)}${mini('KM no ciclo', fkm(f.km), f.rotas ? `${fkm(f.km / f.rotas)} por rota` : 'sem rotas')}${mini('Tempo no ciclo', fhm(f.horas), `${fhm(f.desl)} desloc.`)}${mini('Ocupação', f.rotas ? fpct(f.oc) : '—', f.rotas ? `maior ${fpct(f.ocMax)}` : '')}</div>
+      <div><div class="lbl" style="margin-bottom:6px">KM por setor</div>${setRows.length ? hbars(setRows) : '<p class="muted" style="margin:0">Este estudo ainda não tem rotas montadas.</p>'}</div></div></section>`;
   }
 
+  // O restante fica recolhido: cobertura no mapa, bases de dados e colaboradores
   const cityRows = [...cidades].sort((x, y) => y[1] - x[1]).slice(0, 6).map(([c, n]) => ({ label: c, v: n, fmt: nf0.format(n), tip: `${c}\n${nf0.format(n)} clientes` }));
   const legend = f ? f.setoresList.slice(0, 12).map(s => `<span class="li"><i class="sw" style="background:${esc(s.cor)}"></i>${esc(s.nome)}</span>`).join('') : '';
   const colRows = [...cols].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).slice(0, 10).map(c => {
     const s = f && f.setoresList.find(x => x.colab === c.codigo);
-    return `<tr><td><span class="sw" style="background:${esc(c.cor || 'var(--muted)')}"></span></td><td><b>${esc(c.nome)}</b> <span class="muted">${esc(c.codigo)}</span></td><td>${esc(c.funcao || '')}</td><td class="wrap">${esc(c.endereco || '—')}</td><td>${isNum(c.lat) && isNum(c.lng) ? '<span class="pill ok">localizada</span>' : '<span class="pill warn">sem coordenadas</span>'}</td><td>${s ? esc(s.nome) : '<span class="muted">—</span>'}</td><td class="n">${s ? fkm(s.km) : '—'}</td></tr>`;
+    return `<tr><td><span class="sw" style="background:${esc(c.cor || 'var(--muted)')}"></span></td><td><b>${esc(c.nome)}</b> <span class="muted">${esc(c.codigo)}</span></td><td class="wrap">${esc(c.endereco || '—')}</td><td>${isNum(c.lat) && isNum(c.lng) ? '<span class="pill ok">localizada</span>' : '<span class="pill warn">sem coordenadas</span>'}</td><td>${s ? esc(s.nome) : '<span class="muted">—</span>'}</td></tr>`;
   }).join('');
-  const studyRows = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0)).map(a => {
-    const s = byId.get(a.id), tag = (a.exemplo ? ' <span class="pill idle">exemplo</span>' : '') + (a.id === st.cur ? ' <span class="pill ok">último aberto</span>' : '');
-    const nm = `<td class="wrap"><b>${esc(a.nome)}</b>${tag}${a.desc ? `<div class="muted" style="font-size:12px">${esc(a.desc)}</div>` : ''}</td>`;
-    return `<tr class="clk" data-enter="${esc(a.id)}">${nm}${s ? `<td class="n">${s.setores}</td><td class="n">${nf0.format(s.clientes)}</td><td class="n">${s.rotas}</td><td class="n">${fkm(s.km)}</td><td class="n">${fhm(s.horas)}</td><td>${s.rotas ? ocPill(s.oc) : '—'}</td>` : '<td class="muted" colspan="6">calculando…</td>'}<td>${fdate(a.alterado || a.criado)}</td><td><button class="btn sm primary" type="button" data-enter="${esc(a.id)}">Abrir</button></td></tr>`;
-  }).join('');
-
-  el.innerHTML = `<div class="page home">${migalha('Planejamento')}${hero}${atalhosHome()}
-    <div class="ph"><h2 class="sec">Visão geral</h2></div>${overview}
-    ${focusBlock}
-    <div class="ph"><h2 class="sec">Bases</h2></div>
-    <div class="cols-b">
-      <div class="card"><div class="ch"><h2>Cobertura geográfica</h2><button class="btn sm" data-enter="${f ? esc(f.id) : ''}"${f ? '' : ' hidden'}>Ver no mapa</button></div><div class="cb stack">${homeScatter(f)}
-        <div class="legend-row"><span class="li"><i class="sw" style="background:var(--muted);opacity:.6"></i>Clientes${f ? ' fora de setor' : ''}</span>${legend}<span class="li"><i class="sw sq" style="background:var(--ink)"></i>Base do colaborador</span></div></div></div>
-      <div class="card"><div class="ch"><h2>Bases de dados</h2></div><div class="cb stack">
+  st.planMais = st.planMais || false;
+  const mais = `<details class="card mais" id="planMais"${st.planMais ? ' open' : ''}><summary><b>Bases e cobertura</b><span class="muted">clientes por cidade, mapa de cobertura e bases de saída</span></summary>
+    <div class="cb stack"><div class="cols-b">
+      <div class="stack">${homeScatter(f)}<div class="legend-row"><span class="li"><i class="sw" style="background:var(--muted);opacity:.6"></i>Clientes${f ? ' fora de setor' : ''}</span>${legend}<span class="li"><i class="sw sq" style="background:var(--ink)"></i>Base do colaborador</span></div></div>
+      <div class="stack">
         <div class="dbrow"><div><div class="lbl">Clientes</div><b class="num">${nf0.format(clis.length)}</b> <span class="muted">· ${nf0.format(clis.length - comCoord)} sem coordenadas</span></div><button class="btn sm" data-go="clientes">Gerenciar</button></div>
         <div class="dbrow"><div><div class="lbl">Colaboradores</div><b class="num">${nf0.format(cols.length)}</b> <span class="muted">· ${nf0.format(cols.length - basesOk)} sem base localizada</span></div><button class="btn sm" data-go="colaboradores">Gerenciar</button></div>
-        <div class="dbrow"><div><div class="lbl">Importação e modelos</div><span class="muted">${impUltima() || 'Modelos de planilha para clientes, colaboradores e roteiro'}${seaList().length ? ` · <b style="color:var(--warn)">${nf0.format(seaList().length)} endereço(s) a ajustar</b>` : ''}</span></div><button class="btn sm primary" data-go="importar">Abrir</button></div>
-        <div><div class="lbl" style="margin-bottom:6px">Clientes por cidade</div>${cityRows.length ? hbars(cityRows) : '<p class="muted" style="margin:0">Nenhuma cidade informada nos clientes.</p>'}</div></div></div>
-    </div>
-    <div class="card"><div class="ch"><h2>Bases de saída dos colaboradores</h2><span class="muted" style="font-size:12px">${f ? 'setor no estudo: ' + esc(f.nome) : ''}</span></div>
-      ${colRows ? `<div style="overflow-x:auto"><table class="t"><thead><tr><th></th><th>Colaborador</th><th>Função</th><th>Endereço da base</th><th>Localização</th><th>Setor</th><th class="n">KM/ciclo</th></tr></thead><tbody>${colRows}</tbody></table></div>${cols.length > 10 ? `<div class="pager">Mostrando 10 de ${cols.length} · <button class="btn sm" data-go="colaboradores">Ver todos</button></div>` : ''}` : '<div class="cb muted">Nenhum colaborador cadastrado. Importe a planilha em Colaboradores, dentro do Planner.</div>'}
-    </div>
-    <div class="ph"><h2 class="sec">Estudos</h2><div class="row"><button class="btn" data-act="plannerImport">Importar roteiro</button><button class="btn primary" data-act="plannerNew">Novo planner vazio</button></div></div>
-    <div class="tblwrap"><table class="t"><thead><tr><th>Estudo</th><th class="n">Setores</th><th class="n">Clientes</th><th class="n">Rotas</th><th class="n">KM no ciclo</th><th class="n">Horas no ciclo</th><th>Ocupação</th><th>Alterado</th><th></th></tr></thead><tbody>${studyRows}</tbody></table></div>
-    <div class="card"><div class="cb row" style="justify-content:space-between"><span class="muted">${st.sb ? 'Os dados ficam no banco de dados da empresa. O backup guarda bases e estudos em um arquivo.' : 'Os dados ficam neste navegador. Guarde um backup para levar bases e estudos a outro computador.'}</span><span class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button><button class="btn sm" data-act="sample">Gerar dados de exemplo</button></span></div></div>
-  </div>`;
+        <div class="dbrow"><div><div class="lbl">Importação</div><span class="muted">${impUltima() || 'Modelos de planilha para clientes, colaboradores e roteiro'}</span></div><button class="btn sm" data-go="importar">Abrir</button></div>
+        <div><div class="lbl" style="margin-bottom:6px">Clientes por cidade</div>${cityRows.length ? hbars(cityRows) : '<p class="muted" style="margin:0">Nenhuma cidade informada.</p>'}</div></div></div>
+      ${colRows ? `<div class="tblwrap"><table class="t"><thead><tr><th></th><th>Colaborador</th><th>Base de saída</th><th>Localização</th><th>Setor${f ? ' em ' + esc(f.nome) : ''}</th></tr></thead><tbody>${colRows}</tbody></table></div>${cols.length > 10 ? `<div class="pager">Mostrando 10 de ${cols.length} · <button class="btn sm" data-go="colaboradores">Ver todos</button></div>` : ''}` : ''}
+      <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12.5px">${st.sb ? 'Os dados ficam no banco de dados da empresa.' : 'Os dados ficam neste navegador.'} O backup guarda bases e estudos em um arquivo.</span><span class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button><button class="btn sm" data-act="sample">Dados de exemplo</button></span></div>
+    </div></details>`;
+
+  el.innerHTML = `<div class="page home plan">${topo}${kpis}${estudos}${foco}${mais}</div>`;
+  const d = $('#planMais'); if (d) d.ontoggle = () => { st.planMais = d.open; };
   el.scrollTop = keep;
 }
-
 /* ================= Acesso: ambientes e usuários =================
    Sem servidor, as contas ficam no mesmo armazenamento dos dados: isso separa as empresas e evita o acesso casual,
    mas não substitui um login validado em servidor. Senhas e códigos são guardados só como hash (PBKDF2). */
@@ -3991,7 +4008,7 @@ const msgBloqueio = ate => `Acesso bloqueado por excesso de tentativas. Tente de
 
 /* ----- Registro de atividades (quem fez o quê e quando). Com o Supabase, ninguém altera nem apaga um registro ----- */
 const AUD_MAX_LOCAL = 1500;
-const AUD_ACAO = { login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)' };
+const AUD_ACAO = { login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)', calendario: 'Alterou o calendário', verba: 'Verba indenizatória' };
 const audLocalColl = () => (st.empresa ? st.empresa.id : 'x') + '_auditoria';
 async function audLocalLer() { try { const d = (await st.base.list(audLocalColl())).find(x => x.id === 'log'); return (d && d.data && d.data.items) || []; } catch (e) { return []; } }
 function audita(acao, detalhe = '') {
@@ -4454,7 +4471,8 @@ async function boot() {
   setScreen('home', 'hub');
   $('#loading').hidden = true;
   iniciaInatividade();
-  if (window.RotasMod) window.RotasMod.iniciar().then(() => { if (st.screen === 'home') renderHome(); }).catch(() => {});
+  // Os módulos carregam os próprios dados em segundo plano; o início se atualiza quando chegam
+  for (const M of [window.RotasMod, window.CalMod, window.VerbaMod]) if (M) M.iniciar().then(() => { if (st.screen === 'home') renderHome(); }).catch(() => {});
   addEventListener('beforeunload', ev => {
     for (const s of Save.stores) if (s.dirty.size) s.flush();
     if (geoQ.busy) { ev.preventDefault(); ev.returnValue = ''; } // a busca de coordenadas para se a página fechar
