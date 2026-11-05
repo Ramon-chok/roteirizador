@@ -3456,8 +3456,10 @@ async function sbLogin(f) {
   if (u.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u, manter }; renderLogin(); return; }
   await entrar(u, manter);
 }
+// Endereço para onde o link de nova senha do e-mail volta. No app de Windows (endereço app://), usa a versão web de RT_CONFIG.urlWeb.
+function urlRetorno() { const w = (window.RT_CONFIG || {}).urlWeb; return (window.rrmDesktop && w) ? w : location.origin + location.pathname; }
 async function sbEsqueci(f) {
-  const { error } = await st.sb.auth.resetPasswordForEmail(String(f.get('login')).trim(), { redirectTo: location.origin + location.pathname });
+  const { error } = await st.sb.auth.resetPasswordForEmail(String(f.get('login')).trim(), { redirectTo: urlRetorno() });
   if (error) { lgMsg(sbMensagem(error)); return; }
   lg.step = 'login'; lg.ctx = {}; renderLogin();
   lgMsg('Se houver uma conta com esse e-mail, o link para criar uma nova senha chega em instantes. Confira também o spam.', 'info');
@@ -3749,7 +3751,7 @@ async function listaMembros(msg) {
     const b = ev.target.closest('button'); if (!b) return;
     const u = data.find(x => x.user_id === (b.dataset.ureset || b.dataset.udel)); if (!u) return;
     if (b.dataset.ureset) armButton(b, async () => {
-      const { error: er } = await st.sb.auth.resetPasswordForEmail(u.email, { redirectTo: location.origin + location.pathname });
+      const { error: er } = await st.sb.auth.resetPasswordForEmail(u.email, { redirectTo: urlRetorno() });
       msg(er ? sbMensagem(er) : `Link de nova senha enviado para ${u.email}.`, er ? 'bad' : 'info');
     }, 'Confirmar');
     else armButton(b, async () => {

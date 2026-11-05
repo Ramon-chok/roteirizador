@@ -130,3 +130,21 @@ No Supabase, por ambiente (veja acima). Sem o Supabase configurado, ficam no nav
 
 - Hospedar (Vercel, Netlify, servidor da empresa) para a equipe acessar por um link.
 - Servidores OSRM e Valhalla próprios com o mapa do Sudeste, para roteirizar estudos grandes sem limite de consultas.
+
+## Versão para Windows (desktop)
+
+A pasta `desktop/` gera o aplicativo de Windows com Electron. Ele não tem interface própria: usa os mesmos `index.html`, `css/` e `js/` da versão web, copiados para `desktop/web/` a cada execução. Qualquer mudança na versão web vale para o desktop no próximo build. O app conversa com o mesmo Supabase, então os dados são os mesmos.
+
+- **Testar sem instalar:** `npm run desktop:instalar` (só na primeira vez) e depois `npm run desktop:start`.
+- **Gerar o instalador:** `npm run desktop:build`. O arquivo sai em `desktop/dist/Roteirizador-RRM-Setup.exe` (Windows 10/11, 64 bits). O app só roda no Windows.
+- **Publicar para a landing page:** `npm run desktop:publicar` envia o .exe para o GitHub Releases do repositório (precisa da variável `GH_TOKEN` com um token do GitHub). Antes, aumente `version` em `desktop/package.json`.
+- **Ícone:** `desktop/build/icon.png`. Para gerar de novo a partir do logo: `npm --prefix desktop run icone`.
+- **Esqueci minha senha no desktop:** preencha `urlWeb` em `js/config.js` com o endereço da versão web. O link do e-mail abre nela, porque o endereço interno do app (`app://rrm`) não abre a partir de um e-mail.
+- **Chave do Google:** se a chave tiver restrição por site, inclua `app://rrm/*` na lista de sites permitidos para os mapas do Google funcionarem no desktop.
+- **Aviso do Windows:** o instalador não é assinado digitalmente, então o Windows mostra "O Windows protegeu o computador" (clicar em **Mais informações → Executar assim mesmo**). Para tirar o aviso, é preciso um certificado de assinatura de código.
+
+Atalhos no app: `F5` recarrega, `F11` tela cheia, `Ctrl` `+`/`-`/`0` zoom, `F12` ferramentas de desenvolvedor.
+
+## Landing page de download
+
+`landing/index.html` é uma página estática com o botão de download do .exe. Hospede a pasta `landing/` em qualquer lugar (GitHub Pages, Netlify, o mesmo servidor da versão web). Por padrão o botão baixa a última versão do GitHub Releases. Para hospedar o .exe junto da página, copie o arquivo para `landing/` e troque `DOWNLOAD` no fim do arquivo por `'Roteirizador-RRM-Setup.exe'`. Fora do Windows, a página avisa que o app é só para Windows.

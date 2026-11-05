@@ -1,0 +1,66 @@
+{
+  "name": "roteirizador-rrm-desktop",
+  "productName": "Roteirizador RRM",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Roteirizador RRM para Windows: a mesma interface da versão web",
+  "author": "RRM",
+  "main": "main.js",
+  "scripts": {
+    "copiar-web": "node scripts/copiar-web.js",
+    "icone": "node scripts/rodar-electron.js scripts/gerar-icone.js",
+    "start": "npm run copiar-web && node scripts/rodar-electron.js .",
+    "build": "npm run copiar-web && electron-builder --win nsis --x64",
+    "publicar": "npm run copiar-web && electron-builder --win nsis --x64 --publish always"
+  },
+  "build": {
+    "appId": "tech.rrmind.roteirizador",
+    "productName": "Roteirizador RRM",
+    "copyright": "RRM",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "web/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Roteirizador-RRM-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Roteirizador RRM",
+      "uninstallDisplayName": "Roteirizador RRM",
+      "language": "1046"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Ramon-chok",
+        "repo": "roteirizador",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  }
+}

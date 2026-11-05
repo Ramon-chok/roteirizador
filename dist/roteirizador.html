@@ -173,6 +173,8 @@ window.RT_CONFIG = {
   // Nunca coloque aqui a chave service_role / sb_secret nem a senha do banco. Sem os dois valores, os dados ficam só neste navegador.
   supabaseUrl: 'https://bdwliwttetmwgbknhqfb.supabase.co',
   supabaseKey: 'sb_publishable_NOApo3rAD9ZC7jfmd1k9FQ_uue31XhF',
+  // Endereço da versão web (ex.: https://seusite.com.br/). O app de Windows usa este endereço no link de "Esqueci minha senha" enviado por e-mail.
+  urlWeb: '',
   // Ponto no mar onde ficam os clientes cujo endereço não foi encontrado (para arrastar até o local certo).
   // O padrão fica no oceano, cerca de 50 km do litoral norte de SP. Troque se a sua região for outra.
   pontoMar: { lat: -24.40, lng: -45.40 },
@@ -3988,8 +3990,10 @@ async function sbLogin(f) {
   if (u.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u, manter }; renderLogin(); return; }
   await entrar(u, manter);
 }
+// Endereço para onde o link de nova senha do e-mail volta. No app de Windows (endereço app://), usa a versão web de RT_CONFIG.urlWeb.
+function urlRetorno() { const w = (window.RT_CONFIG || {}).urlWeb; return (window.rrmDesktop && w) ? w : location.origin + location.pathname; }
 async function sbEsqueci(f) {
-  const { error } = await st.sb.auth.resetPasswordForEmail(String(f.get('login')).trim(), { redirectTo: location.origin + location.pathname });
+  const { error } = await st.sb.auth.resetPasswordForEmail(String(f.get('login')).trim(), { redirectTo: urlRetorno() });
   if (error) { lgMsg(sbMensagem(error)); return; }
   lg.step = 'login'; lg.ctx = {}; renderLogin();
   lgMsg('Se houver uma conta com esse e-mail, o link para criar uma nova senha chega em instantes. Confira também o spam.', 'info');
@@ -4281,7 +4285,7 @@ async function listaMembros(msg) {
     const b = ev.target.closest('button'); if (!b) return;
     const u = data.find(x => x.user_id === (b.dataset.ureset || b.dataset.udel)); if (!u) return;
     if (b.dataset.ureset) armButton(b, async () => {
-      const { error: er } = await st.sb.auth.resetPasswordForEmail(u.email, { redirectTo: location.origin + location.pathname });
+      const { error: er } = await st.sb.auth.resetPasswordForEmail(u.email, { redirectTo: urlRetorno() });
       msg(er ? sbMensagem(er) : `Link de nova senha enviado para ${u.email}.`, er ? 'bad' : 'info');
     }, 'Confirmar');
     else armButton(b, async () => {

@@ -5,7 +5,11 @@
   "description": "Planejamento territorial, setorização e roteirização pelas ruas",
   "scripts": {
     "start": "npx --yes serve -l 5500 .",
-    "build": "python ferramentas/build.py"
+    "build": "python ferramentas/build.py",
+    "desktop:instalar": "npm --prefix desktop install",
+    "desktop:start": "npm --prefix desktop start",
+    "desktop:build": "npm --prefix desktop run build",
+    "desktop:publicar": "npm --prefix desktop run publicar"
   },
   "dependencies": {
     "@supabase/server": "^1.9.2"

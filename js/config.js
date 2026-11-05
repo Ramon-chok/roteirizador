@@ -11,6 +11,8 @@ window.RT_CONFIG = {
   // Nunca coloque aqui a chave service_role / sb_secret nem a senha do banco. Sem os dois valores, os dados ficam só neste navegador.
   supabaseUrl: 'https://bdwliwttetmwgbknhqfb.supabase.co',
   supabaseKey: 'sb_publishable_NOApo3rAD9ZC7jfmd1k9FQ_uue31XhF',
+  // Endereço da versão web (ex.: https://seusite.com.br/). O app de Windows usa este endereço no link de "Esqueci minha senha" enviado por e-mail.
+  urlWeb: '',
   // Ponto no mar onde ficam os clientes cujo endereço não foi encontrado (para arrastar até o local certo).
   // O padrão fica no oceano, cerca de 50 km do litoral norte de SP. Troque se a sua região for outra.
   pontoMar: { lat: -24.40, lng: -45.40 },
