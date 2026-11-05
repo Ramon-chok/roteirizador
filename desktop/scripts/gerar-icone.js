@@ -1,14 +1,16 @@
-/* Gera build/icon.png (512x512) com o logo da barra superior da versão web.
+/* Gera build/icon.png (512x512) com o símbolo Route VORTEX (vórtice) sobre fundo Navy Vortex.
    Uso: npm run icone   (só precisa rodar de novo se o logo mudar) */
 const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect x="16" y="16" width="480" height="480" rx="108" fill="#0E6B57"/>
-  <g transform="translate(64 64) scale(16)" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/>
-    <path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#0B1426"/>
+  <rect x="17.5" y="17.5" width="477" height="477" rx="110.5" fill="none" stroke="#1E2E50" stroke-width="3"/>
+  <g transform="translate(256 256) scale(5.6) translate(-36 -32)">
+    <g fill="none" stroke-linecap="round" stroke-width="5"><path stroke="#22D3EE" d="M32 32a12 12 0 0 1 24 0"/><path stroke="#3B82F6" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path stroke="#E8F1FF" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g>
+    <g stroke-width="2.4" fill="#0B1426"><circle stroke="#22D3EE" cx="56" cy="32" r="3.3"/><circle stroke="#3B82F6" cx="56" cy="32" r="3.3" transform="rotate(120 32 32)"/><circle stroke="#E8F1FF" cx="56" cy="32" r="3.3" transform="rotate(240 32 32)"/></g>
+    <circle fill="#F97316" stroke="#0B1426" cx="32" cy="32" r="5.4" stroke-width="2.9"/>
   </g>
 </svg>`;
 

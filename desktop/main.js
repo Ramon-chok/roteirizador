@@ -58,9 +58,9 @@ function criarJanela() {
     x: est.x, y: est.y, width: est.width || 1366, height: est.height || 820,
     minWidth: 980, minHeight: 600,
     show: false,
-    title: 'Roteirizador RRM',
+    title: 'Route VORTEX',
     icon: path.join(__dirname, 'build', 'icon.png'),
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0F1412' : '#EEF0EC',
+    backgroundColor: '#0B1426',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

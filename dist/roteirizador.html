@@ -3,7 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <title>Roteirizador RRM</title>
+    <title>Route VORTEX</title>
+    <meta name="description" content="Route VORTEX · Planejamento, setorização e roteirização" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230B1426'/%3E%3Cg transform='translate(32 32) scale(1.02) translate(-36 -32)'%3E%3Cg fill='none' stroke-linecap='round' stroke-width='5.4'%3E%3Cpath stroke='%2322D3EE' d='M32 32a12 12 0 0 1 24 0'/%3E%3Cpath stroke='%233B82F6' d='M32 32a12 12 0 0 1 24 0' transform='rotate(120 32 32)'/%3E%3Cpath stroke='%23E8F1FF' d='M32 32a12 12 0 0 1 24 0' transform='rotate(240 32 32)'/%3E%3C/g%3E%3Cg stroke-width='2.6' fill='%230B1426'%3E%3Ccircle stroke='%2322D3EE' cx='56' cy='32' r='3.4'/%3E%3Ccircle stroke='%233B82F6' cx='56' cy='32' r='3.4' transform='rotate(120 32 32)'/%3E%3Ccircle stroke='%23E8F1FF' cx='56' cy='32' r='3.4' transform='rotate(240 32 32)'/%3E%3C/g%3E%3Ccircle fill='%23F97316' stroke='%230B1426' cx='32' cy='32' r='5.6' stroke-width='3'/%3E%3C/g%3E%3C/svg%3E" />
+    <meta name="theme-color" content="#0B1426" />
     <!-- Política de conteúdo: só scripts deste site e dos CDNs usados; nenhum script embutido roda. Ver README → Segurança -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -14,47 +17,88 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
     />
     <style>
-/* Layout: barra superior fina + área de trabalho que ocupa toda a tela; mapa em tela cheia com gavetas sobrepostas */
+/* Route VORTEX — identidade visual
+   Paleta: Navy Vortex #0B1426 · Noite #111D35 · Ciano Rota #22D3EE · Azul Fluxo #3B82F6 · Laranja Hub #F97316 · Gelo #E8F1FF · Neblina #94A3B8
+   Tipografia: Space Grotesk (marca, títulos e números de destaque) · Inter (interface, tabelas e textos)
+   Temas (js/tema.js grava a escolha): dark = Escuro (Navy Vortex) · light = Claro · mono = Monocromático · vertical = Noite · sem atributo = automático
+   Layout: barra superior fina + área de trabalho que ocupa toda a tela; mapa em tela cheia com gavetas sobrepostas */
 :root {
-  --bg: #EEF0EC;
+  /* Claro (também é a base quando o tema é automático e o sistema está claro) */
+  --bg: #F3F6FB;
   --surface: #FFFFFF;
-  --surface-2: #F6F7F4;
-  --ink: #18211D;
-  --muted: #5B6862;
-  --line: #D6DBD5;
-  --line-strong: #B9C1BA;
-  --accent: #0E6B57;
+  --surface-2: #F4F7FC;
+  --ink: #0B1426;
+  --muted: #5B6A84;
+  --line: #DFE6F0;
+  --line-strong: #C5D0E0;
+  --accent: #2563EB;
   --accent-ink: #FFFFFF;
-  --accent-soft: #DCEDE7;
-  --route: #C8641E;
-  --ok: #2F7D4A; --ok-soft: #E1F0E5;
-  --warn: #9A6A06; --warn-soft: #FBF0D4;
-  --bad: #B3362B; --bad-soft: #F8E1DE;
-  --sel: #111614;
-  --shadow: 0 1px 2px rgba(20,30,25,.08), 0 6px 20px rgba(20,30,25,.10);
-  --map-bg: #E4E7E2;
-  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --f-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", "Arial Narrow", sans-serif;
+  --accent-soft: #E6EEFE;
+  --accent-2: #0891B2;
+  --route: #EA580C;
+  --ok: #15803D; --ok-soft: #DDF3E5;
+  --warn: #B45309; --warn-soft: #FDF0D5;
+  --bad: #DC2626; --bad-soft: #FDE3E3;
+  --sel: #0B1426;
+  --shadow: 0 1px 2px rgba(11,20,38,.06), 0 8px 24px rgba(11,20,38,.09);
+  --map-bg: #E6ECF4;
+  --lasso: #2563EB; --cmp-a: #2563EB; --cmp-b: #EA580C; --feriado: #DB2777;
+  /* Marca: braços do vórtice, ponto central (hub) e anel em volta do hub */
+  --vx-1: #0B1426; --vx-2: #0891B2; --vx-3: #2563EB; --vx-hub: #F97316; --vx-kicker: #0E7490; --vx-word: #0B1426;
+  --top-bg: #FFFFFF;
+  --glow: radial-gradient(1200px 500px at 12% -10%, rgba(37,99,235,.10), transparent 60%), radial-gradient(900px 420px at 100% 0%, rgba(34,211,238,.10), transparent 60%);
+  --f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-head: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --f-cond: var(--f-head);
   --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --r: 6px;
-  --lasso: #0B63CE; --cmp-a: #2F6FB3; --cmp-b: #C2512B; --feriado: #B83A5E;
+  --r: 8px;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0F1412; --surface: #171D1A; --surface-2: #1D2421; --ink: #E3E9E5; --muted: #8E9C95;
-  --line: #2A3330; --line-strong: #3A4541; --accent: #3BB394; --accent-ink: #06231B; --accent-soft: #163A31;
-  --route: #E8873F; --ok: #5BBE7C; --ok-soft: #173424; --warn: #E0B04A; --warn-soft: #3A2E10; --bad: #EE7266; --bad-soft: #3D1C19;
-  --sel: #FFFFFF; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45); --map-bg: #1A201D; color-scheme: dark;
-  --lasso: #4FA3FF; --cmp-a: #4A8FD6; --cmp-b: #D06A2A; --feriado: #E06A8C;
+/* Escuro · Navy Vortex (padrão) */
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) {
+  --bg: #0B1426; --surface: #111D35; --surface-2: #16264A; --ink: #E8F1FF; --muted: #94A3B8;
+  --line: #1E2E50; --line-strong: #2C3F66; --accent: #22D3EE; --accent-ink: #0B1426; --accent-soft: #10334B; --accent-2: #3B82F6;
+  --route: #F97316; --ok: #34D399; --ok-soft: #0D3A35; --warn: #FBBF24; --warn-soft: #3A2E10; --bad: #F87171; --bad-soft: #3D1C26;
+  --sel: #FFFFFF; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.45); --map-bg: #0E1930; color-scheme: dark;
+  --lasso: #3B82F6; --cmp-a: #3B82F6; --cmp-b: #F97316; --feriado: #F472B6;
+  --vx-1: #E8F1FF; --vx-2: #22D3EE; --vx-3: #3B82F6; --vx-hub: #F97316; --vx-kicker: #22D3EE; --vx-word: #E8F1FF;
+  --top-bg: #0B1426;
+  --glow: radial-gradient(1200px 520px at 10% -12%, rgba(59,130,246,.16), transparent 60%), radial-gradient(900px 420px at 100% 0%, rgba(34,211,238,.10), transparent 60%);
 } }
 :root[data-theme="dark"] {
-  --bg: #0F1412; --surface: #171D1A; --surface-2: #1D2421; --ink: #E3E9E5; --muted: #8E9C95;
-  --line: #2A3330; --line-strong: #3A4541; --accent: #3BB394; --accent-ink: #06231B; --accent-soft: #163A31;
-  --route: #E8873F; --ok: #5BBE7C; --ok-soft: #173424; --warn: #E0B04A; --warn-soft: #3A2E10; --bad: #EE7266; --bad-soft: #3D1C19;
-  --sel: #FFFFFF; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45); --map-bg: #1A201D; color-scheme: dark;
-  --lasso: #4FA3FF; --cmp-a: #4A8FD6; --cmp-b: #D06A2A; --feriado: #E06A8C;
+  --bg: #0B1426; --surface: #111D35; --surface-2: #16264A; --ink: #E8F1FF; --muted: #94A3B8;
+  --line: #1E2E50; --line-strong: #2C3F66; --accent: #22D3EE; --accent-ink: #0B1426; --accent-soft: #10334B; --accent-2: #3B82F6;
+  --route: #F97316; --ok: #34D399; --ok-soft: #0D3A35; --warn: #FBBF24; --warn-soft: #3A2E10; --bad: #F87171; --bad-soft: #3D1C26;
+  --sel: #FFFFFF; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.45); --map-bg: #0E1930; color-scheme: dark;
+  --lasso: #3B82F6; --cmp-a: #3B82F6; --cmp-b: #F97316; --feriado: #F472B6;
+  --vx-1: #E8F1FF; --vx-2: #22D3EE; --vx-3: #3B82F6; --vx-hub: #F97316; --vx-kicker: #22D3EE; --vx-word: #E8F1FF;
+  --top-bg: #0B1426;
+  --glow: radial-gradient(1200px 520px at 10% -12%, rgba(59,130,246,.16), transparent 60%), radial-gradient(900px 420px at 100% 0%, rgba(34,211,238,.10), transparent 60%);
+}
+/* Vertical · Noite: azul-noite mais aberto, destaque em Azul Fluxo */
+:root[data-theme="vertical"] {
+  --bg: #111D35; --surface: #172848; --surface-2: #1D3158; --ink: #E8F1FF; --muted: #9DB0CC;
+  --line: #243A63; --line-strong: #344C7C; --accent: #3B82F6; --accent-ink: #FFFFFF; --accent-soft: #1B3768; --accent-2: #22D3EE;
+  --route: #F97316; --ok: #34D399; --ok-soft: #123E3E; --warn: #FBBF24; --warn-soft: #3D3318; --bad: #F87171; --bad-soft: #43233A;
+  --sel: #FFFFFF; --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(3,8,20,.45); --map-bg: #13213D; color-scheme: dark;
+  --lasso: #22D3EE; --cmp-a: #60A5FA; --cmp-b: #F97316; --feriado: #F472B6;
+  --vx-1: #E8F1FF; --vx-2: #22D3EE; --vx-3: #3B82F6; --vx-hub: #F97316; --vx-kicker: #22D3EE; --vx-word: #E8F1FF;
+  --top-bg: #111D35;
+  --glow: radial-gradient(1100px 520px at 50% -18%, rgba(34,211,238,.12), transparent 62%);
+}
+/* Monocromático: azul e branco */
+:root[data-theme="mono"] {
+  --bg: #1A45C4; --surface: #1D4ED8; --surface-2: #2659E2; --ink: #FFFFFF; --muted: #C8D6FF;
+  --line: #3A66E4; --line-strong: #5B82EC; --accent: #FFFFFF; --accent-ink: #1D4ED8; --accent-soft: #3262E6; --accent-2: #DBE6FF;
+  --route: #FDBA74; --ok: #A7F3D0; --ok-soft: rgba(167,243,208,.16); --warn: #FDE68A; --warn-soft: rgba(253,230,138,.16); --bad: #FECACA; --bad-soft: rgba(254,202,202,.18);
+  --sel: #FFFFFF; --shadow: 0 1px 2px rgba(6,20,70,.3), 0 10px 28px rgba(6,20,70,.35); --map-bg: #1A45C4; color-scheme: dark;
+  --lasso: #0B1426; --cmp-a: #93C5FD; --cmp-b: #FDBA74; --feriado: #F9A8D4;
+  --vx-1: #FFFFFF; --vx-2: #FFFFFF; --vx-3: #FFFFFF; --vx-hub: #FFFFFF; --vx-kicker: #DBE6FF; --vx-word: #FFFFFF;
+  --top-bg: #1D4ED8;
+  --glow: none;
 }
 
 html, body { height: 100%; }
@@ -763,7 +807,256 @@ table.t tr.perd td { color: var(--feriado); background: color-mix(in srgb, var(-
 .plan-set .muted { font-size: 12.5px; }
 button.hb:hover .hl span { text-decoration: underline; }
 
+
+/* =====================================================================
+   Route VORTEX — acabamento visual (só aparência; nenhuma regra de layout funcional muda)
+   ===================================================================== */
+body { background: var(--glow), var(--bg); background-attachment: fixed; -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01"; }
+body::before { background: var(--top-bg); }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+* { scrollbar-color: var(--line-strong) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Títulos em Space Grotesk; rótulos e tabelas em Inter */
+.ph h1, .hero h1, .hub-hero h1, .lg-card h1, .ext-h h2 { font-family: var(--f-head); font-weight: 700; letter-spacing: -.015em; }
+.card > .ch h2, .drawer header h2, #modal .dh h2, .empty h3, .opt h3, .mod-h h2, .acct-sec h3, .home .ph h2.sec, .cal-mh b { font-family: var(--f-head); font-weight: 600; letter-spacing: -.005em; }
+.lbl, .pill, .rzsec > summary, #mapSummary .kpi .k, table.t th, .wgrid .hd, .ctx-h, .kc .k, table.cal th, .cl-c { font-family: var(--f-body); }
+.lbl, .kc .k, #mapSummary .kpi .k, .ctx-h, .rzsec > summary { font-size: 10.5px; font-weight: 600; letter-spacing: .1em; }
+table.t th { font-size: 11px; font-weight: 600; letter-spacing: .07em; }
+.pill { font-weight: 600; letter-spacing: .01em; font-size: 11px; padding: 2px 8px; }
+.kc .v, #mapSummary .kpi .v, .ms b, .mini b, .dbrow b, #rulerBox .big, .cal-tit { font-family: var(--f-head); font-weight: 600; letter-spacing: -.01em; }
+.kc .v { font-weight: 700; }
+
+/* ---------- Barra superior ---------- */
+.top { background: var(--top-bg); border-bottom-color: var(--line); min-height: 46px; padding-block: 5px; gap: 10px; font-size: 13px; }
+.brand { gap: 8px; padding: 3px 8px 3px 4px; border-radius: 10px; font-family: var(--f-head); }
+.brand:hover { background: var(--surface-2); }
+.brand .vx { width: 31px; height: 31px; flex: none; }
+.brand .wm { display: flex; flex-direction: column; line-height: 1; text-align: left; }
+.brand .wm small { font: 600 8px/1 var(--f-head); letter-spacing: .42em; color: var(--vx-kicker); margin-bottom: 2px; padding-left: 1px; }
+.brand .wm b { font: 700 17px/1 var(--f-head); letter-spacing: -.01em; color: var(--vx-word); }
+.tabs { gap: 2px; }
+.tab { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; font-size: 13px; font-weight: 500; transition: background .12s, color .12s; }
+.tab svg { width: 15px; height: 15px; flex: none; opacity: .85; }
+.tab[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.tab[aria-selected="true"] svg { opacity: 1; }
+.amb-pick select { border-radius: 8px; min-height: 30px; padding: 3px 8px; font-size: 12.5px; background: var(--surface); }
+#openPlanner { min-height: 30px; padding: 3px 14px; font-size: 12.5px; border-radius: 8px; }
+.acct { padding: 3px 6px; border-radius: 8px; }
+.acct .sg { width: 26px; height: 26px; border-radius: 8px; font: 700 10.5px var(--f-head); letter-spacing: .02em; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.acct .an { font-family: var(--f-head); font-weight: 600; }
+.save .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+.save.pending .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent); }
+.save.err .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 22%, transparent); }
+
+/* Botão e menu de tema */
+.tema-btn { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; cursor: pointer; padding: 0; }
+.tema-btn:hover, .tema-btn[aria-expanded="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.tema-btn svg { width: 17px; height: 17px; }
+#temaMenu { position: fixed; z-index: 3600; width: 240px; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+#temaMenu[hidden] { display: none; }
+#temaMenu button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; text-align: left; padding: 7px 8px; border-radius: 8px; cursor: pointer; color: var(--ink); }
+#temaMenu button:hover, #temaMenu button:focus-visible { background: var(--surface-2); outline: 0; }
+#temaMenu button[aria-checked="true"] { background: var(--accent-soft); }
+#temaMenu button[aria-checked="true"]::after { content: ""; margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+.tema-sw { position: relative; display: inline-flex; align-items: flex-end; gap: 2px; width: 34px; height: 26px; padding: 4px; flex: none; border-radius: 7px; border: 1px solid var(--line-strong); }
+.tema-sw i { flex: 1; height: 8px; border-radius: 2px; }
+.tema-tx { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.tema-tx b { font-weight: 600; font-size: 13px; }
+.tema-tx span { font-size: 11.5px; color: var(--muted); }
+.temas { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.tema-op { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer; text-align: left; color: var(--ink); transition: border-color .12s, box-shadow .12s; }
+.tema-op:hover { border-color: var(--line-strong); }
+.tema-op[aria-checked="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.tema-op .tema-sw { width: 40px; height: 32px; }
+@media (max-width: 640px) { .tema-btn { width: 30px; height: 30px; } }
+
+/* ---------- Símbolo do vórtice (cores vêm do tema) ---------- */
+.vx { --vx-bg: var(--top-bg); overflow: visible; }
+.vx .vx-1 { stroke: var(--vx-1); } .vx .vx-2 { stroke: var(--vx-2); } .vx .vx-3 { stroke: var(--vx-3); }
+.vx .vx-n circle { fill: var(--vx-bg); }
+.vx .vx-h { fill: var(--vx-hub); stroke: var(--vx-bg); }
+
+/* ---------- Controles ---------- */
+select, input[type=text], input[type=password], input[type=number], input[type=search], input[type=email], textarea { border-radius: 8px; border-color: var(--line-strong); transition: border-color .12s, box-shadow .12s; }
+select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+:focus-visible { outline-color: var(--accent); }
+.btn { border-radius: 8px; transition: border-color .12s, background .12s, box-shadow .12s, filter .12s; }
+.btn:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong)); }
+.btn.primary { font-weight: 600; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 4px 14px color-mix(in srgb, var(--accent) 28%, transparent); }
+.btn.primary:hover { filter: brightness(1.07); border-color: var(--accent); }
+.btn.ghost:hover { background: var(--surface-2); }
+.seg { border-radius: 8px; }
+.seg button { transition: background .12s, color .12s; }
+.seg button[aria-pressed="true"] { font-weight: 600; }
+.daychips button { border-radius: 6px; }
+.daychips button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.iconbtn { border-radius: 6px; }
+
+/* ---------- Superfícies ---------- */
+.card, .tblwrap, .kc, .mod, .opt, .cal-mes, .mini, .imp-reg, .hist, .priv { border-radius: 12px; }
+.card > .ch { padding: 12px 16px; }
+.card > .cb { padding: 16px; }
+.float { border-radius: 12px; }
+#toolbar { padding: 5px; border-radius: 12px; }
+.tb { border-radius: 8px; }
+.drawer header { padding: 11px 14px; }
+#modal { background: rgba(5,10,22,.55); backdrop-filter: blur(3px); }
+#modal .dlg { border-radius: 14px; }
+#toast, #tip { border-radius: 10px; }
+table.t th { background: var(--surface-2); }
+table.t tr.clk:hover td { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.banner { border-radius: 10px; }
+.kc { padding: 14px 16px; gap: 4px; }
+.kc .v { font-size: 28px; }
+.kc.tot { background: var(--accent-soft); }
+.ht i, #geoBar .gbar i { background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+
+/* ---------- Início: cartões de módulo no estilo dos ícones do sistema ---------- */
+.mod { border-radius: 16px; padding: 16px 18px; }
+.mod:hover { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), var(--shadow); }
+.mod-i, .oi { background: color-mix(in srgb, var(--accent-2) 14%, var(--surface-2)); color: var(--accent); border-radius: 12px; transition: background .15s, color .15s; }
+.mod-i { width: 44px; height: 44px; }
+.mod-i svg { width: 22px; height: 22px; }
+.mod:hover .mod-i { background: var(--accent); color: var(--accent-ink); }
+.mod-i.xl { width: 64px; height: 64px; border-radius: 16px; }
+.mod.breve .mod-i { background: var(--surface); color: var(--muted); }
+button.opt:hover { border-color: var(--accent); }
+button.opt:hover .oi { background: var(--accent); color: var(--accent-ink); }
+.hub-hero h1 { font-size: 30px; }
+.hero { border-radius: 16px; background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--accent-2) 10%, var(--surface))); }
+
+/* ---------- Acesso ---------- */
+#loginView { background: var(--glow), var(--bg); }
+.lg-brand { flex-direction: column; gap: 14px; padding: 6px 0 4px; }
+.lg-brand .vx { width: 76px; height: 76px; --vx-bg: var(--bg); }
+.lg-brand .wm { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.lg-brand .wm small { font: 600 12px/1 var(--f-head); letter-spacing: .5em; padding-left: .5em; color: var(--vx-kicker); margin-bottom: 6px; }
+.lg-brand .wm b { font: 700 40px/1 var(--f-head); letter-spacing: -.02em; color: var(--vx-word); }
+.lg-brand .wm em { font: 400 13px/1.3 var(--f-body); font-style: normal; color: var(--muted); margin-top: 10px; }
+.lg-card { border-radius: 16px; padding: 24px; box-shadow: var(--shadow); }
+.lg-go { min-height: 42px; }
+.lg-code { border-radius: 10px; }
+@media (max-width: 480px) { .lg-brand .wm b { font-size: 32px; } .lg-brand .vx { width: 60px; height: 60px; } }
+
+/* ---------- Ajustes por tema ---------- */
+:root[data-theme="mono"] .btn.primary { box-shadow: 0 4px 14px rgba(6,20,70,.25); }
+:root[data-theme="mono"] .tab[aria-selected="true"], :root[data-theme="mono"] .seg button[aria-pressed="true"] { background: #FFFFFF; color: #1D4ED8; }
+:root[data-theme="mono"] .seapin { background: #FDE68A; }
+:root[data-theme="mono"] .pill.imp-roteiro { color: #1D4ED8; }
+:root[data-theme="mono"] .wk, :root[data-theme="mono"] .rit .q, :root[data-theme="mono"] .seqm { text-shadow: 0 0 2px rgba(0,0,0,.35); }
+.num, td.n { font-family: var(--f-body); font-variant-numeric: tabular-nums; }
+.cell .c1, .mgrid .v, .vv, .wkrow .wk, .wgrid .wl { font-family: var(--f-body); font-variant-numeric: tabular-nums; }
+.cell .c1 { font-weight: 700; }
+
+/* Mapa de fundo: canto inferior direito, logo abaixo do painel "Editar e roteirizar" */
+@media (min-width: 641px) {
+  .basepick { bottom: 22px; right: max(10px, env(safe-area-inset-right, 0px)); }
+  .drawer.right { bottom: 66px; }
+  body.panel-right .basepick { right: max(10px, env(safe-area-inset-right, 0px)); width: 320px; }
+  body.panel-right .basepick select { width: 100%; }
+  .basepick select { min-height: 32px; border-radius: 10px; padding: 4px 10px; font-size: 12.5px; background: var(--surface); }
+  .leaflet-control-attribution { margin-right: 0; }
+  .leaflet-bottom.leaflet-right { bottom: 0; }
+}
+
 </style>
+    <script>
+/* Route VORTEX — temas visuais do aplicativo.
+   Roda no <head>, antes da página aparecer, para não piscar o tema errado.
+   Só mexe no visual: grava a escolha neste dispositivo e troca o atributo data-theme do <html>.
+   O mapa acompanha sozinho (app.js observa o data-theme e troca o fundo claro/escuro). */
+(function () {
+  'use strict';
+  var CHAVE = 'rvx:tema';
+  var PADRAO = 'dark';
+  var TEMAS = [
+    { id: 'dark', nome: 'Escuro', desc: 'Navy Vortex', cores: ['#0B1426', '#22D3EE', '#3B82F6', '#F97316'] },
+    { id: 'light', nome: 'Claro', desc: 'Fundo claro', cores: ['#F5F8FC', '#0B1426', '#2563EB', '#F97316'] },
+    { id: 'mono', nome: 'Monocromático', desc: 'Azul e branco', cores: ['#1D4ED8', '#FFFFFF', '#FFFFFF', '#FFFFFF'] },
+    { id: 'vertical', nome: 'Vertical', desc: 'Noite', cores: ['#111D35', '#E8F1FF', '#3B82F6', '#22D3EE'] },
+    { id: 'auto', nome: 'Automático', desc: 'Segue o sistema', cores: ['#F5F8FC', '#0B1426', '#22D3EE', '#3B82F6'] }
+  ];
+  var ids = TEMAS.map(function (t) { return t.id; });
+
+  function ler() { try { var v = localStorage.getItem(CHAVE); return ids.indexOf(v) >= 0 ? v : PADRAO; } catch (e) { return PADRAO; } }
+  function aplicar(id) {
+    var h = document.documentElement;
+    if (id === 'auto') h.removeAttribute('data-theme'); else h.setAttribute('data-theme', id);
+    h.setAttribute('data-tema', id);
+  }
+  function atual() { return document.documentElement.getAttribute('data-tema') || ler(); }
+  function definir(id) {
+    if (ids.indexOf(id) < 0) return;
+    try { localStorage.setItem(CHAVE, id); } catch (e) { /* vale só nesta sessão */ }
+    aplicar(id); marcar();
+  }
+  aplicar(ler());
+
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  function amostra(t) {
+    var c = t.cores;
+    return '<span class="tema-sw" aria-hidden="true" style="background:' + c[0] + '"><i style="background:' + c[1] + '"></i><i style="background:' + c[2] + '"></i><i style="background:' + c[3] + '"></i></span>';
+  }
+  /* Opções em cartões (página Configurações) */
+  function opcoesHtml() {
+    var a = atual();
+    return TEMAS.map(function (t) {
+      return '<button type="button" class="tema-op" data-tema="' + t.id + '" role="radio" aria-checked="' + (t.id === a) + '">' + amostra(t) +
+        '<span class="tema-tx"><b>' + esc(t.nome) + '</b><span>' + esc(t.desc) + '</span></span></button>';
+    }).join('');
+  }
+  function marcar() {
+    var a = atual();
+    var bs = document.querySelectorAll('[data-tema]');
+    for (var i = 0; i < bs.length; i++) if (bs[i] !== document.documentElement) bs[i].setAttribute('aria-checked', String(bs[i].getAttribute('data-tema') === a));
+  }
+
+  /* Menu rápido na barra superior */
+  var ICONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor" stroke="none"/></svg>';
+  function montarMenu() {
+    var conta = document.getElementById('acctBtn');
+    if (!conta || document.getElementById('temaBtn')) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.id = 'temaBtn'; b.className = 'tema-btn';
+    b.title = 'Tema do aplicativo'; b.setAttribute('aria-label', 'Tema do aplicativo');
+    b.setAttribute('aria-haspopup', 'menu'); b.setAttribute('aria-expanded', 'false');
+    b.innerHTML = ICONE;
+    conta.parentNode.insertBefore(b, conta);
+    var m = document.createElement('div');
+    m.id = 'temaMenu'; m.className = 'float'; m.hidden = true; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', 'Tema do aplicativo');
+    document.body.appendChild(m);
+    function fechar() { m.hidden = true; b.setAttribute('aria-expanded', 'false'); }
+    function abrir() {
+      var a = atual();
+      m.innerHTML = '<div class="ctx-h">Tema do aplicativo</div>' + TEMAS.map(function (t) {
+        return '<button type="button" role="menuitemradio" data-tema="' + t.id + '" aria-checked="' + (t.id === a) + '">' + amostra(t) + '<span class="tema-tx"><b>' + esc(t.nome) + '</b><span>' + esc(t.desc) + '</span></span></button>';
+      }).join('');
+      m.hidden = false; b.setAttribute('aria-expanded', 'true');
+      var r = b.getBoundingClientRect();
+      m.style.top = (r.bottom + 6) + 'px';
+      m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8)) + 'px';
+      var sel = m.querySelector('[aria-checked="true"]'); if (sel) sel.focus();
+    }
+    b.addEventListener('click', function (e) { e.stopPropagation(); if (m.hidden) abrir(); else fechar(); });
+    document.addEventListener('click', function (e) { if (!m.hidden && !m.contains(e.target) && e.target !== b) fechar(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !m.hidden) { fechar(); b.focus(); } });
+    addEventListener('resize', fechar);
+    m.addEventListener('click', function (e) { var t = e.target.closest('[data-tema]'); if (t) { definir(t.getAttribute('data-tema')); fechar(); } });
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('.tema-op[data-tema]');
+    if (t) definir(t.getAttribute('data-tema'));
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montarMenu); else montarMenu();
+
+  window.RVXTema = { temas: TEMAS, atual: atual, definir: definir, opcoesHtml: opcoesHtml };
+})();
+
+</script>
     <style>
       [hidden] {
         display: none !important;
@@ -782,42 +1075,18 @@ button.hb:hover .hl span { text-decoration: underline; }
           id="goHome"
           type="button"
           title="Página inicial"
-          aria-label="Roteirizador RRM — página inicial"
+          aria-label="Route VORTEX — página inicial"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="5" cy="18" r="2.2" />
-            <circle cx="19" cy="6" r="2.2" />
-            <path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3" /></svg
-          ><span><b>RRM</b></span>
+          <svg class="vx" viewBox="9 5 54 54" aria-hidden="true" focusable="false"><g fill="none" stroke-linecap="round" stroke-width="4.8"><path class="vx-2" d="M32 32a12 12 0 0 1 24 0"/><path class="vx-3" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path class="vx-1" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g><g class="vx-n" stroke-width="2.3"><circle class="vx-2" cx="56" cy="32" r="3.2"/><circle class="vx-3" cx="56" cy="32" r="3.2" transform="rotate(120 32 32)"/><circle class="vx-1" cx="56" cy="32" r="3.2" transform="rotate(240 32 32)"/></g><circle class="vx-h" cx="32" cy="32" r="5.2" stroke-width="2.8"/></svg><span class="wm"><small>ROUTE</small><b>VORTEX</b></span>
         </button>
         <nav class="tabs" id="tabs" role="tablist" aria-label="Seções">
-          <button class="tab" role="tab" data-view="mapa" aria-selected="true">Mapa</button>
-          <button class="tab" role="tab" data-view="roteiros" aria-selected="false">
-            Roteiros
-          </button>
-          <button class="tab" role="tab" data-view="estudos" aria-selected="false">Estudos</button>
-          <button class="tab" role="tab" data-view="clientes" aria-selected="false">
-            Clientes
-          </button>
-          <button class="tab" role="tab" data-view="colaboradores" aria-selected="false">
-            Colaboradores
-          </button>
-          <button class="tab" role="tab" data-view="importar" aria-selected="false">
-            Importação
-          </button>
-          <button class="tab" role="tab" data-view="config" aria-selected="false">
-            Configurações
-          </button>
+          <button class="tab" role="tab" data-view="mapa" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Mapa</span></button>
+          <button class="tab" role="tab" data-view="roteiros" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/><circle cx="18" cy="5" r="2.5"/></svg><span>Roteiros</span></button>
+          <button class="tab" role="tab" data-view="estudos" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4"/></svg><span>Estudos</span></button>
+          <button class="tab" role="tab" data-view="clientes" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg><span>Clientes</span></button>
+          <button class="tab" role="tab" data-view="colaboradores" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5A6.5 6.5 0 0 1 21.5 20"/></svg><span>Colaboradores</span></button>
+          <button class="tab" role="tab" data-view="importar" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Importação</span></button>
+          <button class="tab" role="tab" data-view="config" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg><span>Configurações</span></button>
         </nav>
         <div class="amb-pick">
           <select id="ambSel" title="Estudo aberto" aria-label="Estudo aberto">
@@ -1746,7 +2015,7 @@ function toast(msg, ms = 2600, act, lbl) {
 const toastU = (msg, ms = 7000) => toast(msg, ms, 'undo', 'Desfazer');
 let tokCache = null;
 function tokens() { if (tokCache) return tokCache; const cs = getComputedStyle(document.documentElement); const g = n => cs.getPropertyValue(n).trim(); tokCache = { surface: g('--surface'), muted: g('--muted'), sel: g('--sel'), ink: g('--ink'), line: g('--line'), bg: g('--map-bg') }; return tokCache; }
-function isDark() { const t = document.documentElement.getAttribute('data-theme'); if (t) return t === 'dark'; return matchMedia('(prefers-color-scheme: dark)').matches; }
+function isDark() { const t = document.documentElement.getAttribute('data-theme'); if (t) return t !== 'light'; return matchMedia('(prefers-color-scheme: dark)').matches; }
 function onTheme() { tokCache = null; setBase(); renderMap(); }
 
 function armButton(btn, fn, txt = 'Confirmar') {
@@ -4412,6 +4681,10 @@ function pageConfig() {
         <div class="field"><span class="lbl">Sessão</span><span>${+st.politica.inatividadeMin ? `Encerra depois de ${st.politica.inatividadeMin} min sem uso` : 'Sem limite de inatividade'}${st.politica.exige2fa ? ' · duas etapas obrigatória' : ''}</span></div>
         <div class="row"><button class="btn primary" data-act="seguranca">Abrir segurança e privacidade</button></div>
       </div></div>
+      <div class="card"><div class="ch"><h2>Aparência</h2></div><div class="cb stack">
+        <p class="muted" style="margin:0">Tema do aplicativo neste dispositivo. Também dá para trocar pelo botão de tema na barra superior.</p>
+        <div class="temas" role="radiogroup" aria-label="Tema do aplicativo">${window.RVXTema ? window.RVXTema.opcoesHtml() : ''}</div>
+      </div></div>
       <div class="card"><div class="ch"><h2>Mapa e endereços</h2></div><div class="cb stack">
         <label class="field"><span class="lbl">Mapa de fundo</span><select id="cfgBase">${bases}</select></label>
         <label class="field"><span class="lbl">Busca de endereços</span>${geoSrcSel()}</label>
@@ -4829,9 +5102,9 @@ function renderHome() {
 const migalha = nome => `<nav class="crumb" aria-label="Caminho"><button type="button" class="linkbtn" data-hub="hub">Início</button><span aria-hidden="true">›</span><b>${esc(nome)}</b></nav>`;
 const ICON_MOD = {
   plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>',
-  rotas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10.2A6 6 0 0 1 18 10.8C18 15.7 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.3"/></svg>',
+  rotas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/><circle cx="18" cy="5" r="2.5"/></svg>',
   verba: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg>',
-  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>',
+  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>'
 };
 function renderHub(el) {
@@ -4855,7 +5128,7 @@ function renderHub(el) {
         `<button class="btn sm primary" type="button" data-hub="verba">Abrir Verba</button>`)}
       ${mod('cal', 'Calendário', 'Ano inteiro com dias úteis, feriados, eventos da empresa e as semanas do ciclo (S1 a S4 e quinzenas 1,3 e 2,4).', C ? stat(C.semana, `semana atual · ${C.quinzena}`) + stat(nf0.format(C.uteis), 'dias úteis no mês') + stat(esc(C.proximo), 'próximo evento') : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="cal">Abrir Calendário</button>`)}
-      ${mod('config', 'Configurações', 'Minha conta, segurança e privacidade, mapa de fundo, servidores de rota e backup.', mfa + (st.usuario && st.usuario.papel === 'admin' ? '<span class="pill idle">Administrador</span>' : ''),
+      ${mod('config', 'Configurações', 'Minha conta, aparência e temas, segurança e privacidade, mapa de fundo, servidores de rota e backup.', mfa + (st.usuario && st.usuario.papel === 'admin' ? '<span class="pill idle">Administrador</span>' : ''),
         `<button class="btn sm" type="button" data-hub="config">Abrir</button><button class="btn sm" type="button" data-act="seguranca">Segurança</button>`)}
     </nav>
   </div>`;
@@ -5052,7 +5325,7 @@ async function sbEnviarLocais(emp, pre) {
   for (const c of cols) for (const d of await LocalBackend.list(pre + c)) await dest.set(c, d.id, d.data);
   try { localStorage.setItem(sbMarca(pre), String(Date.now())); } catch (e) { /* ignora */ }
 }
-const LOGO = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/><path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3"/></svg>';
+const LOGO = '<svg class="vx" viewBox="9 5 54 54" aria-hidden="true" focusable="false"><g fill="none" stroke-linecap="round" stroke-width="4.8"><path class="vx-2" d="M32 32a12 12 0 0 1 24 0"/><path class="vx-3" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path class="vx-1" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g><g class="vx-n" stroke-width="2.3"><circle class="vx-2" cx="56" cy="32" r="3.2"/><circle class="vx-3" cx="56" cy="32" r="3.2" transform="rotate(120 32 32)"/><circle class="vx-1" cx="56" cy="32" r="3.2" transform="rotate(240 32 32)"/></g><circle class="vx-h" cx="32" cy="32" r="5.2" stroke-width="2.8"/></svg>';
 
 const hexOf = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 async function derivar(txt, salt) {
@@ -5149,7 +5422,7 @@ const LG_TELAS = {
       <div class="lg-row"><button class="lg-link" type="button" data-lg="recusa">Sair</button></div>`;
   },
   privacidade() {
-    return `<h1>Aviso de privacidade</h1><p class="sub">Antes de continuar, veja como os dados são tratados no Roteirizador, conforme a Lei Geral de Proteção de Dados (LGPD).</p>${avisoPrivacidadeHtml()}
+    return `<h1>Aviso de privacidade</h1><p class="sub">Antes de continuar, veja como os dados são tratados no Route VORTEX, conforme a Lei Geral de Proteção de Dados (LGPD).</p>${avisoPrivacidadeHtml()}
       <label class="chk"><input type="checkbox" id="lgAceito"> Li e concordo com o aviso de privacidade</label>
       <div class="lg-row"><button class="btn" type="button" data-lg="recusa">Não concordo e sair</button><button class="btn primary" type="button" data-lg="aceita">Concordo e continuar</button></div>`;
   },
@@ -5173,7 +5446,7 @@ const LG_TELAS = {
 function renderLogin() {
   const e = lg.emp, comEnv = e && lg.step !== 'empresa';
   const trocar = ['login', 'primeiro', 'esqueci'].includes(lg.step);
-  $('#loginView').innerHTML = `<div class="lg"><div class="lg-brand">${LOGO}<span>Roteirizador <b>RRM</b></span></div>
+  $('#loginView').innerHTML = `<div class="lg"><div class="lg-brand">${LOGO}<span class="wm"><small>ROUTE</small><b>VORTEX</b><em>Planejamento · Setorização · Roteirização</em></span></div>
     <div class="card lg-card">${comEnv ? `<div class="lg-env"><span class="oi sg">${esc(e.sigla)}</span><b>${esc(e.nome)}</b>${trocar ? '<button class="btn sm" type="button" data-lg="empresa">Trocar de ambiente</button>' : ''}</div>` : ''}
       <div id="lgMsg" role="alert"></div>${LG_TELAS[lg.step]()}</div>
     <p class="lg-foot">${st.sb ? 'Acesso protegido por senha, verificação em duas etapas e registro de atividades. Os dados ficam no banco de dados da empresa.' : 'Os acessos e os dados ficam guardados neste navegador.'}</p></div>`;
@@ -5790,7 +6063,7 @@ async function boot() {
   const ambPronto = async () => { const a = st.amb; if (!a) return; clearTimeout(a.t); a.t = null; if (a.dirty.size) await a.flush(); while (a.busy) await sleep(30); };
   st.backend = st.sb ? SupabaseBackend(st.sb, e.id, ambPronto) : { kind: st.base.kind, list: c => st.base.list(e.id + '_' + c), set: (c, i, d) => st.base.set(e.id + '_' + c, i, d), del: (c, i) => st.base.del(e.id + '_' + c, i) };
   loadUI();
-  document.title = 'Roteirizador RRM · ' + e.nome;
+  document.title = 'Route VORTEX · ' + e.nome;
   document.body.classList.remove('screen-login');
   renderAcct();
   bindEvents();

@@ -446,7 +446,7 @@ function toast(msg, ms = 2600, act, lbl) {
 const toastU = (msg, ms = 7000) => toast(msg, ms, 'undo', 'Desfazer');
 let tokCache = null;
 function tokens() { if (tokCache) return tokCache; const cs = getComputedStyle(document.documentElement); const g = n => cs.getPropertyValue(n).trim(); tokCache = { surface: g('--surface'), muted: g('--muted'), sel: g('--sel'), ink: g('--ink'), line: g('--line'), bg: g('--map-bg') }; return tokCache; }
-function isDark() { const t = document.documentElement.getAttribute('data-theme'); if (t) return t === 'dark'; return matchMedia('(prefers-color-scheme: dark)').matches; }
+function isDark() { const t = document.documentElement.getAttribute('data-theme'); if (t) return t !== 'light'; return matchMedia('(prefers-color-scheme: dark)').matches; }
 function onTheme() { tokCache = null; setBase(); renderMap(); }
 
 function armButton(btn, fn, txt = 'Confirmar') {
@@ -3112,6 +3112,10 @@ function pageConfig() {
         <div class="field"><span class="lbl">Sessão</span><span>${+st.politica.inatividadeMin ? `Encerra depois de ${st.politica.inatividadeMin} min sem uso` : 'Sem limite de inatividade'}${st.politica.exige2fa ? ' · duas etapas obrigatória' : ''}</span></div>
         <div class="row"><button class="btn primary" data-act="seguranca">Abrir segurança e privacidade</button></div>
       </div></div>
+      <div class="card"><div class="ch"><h2>Aparência</h2></div><div class="cb stack">
+        <p class="muted" style="margin:0">Tema do aplicativo neste dispositivo. Também dá para trocar pelo botão de tema na barra superior.</p>
+        <div class="temas" role="radiogroup" aria-label="Tema do aplicativo">${window.RVXTema ? window.RVXTema.opcoesHtml() : ''}</div>
+      </div></div>
       <div class="card"><div class="ch"><h2>Mapa e endereços</h2></div><div class="cb stack">
         <label class="field"><span class="lbl">Mapa de fundo</span><select id="cfgBase">${bases}</select></label>
         <label class="field"><span class="lbl">Busca de endereços</span>${geoSrcSel()}</label>
@@ -3529,9 +3533,9 @@ function renderHome() {
 const migalha = nome => `<nav class="crumb" aria-label="Caminho"><button type="button" class="linkbtn" data-hub="hub">Início</button><span aria-hidden="true">›</span><b>${esc(nome)}</b></nav>`;
 const ICON_MOD = {
   plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>',
-  rotas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10.2A6 6 0 0 1 18 10.8C18 15.7 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.3"/></svg>',
+  rotas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/><circle cx="18" cy="5" r="2.5"/></svg>',
   verba: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg>',
-  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>',
+  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>'
 };
 function renderHub(el) {
@@ -3555,7 +3559,7 @@ function renderHub(el) {
         `<button class="btn sm primary" type="button" data-hub="verba">Abrir Verba</button>`)}
       ${mod('cal', 'Calendário', 'Ano inteiro com dias úteis, feriados, eventos da empresa e as semanas do ciclo (S1 a S4 e quinzenas 1,3 e 2,4).', C ? stat(C.semana, `semana atual · ${C.quinzena}`) + stat(nf0.format(C.uteis), 'dias úteis no mês') + stat(esc(C.proximo), 'próximo evento') : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="cal">Abrir Calendário</button>`)}
-      ${mod('config', 'Configurações', 'Minha conta, segurança e privacidade, mapa de fundo, servidores de rota e backup.', mfa + (st.usuario && st.usuario.papel === 'admin' ? '<span class="pill idle">Administrador</span>' : ''),
+      ${mod('config', 'Configurações', 'Minha conta, aparência e temas, segurança e privacidade, mapa de fundo, servidores de rota e backup.', mfa + (st.usuario && st.usuario.papel === 'admin' ? '<span class="pill idle">Administrador</span>' : ''),
         `<button class="btn sm" type="button" data-hub="config">Abrir</button><button class="btn sm" type="button" data-act="seguranca">Segurança</button>`)}
     </nav>
   </div>`;
@@ -3752,7 +3756,7 @@ async function sbEnviarLocais(emp, pre) {
   for (const c of cols) for (const d of await LocalBackend.list(pre + c)) await dest.set(c, d.id, d.data);
   try { localStorage.setItem(sbMarca(pre), String(Date.now())); } catch (e) { /* ignora */ }
 }
-const LOGO = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/><path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3"/></svg>';
+const LOGO = '<svg class="vx" viewBox="9 5 54 54" aria-hidden="true" focusable="false"><g fill="none" stroke-linecap="round" stroke-width="4.8"><path class="vx-2" d="M32 32a12 12 0 0 1 24 0"/><path class="vx-3" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path class="vx-1" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g><g class="vx-n" stroke-width="2.3"><circle class="vx-2" cx="56" cy="32" r="3.2"/><circle class="vx-3" cx="56" cy="32" r="3.2" transform="rotate(120 32 32)"/><circle class="vx-1" cx="56" cy="32" r="3.2" transform="rotate(240 32 32)"/></g><circle class="vx-h" cx="32" cy="32" r="5.2" stroke-width="2.8"/></svg>';
 
 const hexOf = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 async function derivar(txt, salt) {
@@ -3849,7 +3853,7 @@ const LG_TELAS = {
       <div class="lg-row"><button class="lg-link" type="button" data-lg="recusa">Sair</button></div>`;
   },
   privacidade() {
-    return `<h1>Aviso de privacidade</h1><p class="sub">Antes de continuar, veja como os dados são tratados no Roteirizador, conforme a Lei Geral de Proteção de Dados (LGPD).</p>${avisoPrivacidadeHtml()}
+    return `<h1>Aviso de privacidade</h1><p class="sub">Antes de continuar, veja como os dados são tratados no Route VORTEX, conforme a Lei Geral de Proteção de Dados (LGPD).</p>${avisoPrivacidadeHtml()}
       <label class="chk"><input type="checkbox" id="lgAceito"> Li e concordo com o aviso de privacidade</label>
       <div class="lg-row"><button class="btn" type="button" data-lg="recusa">Não concordo e sair</button><button class="btn primary" type="button" data-lg="aceita">Concordo e continuar</button></div>`;
   },
@@ -3873,7 +3877,7 @@ const LG_TELAS = {
 function renderLogin() {
   const e = lg.emp, comEnv = e && lg.step !== 'empresa';
   const trocar = ['login', 'primeiro', 'esqueci'].includes(lg.step);
-  $('#loginView').innerHTML = `<div class="lg"><div class="lg-brand">${LOGO}<span>Roteirizador <b>RRM</b></span></div>
+  $('#loginView').innerHTML = `<div class="lg"><div class="lg-brand">${LOGO}<span class="wm"><small>ROUTE</small><b>VORTEX</b><em>Planejamento · Setorização · Roteirização</em></span></div>
     <div class="card lg-card">${comEnv ? `<div class="lg-env"><span class="oi sg">${esc(e.sigla)}</span><b>${esc(e.nome)}</b>${trocar ? '<button class="btn sm" type="button" data-lg="empresa">Trocar de ambiente</button>' : ''}</div>` : ''}
       <div id="lgMsg" role="alert"></div>${LG_TELAS[lg.step]()}</div>
     <p class="lg-foot">${st.sb ? 'Acesso protegido por senha, verificação em duas etapas e registro de atividades. Os dados ficam no banco de dados da empresa.' : 'Os acessos e os dados ficam guardados neste navegador.'}</p></div>`;
@@ -4490,7 +4494,7 @@ async function boot() {
   const ambPronto = async () => { const a = st.amb; if (!a) return; clearTimeout(a.t); a.t = null; if (a.dirty.size) await a.flush(); while (a.busy) await sleep(30); };
   st.backend = st.sb ? SupabaseBackend(st.sb, e.id, ambPronto) : { kind: st.base.kind, list: c => st.base.list(e.id + '_' + c), set: (c, i, d) => st.base.set(e.id + '_' + c, i, d), del: (c, i) => st.base.del(e.id + '_' + c, i) };
   loadUI();
-  document.title = 'Roteirizador RRM · ' + e.nome;
+  document.title = 'Route VORTEX · ' + e.nome;
   document.body.classList.remove('screen-login');
   renderAcct();
   bindEvents();

@@ -3,56 +3,45 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Roteirizador RRM para Windows</title>
-    <meta name="description" content="Baixe o Roteirizador RRM para Windows: planejamento territorial, setorização e roteirização pelas ruas, com a mesma interface da versão web." />
+    <title>Route VORTEX para Windows</title>
+    <meta name="description" content="Baixe o Route VORTEX para Windows: planejamento territorial, setorização e roteirização pelas ruas, com a mesma interface da versão web." />
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" />
     <style>
-      /* Mesmas cores e fontes do app (css/style.css) */
+      /* Mesmas cores e fontes do app (css/style.css) · tema Escuro Navy Vortex */
       :root {
-        --bg: #EEF0EC; --surface: #FFFFFF; --surface-2: #F6F7F4; --ink: #18211D; --muted: #5B6862;
-        --line: #D6DBD5; --line-strong: #B9C1BA; --accent: #0E6B57; --accent-ink: #FFFFFF; --accent-soft: #DCEDE7;
-        --route: #C8641E; --warn: #9A6A06; --warn-soft: #FBF0D4; --map-bg: #E4E7E2;
-        --shadow: 0 1px 2px rgba(20,30,25,.08), 0 6px 20px rgba(20,30,25,.10);
-        --f-body: "IBM Plex Sans", system-ui, "Segoe UI", sans-serif;
-        --f-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", "Arial Narrow", sans-serif;
+        --bg: #0B1426; --surface: #111D35; --surface-2: #16264A; --ink: #E8F1FF; --muted: #94A3B8;
+        --line: #1E2E50; --line-strong: #2C3F66; --accent: #22D3EE; --accent-ink: #0B1426; --accent-soft: #10334B; --accent-2: #3B82F6;
+        --route: #F97316; --warn: #FBBF24; --warn-soft: #3A2E10; --map-bg: #0E1930;
+        --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.45); color-scheme: dark;
+        --f-body: "Inter", system-ui, "Segoe UI", sans-serif;
+        --f-cond: "Space Grotesk", "Inter", system-ui, sans-serif;
         --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-        --r: 6px;
-      }
-      @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-        --bg: #0F1412; --surface: #171D1A; --surface-2: #1D2421; --ink: #E3E9E5; --muted: #8E9C95;
-        --line: #2A3330; --line-strong: #3A4541; --accent: #3BB394; --accent-ink: #06231B; --accent-soft: #163A31;
-        --route: #E8873F; --warn: #E0B04A; --warn-soft: #3A2E10; --map-bg: #1A201D;
-        --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45); color-scheme: dark;
-      } }
-      :root[data-theme="dark"] {
-        --bg: #0F1412; --surface: #171D1A; --surface-2: #1D2421; --ink: #E3E9E5; --muted: #8E9C95;
-        --line: #2A3330; --line-strong: #3A4541; --accent: #3BB394; --accent-ink: #06231B; --accent-soft: #163A31;
-        --route: #E8873F; --warn: #E0B04A; --warn-soft: #3A2E10; --map-bg: #1A201D;
-        --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45); color-scheme: dark;
+        --r: 12px;
       }
       * { box-sizing: border-box; }
       html { scroll-behavior: smooth; }
-      body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--f-body); }
+      body { margin: 0; background: radial-gradient(1200px 520px at 10% -12%, rgba(59,130,246,.16), transparent 60%), radial-gradient(900px 420px at 100% 0%, rgba(34,211,238,.10), transparent 60%), var(--bg); color: var(--ink); font: 16px/1.55 var(--f-body); -webkit-font-smoothing: antialiased; }
       a { color: var(--accent); }
       :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
 
       /* Barra superior (igual à do app) */
-      .top { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+      .top { background: rgba(11,20,38,.85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
       .top .wrap { display: flex; align-items: center; gap: 12px; min-height: 48px; }
-      .brand { display: flex; align-items: center; gap: 7px; font-family: var(--f-cond); font-weight: 600; font-size: 16px; color: var(--ink); text-decoration: none; }
-      .brand b { color: var(--accent); font-weight: 600; }
-      .brand svg { color: var(--accent); }
-      .top nav { margin-left: auto; display: flex; gap: 4px; }
+      .brand { display: flex; align-items: center; gap: 9px; font-family: var(--f-cond); color: var(--ink); text-decoration: none; }
+      .brand .wm { display: flex; flex-direction: column; line-height: 1; }
+      .brand .wm small { font: 600 8.5px/1 var(--f-cond); letter-spacing: .42em; color: #22D3EE; margin-bottom: 2px; }
+      .brand .wm b { font: 700 18px/1 var(--f-cond); letter-spacing: -.01em; color: var(--ink); }
+                  .top nav { margin-left: auto; display: flex; gap: 4px; }
       .top nav a { color: var(--muted); text-decoration: none; font-size: 14px; padding: 5px 10px; border-radius: 4px; }
       .top nav a:hover { background: var(--surface-2); color: var(--ink); }
 
       .btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
         border-radius: var(--r); padding: 8px 14px; min-height: 40px; cursor: pointer; font: 500 15px var(--f-body); text-decoration: none; white-space: nowrap; }
       .btn:hover { border-color: var(--muted); }
-      .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+      .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; box-shadow: 0 6px 18px rgba(34,211,238,.25); }
       .btn.primary:hover { filter: brightness(1.06); }
       .btn.big { min-height: 52px; padding: 12px 22px; font-size: 17px; font-weight: 600; }
       .btn[aria-disabled="true"] { opacity: .55; pointer-events: none; }
@@ -62,7 +51,7 @@
       .hero .wrap { display: grid; grid-template-columns: 1fr 1.15fr; gap: 48px; align-items: center; }
       .tag { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--f-mono); letter-spacing: .04em; text-transform: uppercase;
         color: var(--accent); background: var(--accent-soft); padding: 4px 9px; border-radius: 4px; }
-      h1 { font-family: var(--f-cond); font-weight: 600; font-size: clamp(34px, 5vw, 52px); line-height: 1.05; margin: 16px 0 14px; letter-spacing: -.01em; }
+      h1 { font-family: var(--f-cond); font-weight: 700; font-size: clamp(34px, 5vw, 52px); line-height: 1.05; margin: 16px 0 14px; letter-spacing: -.01em; }
       h1 b { color: var(--accent); font-weight: 600; }
       .lead { color: var(--muted); font-size: 18px; margin: 0 0 28px; max-width: 34em; }
       .cta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -90,11 +79,11 @@
 
       /* Seções */
       section { padding: 56px 0; }
-      h2 { font-family: var(--f-cond); font-weight: 600; font-size: 30px; margin: 0 0 8px; }
+      h2 { font-family: var(--f-cond); font-weight: 700; font-size: 30px; letter-spacing: -.01em; margin: 0 0 8px; }
       .sub { color: var(--muted); margin: 0 0 28px; max-width: 42em; }
       .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
       .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; }
-      .card .ic { width: 36px; height: 36px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin-bottom: 12px; }
+      .card .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin-bottom: 12px; }
       .card h3 { margin: 0 0 6px; font-size: 16px; }
       .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
 
@@ -132,9 +121,9 @@
   <body>
     <header class="top">
       <div class="wrap">
-        <a class="brand" href="#">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="18" r="2.2" /><circle cx="19" cy="6" r="2.2" /><path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3" /></svg>
-          <span>Roteirizador <b>RRM</b></span>
+        <a class="brand" href="#" aria-label="Route VORTEX">
+          <svg class="vx" width="30" height="30" viewBox="9 5 54 54" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-width="4.8"><path stroke="#22D3EE" d="M32 32a12 12 0 0 1 24 0"/><path stroke="#3B82F6" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path stroke="#E8F1FF" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g><g stroke-width="2.3" fill="#0B1426"><circle stroke="#22D3EE" cx="56" cy="32" r="3.2"/><circle stroke="#3B82F6" cx="56" cy="32" r="3.2" transform="rotate(120 32 32)"/><circle stroke="#E8F1FF" cx="56" cy="32" r="3.2" transform="rotate(240 32 32)"/></g><circle fill="#F97316" stroke="#0B1426" cx="32" cy="32" r="5.2" stroke-width="2.8"/></svg>
+          <span class="wm"><small>ROUTE</small><b>VORTEX</b></span>
         </a>
         <nav aria-label="Seções">
           <a href="#recursos">Recursos</a>
@@ -153,7 +142,7 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zm8.5 1.2L21 21v-8.4h-9.5zm0-15.4v7.2H21V3z" /></svg>
               Para Windows
             </span>
-            <h1>Roteirizador <b>RRM</b> no seu computador</h1>
+            <h1>Route <b>VORTEX</b> no seu computador</h1>
             <p class="lead">Planejamento territorial, setorização e roteirização pelas ruas, num aplicativo para Windows. A mesma interface e os mesmos dados da versão web.</p>
             <div class="cta">
               <a class="btn primary big js-baixar" href="#">
@@ -167,7 +156,7 @@
 
           <div class="shot" aria-hidden="true">
             <div class="bar">
-              <span class="t"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="5" cy="18" r="2.2" /><circle cx="19" cy="6" r="2.2" /><path d="M7 17c4-1 3-6 7-7s3-2 3.2-2.6" stroke-dasharray="3 3" /></svg>RRM</span>
+              <span class="t"><svg class="vx" width="15" height="15" viewBox="9 5 54 54" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-width="4.8"><path stroke="#22D3EE" d="M32 32a12 12 0 0 1 24 0"/><path stroke="#3B82F6" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path stroke="#E8F1FF" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g><g stroke-width="2.3" fill="#111D35"><circle stroke="#22D3EE" cx="56" cy="32" r="3.2"/><circle stroke="#3B82F6" cx="56" cy="32" r="3.2" transform="rotate(120 32 32)"/><circle stroke="#E8F1FF" cx="56" cy="32" r="3.2" transform="rotate(240 32 32)"/></g><circle fill="#F97316" stroke="#111D35" cx="32" cy="32" r="5.2" stroke-width="2.8"/></svg>VORTEX</span>
               <span class="tabs"><span class="on">Mapa</span><span>Roteiros</span><span>Estudos</span><span>Clientes</span></span>
               <span class="win"><span>–</span><span>▢</span><span>✕</span></span>
             </div>
@@ -284,7 +273,7 @@
 
     <footer>
       <div class="wrap">
-        <span>Roteirizador RRM</span>
+        <span>Route VORTEX · Planejamento · Setorização · Roteirização</span>
         <span>Desenvolvido por RRM</span>
       </div>
     </footer>
