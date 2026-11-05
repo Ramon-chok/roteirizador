@@ -13,6 +13,19 @@ window.RT_CONFIG = {
   supabaseKey: 'sb_publishable_NOApo3rAD9ZC7jfmd1k9FQ_uue31XhF',
   // Endereço da versão web (ex.: https://seusite.com.br/). O app de Windows usa este endereço no link de "Esqueci minha senha" enviado por e-mail.
   urlWeb: '',
+  // Segurança e privacidade (LGPD). A política de cada ambiente (duas etapas obrigatória e minutos de inatividade)
+  // é ajustada pelo administrador em Configurações → Segurança e privacidade; estes são os valores iniciais.
+  seguranca: {
+    inatividadeMin: 30, // encerra a sessão depois de tantos minutos sem uso (0 = nunca)
+    tentativas: 5, // senhas ou códigos errados seguidos antes de bloquear o login neste navegador
+    bloqueioMin: 5, // duração do primeiro bloqueio; dobra a cada novo bloqueio
+    privacidade: {
+      versao: '2026-11', // troque a versão quando mudar o texto do aviso: todos aceitam de novo no próximo login
+      controlador: '', // razão social da empresa responsável pelos dados. Vazio = nome do ambiente
+      encarregado: '', // nome do encarregado (DPO)
+      contato: '' // e-mail ou telefone do encarregado
+    }
+  },
   // Ponto no mar onde ficam os clientes cujo endereço não foi encontrado (para arrastar até o local certo).
   // O padrão fica no oceano, cerca de 50 km do litoral norte de SP. Troque se a sua região for outra.
   pontoMar: { lat: -24.40, lng: -45.40 },

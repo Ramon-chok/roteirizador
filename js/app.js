@@ -103,6 +103,12 @@ const SB_MAPA = {
     linha: (k, x) => ({ id: k, tipo: x.tipo || 'roteiro', arquivo: nulo(x.arquivo), estudo_id: nulo(x.estudo), estudo_nome: nulo(x.estudoNome), usuario: nulo(x.usuario), usuario_login: nulo(x.login), importado_em: emISO(x.em), linhas: x.linhas || 0, alteracoes: x.alteracoes || 0, novos: x.novos || 0, atualizados: x.atualizados || 0, ignorados: x.ignorados || 0, pendencias: x.pend || 0, resumo: x.resumo || [], mensagem: nulo(x.msg) }),
     item: r => [r.id, semVazios({ id: r.id, tipo: r.tipo, arquivo: r.arquivo, estudo: r.estudo_id, estudoNome: r.estudo_nome, usuario: r.usuario, login: r.usuario_login, em: deISO(r.importado_em), linhas: r.linhas, alteracoes: r.alteracoes, novos: r.novos, atualizados: r.atualizados, ignorados: r.ignorados, pend: r.pendencias, resumo: r.resumo || [], msg: r.mensagem })]
   },
+  // Rotas: cada base de roteiros (um período) é uma linha; o resumo calculado fica em "dados"
+  rotasbase: {
+    tab: 'rotas_bases', pk: ['id'],
+    linha: (k, x) => ({ id: k, nome: x.nome || k, periodo: nulo(x.periodo), dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
   colaboradores: {
     tab: 'colaboradores', pk: ['codigo'],
     linha: (k, c) => ({ codigo: k, nome: c.nome || k, funcao: nulo(c.funcao), endereco: nulo(c.endereco), bairro: nulo(c.bairro), cidade: nulo(c.cidade), uf: nulo(c.uf), cep: nulo(c.cep), lat: coordOk(c.lat, 90), lng: coordOk(c.lng, 180), jornada_min: numOk(c.jornada), cor: nulo(c.cor), geo_origem: nulo(c.geo), geo_nivel: nulo(c.geoNivel), geo_pendencia: c.geoPend || null, exemplo: !!c.exemplo }),
@@ -158,13 +164,16 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
     }
   };
   const semTabela = e => !!e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist/i.test(e.message || ''));
-  const ler = async coll => { try { return await ler0(coll); } catch (e) { if (coll === 'importacoes' && semTabela(e)) { st.impSemTabela = true; return {}; } throw e; } };
-  const escreve = async (...a) => { try { return await escreve0(...a); } catch (e) { if (a[0] === 'importacoes' && semTabela(e)) { st.impSemTabela = true; return; } throw e; } };
+  // Tabelas criadas por migrações: sem elas, o sistema segue funcionando e avisa (o que for gravado fica só nesta sessão)
+  const opcional = c => (c === 'importacoes' ? 'impSemTabela' : c === 'rotasbase' || c.startsWith('rotasl/') ? 'rotasSemTabela' : '');
+  const ler = async coll => { try { return await ler0(coll); } catch (e) { const f = opcional(coll); if (f && semTabela(e)) { st[f] = true; return {}; } throw e; } };
+  const escreve = async (...a) => { try { return await escreve0(...a); } catch (e) { const f = opcional(a[0]); if (f && semTabela(e)) { st[f] = true; return; } throw e; } };
   const ler0 = async coll => {
     if (coll === 'ambientes') return COLECOES.lerAmb();
     const items = {}; const m = SB_MAPA[coll];
     if (m) { for (const r of await tudo(m.tab, m.pk)) { const [k, v] = m.item(r); items[k] = v; } return items; }
     const [, estudo] = coll.split('/');
+    if (coll.startsWith('rotasl/')) { for (const r of await tudo('rotas_linhas', ['chave'], q => q.eq('base_id', estudo))) items[r.chave] = r.dados || {}; return items; }
     if (coll.startsWith('itens/')) { for (const r of await tudo('estudo_clientes', ['sold'], q => q.eq('estudo_id', estudo))) items[r.sold] = { s: r.setor_id || '', d: r.dias || [], w: r.semanas || [], q: r.sequencia || {} }; return items; }
     for (const r of await tudo('rotas_calculadas', ['setor_id', 'semana', 'dia'], q => q.eq('estudo_id', estudo))) items[`${r.setor_id}|${r.semana}|${r.dia}`] = semVazios({ sig: r.assinatura, km: +r.km, kmIda: +r.km_ida, kmEntre: +r.km_entre, kmVolta: +r.km_volta, min: +r.minutos, p: r.polilinha, src: r.fonte, o: r.formato, toll: r.tem_pedagio || null, terra: r.km_terra === null ? null : +r.km_terra, em: deISO(r.calculado_em) });
     return items;
@@ -178,6 +187,11 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
       return;
     }
     const [, estudo] = coll.split('/');
+    if (coll.startsWith('rotasl/')) {
+      if (novos.length) await grava('rotas_linhas', novos.map(([k, x]) => ({ empresa_id: emp, base_id: estudo, chave: k, sold: String(x.s ?? ''), vendedor: nulo(x.v), dados: x })), 'empresa_id,base_id,chave');
+      await emLotes(sumidos, SB_LOTE_APAGAR, l => pede(sb.from('rotas_linhas').delete().eq('empresa_id', emp).eq('base_id', estudo).in('chave', l)));
+      return;
+    }
     // Estudo e setores precisam estar no banco antes dos itens que apontam para eles
     if (antesDosFilhos) await antesDosFilhos();
     const conhecidos = setores.get(estudo) || new Set();
@@ -282,10 +296,10 @@ class BucketStore {
 const st = {
   backend: null, base: null, empresa: null, usuario: null, ro: false,
   cli: null, col: null, amb: null, itens: null, cur: null,
-  screen: 'home', homeFocus: null,
+  screen: 'home', homeSec: 'hub', homeFocus: null,
   view: 'mapa', colorBy: 'setor',
   hidden: new Set(), hiddenSet: new Set(), qf: { w: [], d: [] }, rzSec: { setores: true, exib: false }, visao: 'base', corAtual: null, arv: new Map(), baseF: { cidades: new Set(), soldes: new Set(), q: '', cq: '' }, baseCor: 'cidade', bzRes: [], rotaAntes: null,
-  showLines: true, showBases: true, showSeq: true, showOut: true, showUnassigned: true, verSemSetor: true, colorAntes: null, selForm: {}, showSea: true, placing: null,
+  showLines: true, showBases: true, showSeq: true, pinos: true, showOut: true, showUnassigned: true, verSemSetor: true, colorAntes: null, selForm: {}, showSea: true, placing: null,
   sel: new Set(), tool: 'select', routes: new Map(), visRoutes: [],
   panelL: true, panelR: false, mk: new Map(), ruler: { pts: [], active: false },
   undo: [], redo: [], baseKind: 'auto', tileOk: 0, tileErr: 0, autoResequence: true,
@@ -293,8 +307,8 @@ const st = {
   cmp: null, g: 'idle', gMsg: '', geo: null, pathCache: new Map(), road: 'idle', vh: 'idle', roadMsg: '', autoRoad: true, bgBusy: false, roadFail: new Set()
 };
 const uiKey = () => 'rt1:' + st.empresa.id + '_ui';
-function loadUI() { try { const v = JSON.parse(localStorage.getItem(uiKey()) || '{}'); Object.assign(st, { colorBy: v.colorBy || 'setor', baseKind: v.baseKind || 'auto' }); if (v.view) st.view = v.view; st.lastAmb = v.amb; } catch (e) { /* ignora */ } }
-function saveUI() { try { localStorage.setItem(uiKey(), JSON.stringify({ colorBy: st.colorAntes || st.colorBy, baseKind: st.baseKind, view: st.view, amb: st.cur })); } catch (e) { /* ignora */ } }
+function loadUI() { try { const v = JSON.parse(localStorage.getItem(uiKey()) || '{}'); Object.assign(st, { colorBy: v.colorBy || 'setor', baseKind: v.baseKind || 'auto', pinos: v.pinos !== false }); if (v.view) st.view = v.view; st.lastAmb = v.amb; } catch (e) { /* ignora */ } }
+function saveUI() { try { localStorage.setItem(uiKey(), JSON.stringify({ colorBy: st.colorAntes || st.colorBy, baseKind: st.baseKind, view: st.view, amb: st.cur, pinos: st.pinos })); } catch (e) { /* ignora */ } }
 
 const amb = () => (st.cur ? st.amb.get(st.cur) : null);
 const P = (a = amb()) => ({ ...DEF_P, ...((a && a.params) || {}) });
@@ -429,7 +443,9 @@ function armButton(btn, fn, txt = 'Confirmar') {
   setTimeout(() => { if (btn.isConnected && btn.classList.contains('armed')) { btn.classList.remove('armed'); btn.innerHTML = old; } }, 4000);
 }
 
-function setScreen(s) {
+function setScreen(s, sec) {
+  if (sec) st.homeSec = sec;
+  if (s !== 'home' || st.homeSec !== 'rotas') { const R = window.RotasMod; if (R) R.limpar(); }
   st.screen = s;
   document.body.classList.toggle('screen-home', s === 'home');
   $('#homeView').hidden = s !== 'home';
@@ -754,7 +770,7 @@ function autoRoadSync() {
 }
 
 /* ================= Mapa ================= */
-let map, rPts, rLines, ptsLayer, linesLayer, seqLayer, basesLayer, toolLayer, baseLayer, seaLayer;
+let map, rPts, rLines, rSel, ptsLayer, linesLayer, seqLayer, basesLayer, toolLayer, baseLayer, seaLayer;
 // A CARTO passou a exigir chave de API (devolve uma imagem de aviso no lugar do mapa); por isso o padrão é Esri, gratuito e sem chave.
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
 const BASES = {
@@ -771,6 +787,42 @@ const GridLayer = L.GridLayer.extend({
     g.strokeStyle = t.line; g.lineWidth = 1; g.strokeRect(0.5, 0.5, s.x, s.y);
     g.setLineDash([2, 4]); g.beginPath(); g.moveTo(s.x / 2, 0); g.lineTo(s.x / 2, s.y); g.moveTo(0, s.y / 2); g.lineTo(s.x, s.y / 2); g.stroke();
     return c;
+  }
+});
+/* Pino de GPS desenhado no canvas: uma gota da cor do setor/dia com o número da visita no miolo, ou um visto quando
+   o cliente está selecionado. Fica leve com milhares de clientes porque não cria um elemento HTML por pino.
+   A ponta da gota é o local exato do cliente; o tamanho acompanha o zoom. */
+const pinEscala = z => (z >= 15 ? 1.1 : z >= 13 ? 0.95 : z >= 11 ? 0.75 : z >= 9 ? 0.55 : 0.42);
+const PinMarker = L.CircleMarker.extend({
+  options: { label: '', check: false, big: false },
+  _pinDims() { const s = pinEscala(this._map ? this._map.getZoom() : 14) * (this.options.big ? 1.22 : 1); const R = 8.5 * s; return { R, h: R * 2.25 }; },
+  _updateBounds() { const { R, h } = this._pinDims(), w = this._clickTolerance() + 4; this._pxBounds = new L.Bounds(this._point.subtract([R + w, h + R + w]), this._point.add([R + w, w + 2])); },
+  _updatePath() { this._renderer._updatePin(this); },
+  _containsPoint(p) {
+    const { R, h } = this._pinDims(), c = this._point.subtract([0, h]);
+    return p.distanceTo(c) <= R + this._clickTolerance() || (Math.abs(p.x - this._point.x) <= R * 0.55 && p.y <= this._point.y + 1 && p.y >= c.y);
+  }
+});
+L.Canvas.include({
+  _updatePin(layer) {
+    if (!this._drawing || layer._empty()) return;
+    const ctx = this._ctx, p = layer._point, o = layer.options, { R, h } = layer._pinDims();
+    const cx = p.x, cy = p.y - h, phi = Math.acos(Math.min(1, R / h));
+    ctx.beginPath(); ctx.moveTo(cx, p.y); ctx.arc(cx, cy, R, Math.PI / 2 + phi, Math.PI / 2 - phi + 2 * Math.PI); ctx.closePath();
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1.2;
+    ctx.globalAlpha = o.fillOpacity ?? 1; ctx.fillStyle = o.fillColor || o.color; ctx.fill(); ctx.restore();
+    ctx.globalAlpha = 1; ctx.setLineDash([]); ctx.lineJoin = 'round'; ctx.lineWidth = o.weight; ctx.strokeStyle = o.color; ctx.stroke();
+    if (R < 4.2) return; // de longe, só a gota colorida
+    const ri = R * (o.check || o.label ? 0.6 : 0.36); // sem número, um miolo menor deixa a cor do pino aparecer
+    ctx.beginPath(); ctx.arc(cx, cy, ri, 0, 2 * Math.PI); ctx.fillStyle = '#FFFFFF'; ctx.fill();
+    if (o.check) {
+      ctx.beginPath(); ctx.moveTo(cx - ri * 0.52, cy + ri * 0.02); ctx.lineTo(cx - ri * 0.12, cy + ri * 0.42); ctx.lineTo(cx + ri * 0.56, cy - ri * 0.4);
+      ctx.lineWidth = Math.max(1.6, ri * 0.32); ctx.lineCap = 'round'; ctx.strokeStyle = o.fillColor || '#18211D'; ctx.stroke();
+    } else if (o.label && R >= 6) {
+      const t = String(o.label), fs = Math.round(ri * (t.length >= 3 ? 0.95 : 1.25));
+      ctx.fillStyle = '#18211D'; ctx.font = `600 ${fs}px "IBM Plex Mono", ui-monospace, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(t, cx, cy + 0.5);
+    }
   }
 });
 function setBase() {
@@ -808,6 +860,9 @@ function initMap() {
   map.createPane('routes'); map.getPane('routes').style.zIndex = 390;
   rLines = L.canvas({ pane: 'routes', padding: 0.4 });
   rPts = L.canvas({ padding: 0.4, tolerance: 5 });
+  // Laço e retângulo ficam numa camada acima dos clientes, que não captura o mouse
+  map.createPane('selecao'); map.getPane('selecao').style.zIndex = 460; map.getPane('selecao').style.pointerEvents = 'none';
+  rSel = L.canvas({ pane: 'selecao', padding: 0.2 });
   L.control.scale({ metric: true, imperial: false, position: 'bottomright', maxWidth: 170 }).addTo(map);
   linesLayer = L.layerGroup().addTo(map); ptsLayer = L.layerGroup().addTo(map); seqLayer = L.layerGroup().addTo(map);
   basesLayer = L.layerGroup().addTo(map); toolLayer = L.layerGroup().addTo(map); seaLayer = L.layerGroup().addTo(map);
@@ -888,37 +943,42 @@ function renderMap() {
   const want = new Map(), base = st.visao === 'base';
   // Com um único colaborador marcado na visão por rota, cada dia ganha uma cor
   st.corAtual = st.visao === 'rotas' && sortedSetores().filter(([id]) => !st.hiddenSet.has(id)).length === 1 ? 'dia' : st.colorBy;
+  const vis = base ? [] : sortedRoutes([...st.routes.values()].filter(r => routeVisible(r.k)));
+  st.visRoutes = vis;
+  // Com as linhas visíveis, o número da visita vai dentro do pino (o primeiro dia visível, se o cliente tiver mais de um)
+  const seqN = new Map();
+  if (st.pinos && st.showSeq && st.showLines) for (const r of vis) r.stops.forEach((s, i) => { if (!seqN.has(s)) seqN.set(s, String(i + 1)); });
+  const pino = (sel, label) => (st.pinos ? { check: sel, big: sel, label: sel ? '' : label || '' } : {});
   if (base) {
     const cores = coresCidades();
     for (const c of baseFiltrados()) {
       if (!hasXY(c)) continue;
       const it = st.itens && st.itens.get(c.sold), sel = st.sel.has(c.sold);
       const col = st.baseCor === 'cidade' ? cores.get(c.cidade || '') : colorFor(it) || tok.muted;
-      want.set(c.sold, { radius: sel ? 8 : 5.5, color: sel ? tok.sel : tok.surface, weight: sel ? 3 : 1.2, fillColor: col, fillOpacity: 0.95 });
+      want.set(c.sold, { radius: sel ? 8 : 5.5, color: sel ? tok.sel : tok.surface, weight: sel ? 3 : 1.2, fillColor: col, fillOpacity: 0.95, ...pino(sel) });
     }
   }
   if (!base && a && st.itens) for (const [sold, it] of st.itens.map) {
     const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) continue;
     if (!itemVisible(it)) continue;
     const col = colorFor(it), sel = st.sel.has(sold);
-    want.set(sold, col ? { radius: sel ? 8 : 6, color: sel ? tok.sel : tok.surface, weight: sel ? 3 : 1.5, fillColor: col, fillOpacity: 0.95 }
-      : { radius: sel ? 8 : 5.5, color: sel ? tok.sel : tok.muted, weight: sel ? 3 : 1.8, fillColor: tok.surface, fillOpacity: 0.9 });
+    want.set(sold, col ? { radius: sel ? 8 : 6, color: sel ? tok.sel : tok.surface, weight: sel ? 3 : 1.5, fillColor: col, fillOpacity: 0.95, ...pino(sel, seqN.get(sold)) }
+      : { radius: sel ? 8 : 5.5, color: sel ? tok.sel : tok.muted, weight: sel ? 3 : 1.8, fillColor: st.pinos ? tok.muted : tok.surface, fillOpacity: 0.9, ...pino(sel) });
   }
-  for (const [sold, m] of st.mk) if (!want.has(sold)) { ptsLayer.removeLayer(m); st.mk.delete(sold); }
+  for (const [sold, m] of st.mk) if (!want.has(sold) || !!m._pin !== !!st.pinos) { ptsLayer.removeLayer(m); st.mk.delete(sold); }
   for (const [sold, sty] of want) {
     let m = st.mk.get(sold); const c = st.cli.get(sold);
     if (!m) {
-      m = L.circleMarker([c.lat, c.lng], { renderer: rPts, ...sty }); m._sold = sold;
+      m = st.pinos ? new PinMarker([c.lat, c.lng], { renderer: rPts, ...sty }) : L.circleMarker([c.lat, c.lng], { renderer: rPts, ...sty });
+      m._sold = sold; m._pin = !!st.pinos;
       m.on('click', onMarkerClick);
       m.on('contextmenu', e => { L.DomEvent.stopPropagation(e); abrirCtx(e, e.target._sold); });
-      m.bindTooltip(() => tipHtml(m._sold), { direction: 'top', offset: [0, -6] });
+      m.bindTooltip(() => tipHtml(m._sold), { direction: 'top', offset: [0, st.pinos ? -26 : -6] });
       ptsLayer.addLayer(m); st.mk.set(sold, m);
     } else { m.setLatLng([c.lat, c.lng]); m.setStyle(sty); m.setRadius(sty.radius); }
   }
   // linhas
   linesLayer.clearLayers(); basesLayer.clearLayers();
-  const vis = base ? [] : sortedRoutes([...st.routes.values()].filter(r => routeVisible(r.k)));
-  st.visRoutes = vis;
   if (st.showLines) for (const r of vis) {
     const pts = r.stops.map(cliPt).filter(Boolean).map(p => [p.lat, p.lng]); if (!pts.length) continue;
     const col = routeColor(r), b = baseOf(r.s);
@@ -997,6 +1057,7 @@ function afterPlace(sold) {
 }
 function renderSeq() {
   seqLayer.clearLayers();
+  if (st.pinos) return; // os números já vão dentro dos pinos
   const vis = st.visRoutes || [];
   const total = vis.reduce((s, r) => s + r.stops.length, 0);
   if (!st.showSeq || !st.showLines || !vis.length || vis.length > 10 || total > 320 || map.getZoom() < 12) return;
@@ -1102,28 +1163,51 @@ function initLasso() {
     try { el.setPointerCapture(e.pointerId); } catch (_) { /* ok */ }
     e.preventDefault();
   });
+  // Contorno em duas camadas (halo claro + traço forte) e preenchimento visível, acima dos pinos, e um contador junto ao cursor
+  const bolha = document.createElement('div'); bolha.id = 'selCount'; bolha.hidden = true; bolha.setAttribute('aria-live', 'polite'); document.body.append(bolha);
+  const corSel = () => getComputedStyle(document.documentElement).getPropertyValue('--lasso').trim() || '#0B63CE';
+  const dentro = (d, end) => {
+    if (st.tool === 'rect') { const b = L.latLngBounds(d.start, end); return ll => b.contains(ll); }
+    const poly = d.pts.map(p => [p.lng, p.lat]); return ll => pip(ll.lng, ll.lat, poly);
+  };
+  let contaRaf = 0;
+  const contar = (d, ll, x, y) => {
+    if (contaRaf) return;
+    contaRaf = requestAnimationFrame(() => {
+      contaRaf = 0; if (!drag) return;
+      const f = dentro(d, ll); let n = 0; for (const m of st.mk.values()) if (f(m.getLatLng())) n++;
+      bolha.className = d.sub ? 'sub' : d.add ? 'add' : '';
+      bolha.innerHTML = `<b class="num">${nf0.format(n)}</b> cliente${n === 1 ? '' : 's'}${d.sub ? ' · remover' : d.add ? ' · somar' : ''}`;
+      bolha.style.left = Math.min(x + 16, innerWidth - 150) + 'px'; bolha.style.top = Math.max(8, y - 34) + 'px'; bolha.hidden = false;
+    });
+  };
   el.addEventListener('pointermove', e => {
     if (!drag) return;
     if (Math.hypot(e.clientX - drag.px[0], e.clientY - drag.px[1]) < 4 && !drag.moved) return;
     drag.moved = true;
     const ll = map.mouseEventToLatLng(e);
     // Sem renderer próprio, o Leaflet criaria um canvas sobre o dos clientes, que passaria a capturar o mouse para sempre
-    const sty = { renderer: rLines, color: tokens().sel, weight: 1.5, dashArray: '5 5', fillOpacity: 0.08, interactive: false };
+    const cor = corSel(), halo = { renderer: rSel, color: '#FFFFFF', weight: 7, opacity: 0.9, fill: false, interactive: false, lineJoin: 'round' };
+    const traco = { renderer: rSel, color: cor, weight: 3, opacity: 1, dashArray: '10 6', fillColor: cor, fillOpacity: drag.sub ? 0.1 : 0.2, interactive: false, lineJoin: 'round' };
     if (shape) toolLayer.removeLayer(shape);
-    if (st.tool === 'rect') { shape = L.rectangle(L.latLngBounds(drag.start, ll), sty); }
-    else { const last = drag.pts[drag.pts.length - 1]; const p1 = map.latLngToContainerPoint(last), p2 = map.latLngToContainerPoint(ll); if (p1.distanceTo(p2) > 3) drag.pts.push(ll); shape = L.polygon(drag.pts, sty); }
+    shape = L.layerGroup();
+    if (st.tool === 'rect') { const b = L.latLngBounds(drag.start, ll); shape.addLayer(L.rectangle(b, halo)).addLayer(L.rectangle(b, traco)); }
+    else {
+      const last = drag.pts[drag.pts.length - 1]; const p1 = map.latLngToContainerPoint(last), p2 = map.latLngToContainerPoint(ll); if (p1.distanceTo(p2) > 3) drag.pts.push(ll);
+      shape.addLayer(L.polygon(drag.pts, halo)).addLayer(L.polygon(drag.pts, traco));
+      shape.addLayer(L.circleMarker(drag.start, { renderer: rSel, radius: 5, color: '#FFFFFF', weight: 2, fillColor: cor, fillOpacity: 1, interactive: false }));
+    }
     toolLayer.addLayer(shape);
+    contar(drag, ll, e.clientX, e.clientY);
   });
   const finish = e => {
     if (!drag) return;
-    const d = drag; drag = null;
+    const d = drag; drag = null; bolha.hidden = true;
     if (shape) { toolLayer.removeLayer(shape); shape = null; }
     if (!d.moved) return;
     st.lassoEnd = performance.now();
     const end = map.mouseEventToLatLng(e);
-    let inside;
-    if (st.tool === 'rect') { const b = L.latLngBounds(d.start, end); inside = ll => b.contains(ll); }
-    else { const poly = d.pts.map(p => [p.lng, p.lat]); inside = ll => pip(ll.lng, ll.lat, poly); }
+    const inside = dentro(d, end);
     const hit = []; for (const [sold, m] of st.mk) if (inside(m.getLatLng())) hit.push(sold);
     if (d.sub) hit.forEach(s => st.sel.delete(s));
     else { if (!d.add) st.sel.clear(); hit.forEach(s => st.sel.add(s)); }
@@ -1131,7 +1215,7 @@ function initLasso() {
     if (hit.length) toast(`${hit.length} cliente(s) ${d.sub ? 'removidos da' : 'na'} seleção`);
   };
   el.addEventListener('pointerup', finish);
-  el.addEventListener('pointercancel', () => { drag = null; if (shape) { toolLayer.removeLayer(shape); shape = null; } });
+  el.addEventListener('pointercancel', () => { drag = null; bolha.hidden = true; if (shape) { toolLayer.removeLayer(shape); shape = null; } });
 }
 function pip(x, y, poly) { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) ins = !ins; } return ins; }
 
@@ -1250,7 +1334,8 @@ function painelBase() {
       <div class="stack" id="bzRes" style="gap:6px">${bzResHtml()}</div>
       ${F.soldes.size ? '<div class="row"><button class="btn sm ghost" type="button" data-act="bzlimpasold">Desmarcar os específicos</button></div>' : ''}
     </div>
-    <div class="stack"><span class="lbl">Cor dos clientes</span><div class="seg rzseg"><button type="button" data-bzcor="cidade" aria-pressed="${st.baseCor === 'cidade'}">Por cidade</button><button type="button" data-bzcor="setor" aria-pressed="${st.baseCor === 'setor'}">Por setor</button></div></div>
+    <div class="stack"><span class="lbl">Cor dos clientes</span><div class="seg rzseg"><button type="button" data-bzcor="cidade" aria-pressed="${st.baseCor === 'cidade'}">Por cidade</button><button type="button" data-bzcor="setor" aria-pressed="${st.baseCor === 'setor'}">Por setor</button></div>
+      <label class="chk"><input type="checkbox" data-opt="pinos" ${st.pinos ? 'checked' : ''}> Pinos de GPS (desmarque para pontos simples)</label></div>
   </section>`;
 }
 /* ----- Partes comuns de Setores e Rotas ----- */
@@ -1297,6 +1382,7 @@ function exibicaoHtml() {
         <div class="row"><button class="btn sm" data-act="hideall">Ocultar tudo</button><button class="btn sm" data-act="fit">Enquadrar</button></div></div>
       <div class="stack"><span class="lbl">Camadas</span>
         <label class="chk"><input type="checkbox" data-opt="showLines" ${st.showLines ? 'checked' : ''}> Linhas das rotas (ida e volta tracejadas)</label>
+        <label class="chk"><input type="checkbox" data-opt="pinos" ${st.pinos ? 'checked' : ''}> Pinos de GPS (desmarque para pontos simples)</label>
         <label class="chk"><input type="checkbox" data-opt="showSeq" ${st.showSeq ? 'checked' : ''}> Números da sequência</label>
         <label class="chk"><input type="checkbox" data-opt="showBases" ${st.showBases ? 'checked' : ''}> Base dos colaboradores</label>
         <label class="chk"><input type="checkbox" data-opt="showUnassigned" ${st.showUnassigned ? 'checked' : ''}> Clientes do setor ainda sem dia (${nSemDia})</label>
@@ -2121,6 +2207,24 @@ const FIELDS = {
     { k: 'nome', l: 'Nome do cliente (p/ cadastrar)', al: ['nomedocliente', 'nome', 'nomecliente', 'razaosocial', 'cliente'] },
     { k: 'lat', l: 'Latitude do cliente', al: ['lat', 'latitude'] },
     { k: 'lng', l: 'Longitude do cliente', al: ['lng', 'lon', 'long', 'longitude'] }
+  ],
+  // Base de roteiros (módulo Rotas): o que cada vendedor visita, com período, equipe, região e segmento
+  rotas: [
+    { k: 'sold', l: 'SOLD do cliente', req: 1, al: ['soldcliente', 'solddocliente', 'sold', 'codcliente', 'codigocliente', 'cliente', 'codigo'] },
+    { k: 'colab', l: 'SOLD do vendedor', req: 1, al: ['soldvendedor', 'solddovendedor', 'vendedor', 'codvendedor', 'codigovendedor', 'colaborador', 'rca', 'matricula'] },
+    { k: 'dia', l: 'Dia(s) da semana', al: ['dia', 'dias', 'diasemana', 'diadasemana'] },
+    { k: 'semana', l: 'Semana(s)', al: ['semana', 'semanas', 'sem'] },
+    { k: 'data', l: 'Data da visita', al: ['data', 'datavisita', 'datadavisita', 'dtvisita', 'dia_visita'] },
+    { k: 'periodo', l: 'Período (mês/ano)', al: ['periodo', 'mes', 'mesano', 'competencia', 'referencia', 'anomes'] },
+    { k: 'equipe', l: 'Equipe / supervisor', al: ['equipe', 'time', 'supervisor', 'supervisao', 'gerencia'] },
+    { k: 'regiao', l: 'Região', al: ['regiao', 'regional', 'area', 'zona'] },
+    { k: 'segmento', l: 'Segmento do cliente', al: ['segmento', 'canal', 'ramo', 'categoria', 'tipo'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'nome', l: 'Nome do cliente', al: ['nomedocliente', 'nome', 'nomecliente', 'razaosocial', 'fantasia'] },
+    { k: 't', l: 'Tempo de atendimento (min)', al: ['tempoatendimento', 'atendimentomin', 'atendimento', 'tempo', 'tma', 'duracao'] },
+    { k: 'seq', l: 'Sequência', al: ['sequencia', 'seq', 'ordem'] },
+    { k: 'lat', l: 'Latitude do cliente', al: ['lat', 'latitude'] },
+    { k: 'lng', l: 'Longitude do cliente', al: ['lng', 'lon', 'long', 'longitude'] }
   ]
 };
 const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -2131,11 +2235,11 @@ function openImport(kind, opts = {}) {
   renderWz();
 }
 function renderWz() {
-  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro' }[wz.kind];
+  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro', rotas: 'Importar base de roteiros (Rotas)' }[wz.kind];
   const steps = `<div class="steps"><span class="${wz.step === 1 ? 'on' : ''}">1 · Arquivo</span>›<span class="${wz.step === 2 ? 'on' : ''}">2 · Colunas</span>›<span class="${wz.step === 3 ? 'on' : ''}">3 · Resultado</span></div>`;
   let body = '', foot = '';
   if (wz.step === 1) {
-    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.' }[wz.kind];
+    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.', rotas: 'Uma linha por cliente e vendedor, com o Dia e a Semana do roteiro, ou a Data de cada visita. Com uma coluna de Período (ou datas de meses diferentes), cada mês vira uma base separada no histórico. Equipe, Região e Segmento são opcionais e viram filtros. A posição do cliente vem da base de clientes ou da Latitude/Longitude da planilha.' }[wz.kind];
     body = `<p class="muted" style="margin:0">${help}</p>
       <div class="row"><button class="btn sm" type="button" data-modelo="${wz.kind}">Baixar modelo (.xlsx)</button><span class="muted" style="font-size:12px">Planilha pronta com as colunas, exemplos e uma aba de instruções.</span></div>
       <label class="field"><span class="lbl">Planilha (.xlsx, .xls, .csv)</span><input type="file" id="wzFile" accept=".xlsx,.xls,.xlsm,.csv,.txt"></label>
@@ -2148,20 +2252,20 @@ function renderWz() {
     const opt = sel => `<option value="-1">— não importar —</option>` + wz.headers.map((h, i) => `<option value="${i}"${sel === i ? ' selected' : ''}>${esc(h || 'Coluna ' + (i + 1))}</option>`).join('');
     const prev = wz.rows.slice(0, 4);
     body = `<div style="overflow-x:auto"><table class="t maptbl"><thead><tr><th>Campo do sistema</th><th>Coluna da planilha</th><th>Exemplo</th></tr></thead><tbody>${F.map(f => `<tr><td>${esc(f.l)}${f.req ? ' *' : ''}</td><td><select data-wzf="${f.k}">${opt(wz.map[f.k] ?? -1)}</select></td><td class="muted" style="font-size:12px">${prev.map(r => esc(wz.map[f.k] >= 0 ? r[wz.map[f.k]] : '')).filter(Boolean).slice(0, 2).join(' · ')}</td></tr>`).join('')}</tbody></table></div>
-      ${wz.kind !== 'roteiro' ? `<label class="chk"><input type="checkbox" id="wzUpd" ${wz.update ? 'checked' : ''}> Atualizar registros que já existem (pelo ${wz.kind === 'clientes' ? 'SOLD' : 'código'})</label>` : `
+      ${wz.kind === 'rotas' ? window.RotasMod.opcoesImport(wz) : wz.kind !== 'roteiro' ? `<label class="chk"><input type="checkbox" id="wzUpd" ${wz.update ? 'checked' : ''}> Atualizar registros que já existem (pelo ${wz.kind === 'clientes' ? 'SOLD' : 'código'})</label>` : `
       <div class="fgrid">
         <label class="field"><span class="lbl">Destino</span><select id="wzTgt">${amb() ? `<option value="atual"${wz.target === 'atual' ? ' selected' : ''}>Estudo aberto: ${esc(amb().nome)}</option>` : ''}<option value="novo"${wz.target === 'novo' ? ' selected' : ''}>Novo estudo</option></select></label>
         <label class="field" ${wz.target === 'novo' ? '' : 'hidden'}><span class="lbl">Nome do novo estudo</span><input type="text" id="wzNome" value="${esc(wz.novoNome)}"></label>
         <label class="field" ${wz.target === 'atual' ? '' : 'hidden'}><span class="lbl">Modo</span><select id="wzModo"><option value="mesclar"${wz.modo === 'mesclar' ? ' selected' : ''}>Mesclar com o que existe</option><option value="substituir"${wz.modo === 'substituir' ? ' selected' : ''}>Substituir todo o roteiro do estudo</option></select></label>
       </div>`}
-      <div class="row"><label class="chk"><input type="checkbox" id="wzGeo" ${wz.geo ? 'checked' : ''}> Buscar as coordenadas pelo endereço de quem não tiver latitude/longitude</label>${geoSrcSel()}</div>`;
+      ${wz.kind === 'rotas' ? '' : `<div class="row"><label class="chk"><input type="checkbox" id="wzGeo" ${wz.geo ? 'checked' : ''}> Buscar as coordenadas pelo endereço de quem não tiver latitude/longitude</label>${geoSrcSel()}</div>`}`;
     foot = `<button class="btn" id="wzBack">Voltar</button><button class="btn primary" id="wzGo">Importar ${wz.rows.length} linha(s)</button>`;
   } else {
     const r = wz.res, rg = r.regId && st.imp && st.imp.get(r.regId);
     body = `<div class="stack">${r.lines.map(l => `<div class="banner ${l[0]}">${l[1]}</div>`).join('')}
       ${rg ? `<div class="imp-reg"><div class="row" style="justify-content:space-between"><span class="lbl">Registrado no histórico de importações</span><span class="muted" style="font-size:12px">${fdh(rg.em)} · ${esc(rg.usuario || 'sem usuário')}</span></div>
         <label class="field"><span class="lbl">Observação (opcional)</span><textarea id="wzMsg" class="msg" maxlength="500" placeholder="Ex.: roteiro de novembro enviado pelo comercial">${esc(rg.msg || '')}</textarea><span class="hint">Fica no histórico junto com a data, o usuário e as quantidades. Pode ser editada depois.</span></label></div>` : ''}</div>`;
-    foot = wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
+    foot = wz.kind === 'rotas' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="rotas">Abrir em Rotas</button>` : wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
   }
   openModal(`<div class="dh"><h2>${T}</h2>${steps}<button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div><div class="db">${body}</div><div class="df">${foot}</div>`);
   const wm = $('#wzMsg'); if (wm) wm.oninput = () => impMsg(wz.res.regId, wm.value);
@@ -2173,7 +2277,8 @@ function renderWz() {
   } else if (wz.step === 2) {
     $$('[data-wzf]').forEach(s => { s.onchange = () => { wz.map[s.dataset.wzf] = +s.value; renderWz(); }; });
     const u = $('#wzUpd'); if (u) u.onchange = () => { wz.update = u.checked; };
-    $('#wzGeo').onchange = e => { wz.geo = e.target.checked; };
+    const wg = $('#wzGeo'); if (wg) wg.onchange = e => { wz.geo = e.target.checked; };
+    if (wz.kind === 'rotas') window.RotasMod.ligaOpcoesImport(wz);
     const tg = $('#wzTgt'); if (tg) tg.onchange = () => { wz.target = tg.value; renderWz(); };
     const nm = $('#wzNome'); if (nm) nm.oninput = () => { wz.novoNome = nm.value; };
     const md = $('#wzModo'); if (md) md.onchange = () => { wz.modo = md.value; };
@@ -2221,6 +2326,12 @@ function cell(r, k) { const i = wz.map[k]; return i >= 0 ? r[i] : ''; }
 async function runImport() {
   const F = FIELDS[wz.kind]; const req = F.filter(f => f.req);
   for (const f of req) if (!(wz.map[f.k] >= 0)) { toast(`Escolha a coluna de “${f.l}”`); return; }
+  if (wz.kind === 'rotas') {
+    const res = await window.RotasMod.importar(wz, r => k => cell(r, k));
+    if (!res) return;
+    const regId = st.rotasSemTabela ? null : registraImport(res.reg, res.lines);
+    wz.res = { lines: res.lines, regId }; wz.step = 3; renderWz(); renderHome(); return;
+  }
   const lines = [], toGeo = []; let reg = { linhas: wz.rows.length };
   // Endereço da linha; se mudou em relação ao cadastro (e a planilha não trouxe coordenada), a coordenada antiga é descartada e buscada de novo
   const readAddr = (r, o, ex) => {
@@ -2368,14 +2479,14 @@ async function runImport() {
 /* ================= Histórico de importações =================
    Cada importação fica registrada para a empresa: data e hora, usuário, arquivo, quantidades e uma observação opcional. */
 const IMP_MAX = 400;
-const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro' };
+const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro', rotas: 'Base de rotas' };
 const fdh = ts => new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const semHtml = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.trim(); };
 function registraImport(reg, lines) {
   if (!st.imp || st.ro) return null;
   const u = st.usuario || {};
   const r = { id: uid('i'), em: Date.now(), tipo: wz.kind, arquivo: wz.arquivo || '', usuario: u.nome || u.login || '', login: u.login || '', linhas: 0, alteracoes: 0, novos: 0, atualizados: 0, ignorados: 0, pend: 0, ...reg, resumo: lines.map(l => semHtml(l[1])).slice(0, 20), msg: '' };
-  st.imp.put(r.id, r);
+  st.imp.put(r.id, r); audita('importacao', `${IMP_TIPO[r.tipo] || r.tipo}: ${r.arquivo || ''} · ${r.linhas} linha(s)`);
   const todos = impLista(); todos.slice(IMP_MAX).forEach(x => st.imp.del(x.id));
   return r.id;
 }
@@ -2453,6 +2564,7 @@ const dstamp = () => new Date().toISOString().slice(0, 10);
 const slug = s => norm(s).slice(0, 40) || 'estudo';
 function doExport(kind) {
   if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
+  audita('exportacao', 'Planilha de ' + kind);
   if (kind === 'clientes') {
     const rows = [...st.cli.values()].map(c => ({ SOLD: c.sold, Nome: c.nome || '', 'Endereço': c.endereco || '', Bairro: c.bairro || '', Cidade: c.cidade || '', UF: c.uf || '', CEP: c.cep || '', 'Visitas por mês': c.f || '', 'Atendimento (min)': c.t || '', Latitude: c.lat ?? '', Longitude: c.lng ?? '', 'Situação da coordenada': hasXY(c) ? (c.geoNivel === 'rua' ? 'Rua (sem o número)' : 'OK') : (c.geoPend ? 'No mar: ' + c.geoPend.msg : 'Sem coordenada') }));
     saveFile(`clientes_${dstamp()}.xlsx`, xlsxBlob([['Clientes', rows]]));
@@ -2482,6 +2594,7 @@ async function doBackup() {
   }
   const data = { app: 'roteirizador', versao: 1, empresa: st.empresa.id, exportado: new Date().toISOString(), clientes: [...st.cli.values()], colaboradores: [...st.col.values()], estudos };
   saveFile(`backup_roteirizador_${slug(st.empresa.nome)}_${dstamp()}.json`, new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  audita('backup', `${data.clientes.length} clientes · ${data.colaboradores.length} colaboradores · ${estudos.length} estudos`);
 }
 function restoreForm() {
   openModal(`<div class="dh"><h2>Restaurar backup</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
@@ -2502,6 +2615,7 @@ function restoreForm() {
   };
 }
 async function aplicarBackup(d) {
+  audita('restauracao', `Backup de ${d && d.exportado ? d.exportado.slice(0, 10) : 'data desconhecida'}`);
   try {
       (d.clientes || []).forEach(c => c && c.sold && st.cli.put(String(c.sold), c));
       (d.colaboradores || []).forEach(c => c && c.codigo && st.col.put(String(c.codigo), c));
@@ -2574,7 +2688,7 @@ async function dupAmb() {
 }
 async function delAmb() {
   const a = amb(); const old = st.itens, oldG = st.geo; st.amb.del(a.id); homeCache.delete(a.id); st.itens = null; st.geo = null; await old.destroy(); if (oldG) await oldG.destroy();
-  st.cmp = null; const next = [...st.amb.values()][0]; await openAmb(next ? next.id : null); toast('Estudo excluído');
+  st.cmp = null; const next = [...st.amb.values()][0]; await openAmb(next ? next.id : null); toast('Estudo excluído'); audita('exclusao', 'Estudo ' + (a.nome || a.id));
 }
 async function loadSample() {
   const { clientes, colabs } = E.sample(42);
@@ -2888,6 +3002,28 @@ const MODELOS = {
     dicas: ['Ordem recomendada: importe colaboradores, depois clientes e por último o roteiro.', 'Para usar setores com outro nome, acrescente uma coluna “Setor”; sem ela, cada SOLD vendedor vira um setor.', 'Vendedores que não existirem na base viram pendência no estudo, para cadastrar depois.', 'Ciclo de 4 semanas. Cada algarismo da coluna Semana é uma semana do ciclo: 1 (ou 2, 3, 4) = mensal naquela semana; 1,3 ou 2,4 = quinzenal; 1234 = semanal.', 'A frequência do cliente na base é atualizada pelo roteiro: semanas × dias (ex.: 1,3 com dia 2 = quinzenal às segundas).', 'Os dias também podem ser escritos por extenso (Seg, Terça…).']
   }
 };
+MODELOS.rotas = {
+  titulo: 'Base de roteiros (Rotas)', aba: 'Rotas', arq: 'modelo_base_rotas.xlsx',
+  desc: 'O roteiro em uso, mês a mês, para o histórico, o mapa e a comparação com os estudos do Planejamento.',
+  cols: [
+    ['SOLD cliente', 1, 'Código do cliente', '700101', '700102'],
+    ['SOLD vendedor', 1, 'Código do vendedor que visita', '1157', '1157'],
+    ['Dia', 2, '2 = segunda … 6 = sexta, 7 = sábado (1 = domingo). Mais de um dia: 2,5. Sem Dia e Semana, use a Data', '2', '3'],
+    ['Semana', 2, 'Mensal: 1 a 4 · Quinzenal: 1,3 ou 2,4 · Semanal: 1234', '1234', '1,3'],
+    ['Data', 0, 'Data de cada visita (dd/mm/aaaa). Substitui Dia e Semana e define o mês', '', ''],
+    ['Período', 0, 'Mês de referência (11/2026, nov/2026 ou 2026-11). Vazio = o mês escolhido na importação', '11/2026', '11/2026'],
+    ['Equipe', 0, 'Equipe ou supervisor', 'Equipe Sul', 'Equipe Sul'],
+    ['Região', 0, 'Região comercial', 'Zona Sul', 'Zona Sul'],
+    ['Segmento', 0, 'Segmento ou canal do cliente', 'Mercado', 'Padaria'],
+    ['Cidade', 0, 'Vazio = a cidade da base de clientes', 'São Paulo', 'São Paulo'],
+    ['Nome do cliente', 0, 'Vazio = o nome da base de clientes', '', ''],
+    ['Tempo de atendimento (min)', 0, 'Vazio = o da base de clientes ou o padrão de Rotas', 20, 15],
+    ['Sequência', 0, 'Ordem de visita no dia. Vazio = o sistema calcula a melhor ordem', 1, 2],
+    ['Latitude', 0, 'Só para clientes que não estão na base ou estão sem coordenada', '', ''],
+    ['Longitude', 0, '', '', '']
+  ],
+  dicas: ['Uma planilha com vários meses (coluna Período ou Data) gera uma base por mês no histórico.', 'Importar de novo o mesmo mês substitui a base daquele mês, se a opção estiver marcada.', 'O KM é estimado pela distância em linha reta × fator de rota (como no Planejamento) e pode ser recalculado pelas ruas em Rotas → Mapa.', 'O valor do KM (R$) fica em Rotas → Parâmetros.']
+};
 function downloadModelo(kind) {
   const m = MODELOS[kind]; if (!m) return;
   if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
@@ -2933,6 +3069,11 @@ function pageConfig() {
         <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(e.nome)}</b><div class="muted">${esc(u.nome)} · ${u.papel === 'admin' ? 'Administrador' : 'Usuário'}</div></div></div>
         <div class="row"><button class="btn" data-act="conta">Abrir Minha conta</button></div>
       </div></div>
+      <div class="card"><div class="ch"><h2>Segurança e privacidade</h2>${st.mfaAtivo ? '<span class="pill ok">2 etapas ativa</span>' : '<span class="pill warn">2 etapas desligada</span>'}</div><div class="cb stack">
+        <p class="muted" style="margin:0">Verificação em duas etapas, aviso de privacidade (LGPD), registro de atividades${u.papel === 'admin' ? ', política do ambiente' : ''} e download dos seus dados.</p>
+        <div class="field"><span class="lbl">Sessão</span><span>${+st.politica.inatividadeMin ? `Encerra depois de ${st.politica.inatividadeMin} min sem uso` : 'Sem limite de inatividade'}${st.politica.exige2fa ? ' · duas etapas obrigatória' : ''}</span></div>
+        <div class="row"><button class="btn primary" data-act="seguranca">Abrir segurança e privacidade</button></div>
+      </div></div>
       <div class="card"><div class="ch"><h2>Mapa e endereços</h2></div><div class="cb stack">
         <label class="field"><span class="lbl">Mapa de fundo</span><select id="cfgBase">${bases}</select></label>
         <label class="field"><span class="lbl">Busca de endereços</span>${geoSrcSel()}</label>
@@ -2953,7 +3094,7 @@ function pageConfig() {
 /* ================= Eventos ================= */
 function bindEvents() {
   $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) setView(b.dataset.view); });
-  $('#goHome').onclick = () => setScreen('home');
+  $('#goHome').onclick = () => setScreen('home', 'hub');
   $('#openPlanner').onclick = openPlannerChooser;
   $('#acctBtn').onclick = contaForm;
   const tip = $('#tip'), showTip = (t, x, y) => { tip.textContent = t.dataset.tip; tip.hidden = false; tip.style.left = Math.max(8, Math.min(x, innerWidth - tip.offsetWidth - 8)) + 'px'; tip.style.top = Math.min(y, innerHeight - tip.offsetHeight - 8) + 'px'; };
@@ -3013,7 +3154,7 @@ function bindEvents() {
     }
     if (t.dataset.bzcid !== undefined) { const c = st.baseF.cidades; if (t.checked) c.add(t.dataset.bzcid); else c.delete(t.dataset.bzcid); renderMap(); setTimeout(fitVisible, 30); }
     if (t.dataset.bzsold) { const c = st.baseF.soldes; if (t.checked) c.add(t.dataset.bzsold); else c.delete(t.dataset.bzsold); renderMap(); setTimeout(fitVisible, 30); }
-    if (t.dataset.opt) { st[t.dataset.opt] = t.checked; renderMap(); }
+    if (t.dataset.opt) { st[t.dataset.opt] = t.checked; saveUI(); renderMap(); }
     if (t.id === 'rzSet') { verSetor(t.value); if (t.value !== '__nenhum') setTimeout(fitVisible, 30); }
   });
   $('#layersPanel').addEventListener('input', e => {
@@ -3052,12 +3193,14 @@ function bindEvents() {
     if (t.id === 'sSet') { st.selForm.setor = t.value; renderSelPanel(); }
     else if (t.id === 'sCol') st.selForm.colab = t.value;
     else if (t.dataset.rzopt) setRotaParam(t.dataset.rzopt, t.checked);
-    else if (t.dataset.opt) { st[t.dataset.opt] = t.checked; renderMap(); }
+    else if (t.dataset.opt) { st[t.dataset.opt] = t.checked; saveUI(); renderMap(); }
     else if (t.dataset.rzcol !== undefined) { touchAmb(a => { a.setores[t.dataset.rzcol].colab = t.value; }); rebuild(); renderMap(); }
   });
   $('#selPanel').addEventListener('input', e => { if (e.target.id === 'sNome') st.selForm.nome = e.target.value; });
   document.addEventListener('pointerdown', e => { if (!e.target.closest('#ctx')) fecharCtx(); }, true);
   document.addEventListener('click', e => {
+    const hb = e.target.closest('[data-hub]');
+    if (hb && !hb.disabled) { closeModal(); const k = hb.dataset.hub; if (k === 'config') setView('config'); else setScreen('home', k); if ($('#homeView')) $('#homeView').scrollTop = 0; return; }
     const t = e.target.closest('[data-go],[data-close],[data-imp],[data-exp],[data-modelo],[data-act],[data-openrk],[data-solo-set],[data-openamb],[data-enter],[data-editcli],[data-editcol],[data-newcli],[data-newcol],[data-sdel],[data-delcli],[data-delcol],[data-rmode],[data-cpage],[data-d]');
     if (!t) return;
     if (t.closest('#selPanel') || t.closest('#layersPanel') || t.closest('#toolbar')) { if (t.dataset.go) setView(t.dataset.go); return; }
@@ -3080,8 +3223,8 @@ function bindEvents() {
     else if (ds.cpage) { st.pg.clientes.page += +ds.cpage; renderPage(); $('#pageView').scrollTop = 0; }
     else if (ds.d && t.closest('#pDias')) { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); const ds2 = $$('#pDias button[aria-pressed="true"]').map(x => +x.dataset.d); if (!ds2.length) { t.setAttribute('aria-pressed', 'true'); toast('Mantenha ao menos um dia'); return; } touchAmb(a => { a.params = { ...P(), dias: ds2 }; }); rebuild(); renderPage(); }
     else if (ds.sdel) armButton(t, () => excluirSetor(ds.sdel), 'Confirmar');
-    else if (ds.delcli) armButton(t, () => { st.cli.del(ds.delcli); if (st.itens) st.itens.del(ds.delcli); closeModal(); rebuild(); renderAll(); toast('Cliente excluído da base'); }, 'Confirmar exclusão');
-    else if (ds.delcol) armButton(t, () => { st.col.del(ds.delcol); closeModal(); rebuild(); renderAll(); toast('Colaborador excluído'); }, 'Confirmar exclusão');
+    else if (ds.delcli) armButton(t, () => { audita('exclusao', 'Cliente ' + ds.delcli); st.cli.del(ds.delcli); if (st.itens) st.itens.del(ds.delcli); closeModal(); rebuild(); renderAll(); toast('Cliente excluído da base'); }, 'Confirmar exclusão');
+    else if (ds.delcol) armButton(t, () => { audita('exclusao', 'Colaborador ' + ds.delcol); st.col.del(ds.delcol); closeModal(); rebuild(); renderAll(); toast('Colaborador excluído'); }, 'Confirmar exclusão');
     else if (ds.act) pageAct(ds.act, t);
   });
   document.addEventListener('change', e => {
@@ -3160,6 +3303,8 @@ function pageAct(act, btn) {
   switch (act) {
     case 'newamb': newAmbForm(); break;
     case 'plannerOpen': openPlannerChooser(); break;
+    case 'rotasImport': openImport('rotas'); break;
+    case 'seguranca': segurancaForm(); break;
     case 'listagens': openListagens(); break;
     case 'conta': contaForm(); break;
     case 'mapabase': closeModal(); setVisao('base'); enterPlanner('mapa'); break;
@@ -3200,7 +3345,7 @@ function pageAct(act, btn) {
     case 'chkall': { const pc = pg.clientes; const q = pc.q.trim().toLowerCase(); for (const c of st.cli.values()) { if (q && !(c.sold + ' ' + (c.nome || '') + ' ' + (c.endereco || '') + ' ' + (c.bairro || '')).toLowerCase().includes(q)) continue; if (pc.cidade && c.cidade !== pc.cidade) continue; if (pc.semCoord && isNum(c.lat) && isNum(c.lng)) continue; if (pc.noEstudo === 'sim' && !(st.itens && st.itens.has(c.sold))) continue; if (pc.noEstudo === 'nao' && st.itens && st.itens.has(c.sold)) continue; pc.chk.add(c.sold); } renderPage(); break; }
     case 'chknone': pg.clientes.chk.clear(); renderPage(); break;
     case 'cliIncl': { pushUndo('Incluir clientes'); let n = 0; for (const s of pg.clientes.chk) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); break; }
-    case 'cliDel': armButton(btn, () => { for (const s of pg.clientes.chk) { st.cli.del(s); if (st.itens) st.itens.del(s); } const n = pg.clientes.chk.size; pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) excluídos da base`); }, 'Confirmar exclusão'); break;
+    case 'cliDel': armButton(btn, () => { audita('exclusao', `${pg.clientes.chk.size} cliente(s) da base`); for (const s of pg.clientes.chk) { st.cli.del(s); if (st.itens) st.itens.del(s); } const n = pg.clientes.chk.size; pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) excluídos da base`); }, 'Confirmar exclusão'); break;
     case 'geo': geoAgain(); break;
     case 'adj': adjustForm(); break;
     case 'gosea': goSea(); break;
@@ -3321,6 +3466,51 @@ function openListagens() {
 }
 function renderHome() {
   const el = $('#homeView'); if (!el || !st.amb || !st.cli) return;
+  const tipH = $('#tip'); if (tipH) tipH.hidden = true;
+  if (st.homeSec === 'rotas' && window.RotasMod) { window.RotasMod.render(el); return; }
+  if (window.RotasMod) window.RotasMod.limpar();
+  if (st.homeSec === 'verba') { el.innerHTML = paginaVerba(); el.scrollTop = 0; return; }
+  if (st.homeSec !== 'plan') { renderHub(el); return; }
+  renderPlanejamento(el);
+}
+const migalha = nome => `<nav class="crumb" aria-label="Caminho"><button type="button" class="linkbtn" data-hub="hub">Início</button><span aria-hidden="true">›</span><b>${esc(nome)}</b></nav>`;
+const ICON_MOD = {
+  plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>',
+  rotas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10.2A6 6 0 0 1 18 10.8C18 15.7 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.3"/></svg>',
+  verba: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg>',
+  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>'
+};
+function renderHub(el) {
+  const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  const nome = String((st.usuario && st.usuario.nome) || '').split(' ')[0];
+  const cur = amb(), R = window.RotasMod ? window.RotasMod.resumoHub() : null;
+  const stat = (v, l) => `<span class="ms"><b class="num">${v}</b><span>${l}</span></span>`;
+  const mod = (k, titulo, desc, stats, extra = '', cls = '') => `<article class="mod ${cls}"><button type="button" class="mod-go" data-hub="${k}" aria-label="Abrir ${esc(titulo)}"></button>
+    <div class="mod-h"><span class="mod-i">${ICON_MOD[k]}</span><div><h2>${titulo}</h2><p>${desc}</p></div></div>
+    <div class="mod-s">${stats}</div>${extra ? `<div class="mod-a">${extra}</div>` : ''}</article>`;
+  const mfa = st.mfaAtivo ? '<span class="pill ok">2 etapas ativa</span>' : '<span class="pill warn">2 etapas desligada</span>';
+  el.innerHTML = `<div class="page home hub">
+    <section class="hub-hero"><div><span class="lbl">${esc(st.empresa.nome)}</span><h1>${saud}${nome ? ', ' + esc(nome) : ''}</h1><p>Escolha por onde começar. Os módulos usam as mesmas bases de clientes e colaboradores deste ambiente.</p></div></section>
+    <nav class="mods" aria-label="Módulos">
+      ${mod('plan', 'Planejamento', 'Estudos, setores e roteirização no mapa, com KM, tempo e comparação de cenários.', stat(nf0.format(st.amb.size), 'estudos') + stat(nf0.format(st.cli.size), 'clientes') + stat(nf0.format(st.col.size), 'colaboradores'),
+        `<button class="btn sm primary" type="button" data-act="plannerOpen">Abrir Planner</button>${cur ? `<button class="btn sm" type="button" data-enter="${esc(cur.id)}">Continuar: ${esc(cur.nome)}</button>` : ''}`)}
+      ${mod('rotas', 'Rotas', 'Bases de roteiros por mês e ano: tabela, mapa com pinos e regiões, filtros e comparação com os estudos.', R ? stat(nf0.format(R.bases), R.bases === 1 ? 'base' : 'bases') + stat(R.ultimo || '—', 'último período') + stat(R.km, 'KM/mês') : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn sm" type="button" data-act="rotasImport"${st.ro ? ' disabled' : ''}>Importar base</button>`)}
+      ${mod('verba', 'Verba Indenizatória', 'Reembolso de KM rodado pelos colaboradores, a partir das rotas e do valor do KM.', '<span class="pill idle">Em breve</span>', '', 'breve')}
+      ${mod('config', 'Configurações', 'Minha conta, segurança e privacidade, mapa de fundo, servidores de rota e backup.', mfa + (st.usuario && st.usuario.papel === 'admin' ? '<span class="pill idle">Administrador</span>' : ''),
+        `<button class="btn sm" type="button" data-hub="config">Abrir</button><button class="btn sm" type="button" data-act="seguranca">Segurança</button>`)}
+    </nav>
+    <section class="card"><div class="cb row" style="justify-content:space-between"><span class="muted">Atalhos</span><span class="row">${st.cli.size ? '<button class="btn sm" data-act="mapabase">Mapa da base</button>' : ''}<button class="btn sm" data-go="importar">Importações</button><button class="btn sm" data-act="listagens">Listagens</button><button class="btn sm" data-go="estudos">Estudos</button></span></div></section>
+  </div>`;
+  el.scrollTop = 0;
+}
+function paginaVerba() {
+  return `<div class="page home">${migalha('Verba Indenizatória')}
+    <section class="card"><div class="empty"><span class="mod-i lg">${ICON_MOD.verba}</span><h3>Verba Indenizatória · em breve</h3>
+      <p>Este módulo vai calcular o reembolso de KM rodado por colaborador a partir das bases de Rotas e do valor do KM definido lá. Enquanto isso, o valor do KM por dia, semana e mês já aparece em Rotas.</p>
+      <div class="row" style="justify-content:center"><button class="btn primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn" type="button" data-hub="hub">Voltar ao início</button></div></div></section></div>`;
+}
+function renderPlanejamento(el) {
   const tipEl = $('#tip'); if (tipEl) tipEl.hidden = true;
   const keep = el.scrollTop;
   const sums = homeSummaries(), ready = sums.filter(Boolean);
@@ -3341,7 +3531,7 @@ function renderHome() {
     <div class="row"><button class="btn primary lg" data-act="plannerOpen">Abrir Planner</button>${st.cli.size ? '<button class="btn lg" data-act="mapabase" title="Todos os clientes da base, com filtro por cidade">Mapa da base</button>' : ''}${cur ? `<button class="btn lg" data-enter="${esc(cur.id)}" title="Abrir o último estudo no mapa">Continuar: ${esc(cur.nome)}</button>` : ''}</div></section>`;
 
   if (!st.amb.size && !st.cli.size) {
-    el.innerHTML = `<div class="page home">${hero}${atalhosHome()}<div class="card"><div class="empty"><h3>Vamos começar</h3><p>Ainda não há clientes nem estudos. Baixe os modelos de planilha e importe colaboradores, clientes e roteiro, abra o Planner para criar um estudo vazio, restaure um backup ou gere dados de exemplo para conhecer o sistema.</p>
+    el.innerHTML = `<div class="page home">${migalha('Planejamento')}${hero}${atalhosHome()}<div class="card"><div class="empty"><h3>Vamos começar</h3><p>Ainda não há clientes nem estudos. Baixe os modelos de planilha e importe colaboradores, clientes e roteiro, abra o Planner para criar um estudo vazio, restaure um backup ou gere dados de exemplo para conhecer o sistema.</p>
       <div class="row" style="justify-content:center"><button class="btn primary" data-go="importar">Importação e modelos</button><button class="btn" data-act="plannerOpen">Abrir Planner</button><button class="btn" data-act="sample">Gerar dados de exemplo</button><button class="btn" data-act="restore">Restaurar backup</button></div></div></div></div>`;
     el.scrollTop = keep; return;
   }
@@ -3391,7 +3581,7 @@ function renderHome() {
     return `<tr class="clk" data-enter="${esc(a.id)}">${nm}${s ? `<td class="n">${s.setores}</td><td class="n">${nf0.format(s.clientes)}</td><td class="n">${s.rotas}</td><td class="n">${fkm(s.km)}</td><td class="n">${fhm(s.horas)}</td><td>${s.rotas ? ocPill(s.oc) : '—'}</td>` : '<td class="muted" colspan="6">calculando…</td>'}<td>${fdate(a.alterado || a.criado)}</td><td><button class="btn sm primary" type="button" data-enter="${esc(a.id)}">Abrir</button></td></tr>`;
   }).join('');
 
-  el.innerHTML = `<div class="page home">${hero}${atalhosHome()}
+  el.innerHTML = `<div class="page home">${migalha('Planejamento')}${hero}${atalhosHome()}
     <div class="ph"><h2 class="sec">Visão geral</h2></div>${overview}
     ${focusBlock}
     <div class="ph"><h2 class="sec">Bases</h2></div>
@@ -3418,7 +3608,7 @@ function renderHome() {
    Sem servidor, as contas ficam no mesmo armazenamento dos dados: isso separa as empresas e evita o acesso casual,
    mas não substitui um login validado em servidor. Senhas e códigos são guardados só como hash (PBKDF2). */
 const EMPRESAS = CFG.empresas || [];
-const SES_KEY = 'rt1:sessao', ULT_KEY = 'rt1:ultimoAmbiente', MANTER_DIAS = 30, SENHA_MIN = 8;
+const SES_KEY = 'rt1:sessao', ULT_KEY = 'rt1:ultimoAmbiente', MANTER_DIAS = 30, SENHA_MIN = 10;
 const lg = { step: 'empresa', emp: null, ctx: {} };
 /* ----- Supabase: login. "Manter conectado" decide se a sessão fica no navegador ou só nesta aba ----- */
 let sbManter = false;
@@ -3447,12 +3637,19 @@ const sbMensagem = e => {
 };
 async function sbLogin(f) {
   const email = String(f.get('login')).trim(), manter = !!f.get('manter');
+  const at = bloqueado(lg.emp, email); if (at) { lgMsg(msgBloqueio(at)); return; }
   sbManter = manter;
   try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignora */ }
   const { data, error } = await st.sb.auth.signInWithPassword({ email, password: f.get('senha') });
-  if (error) { lgMsg(sbMensagem(error)); return; }
-  const u = await sbMembro(lg.emp, data.user);
-  if (!u) { await st.sb.auth.signOut({ scope: 'local' }); lgMsg(`Este usuário não tem acesso a ${lg.emp.nome}. Peça a um administrador do ambiente para incluir o seu e-mail.`); return; }
+  if (error) { const b = /invalid login/i.test(error.message || '') ? registraFalha(lg.emp, email) : 0; lgMsg(b ? msgBloqueio(b) : sbMensagem(error)); return; }
+  limpaFalhas(lg.emp, email);
+  const seguir = () => sbPosLogin(data.user, manter);
+  if (await sbPrecisaMfa()) { lg.step = 'mfa'; lg.ctx = { manter, login: email, seguir }; renderLogin(); return; }
+  await seguir();
+}
+async function sbPosLogin(user, manter) {
+  const u = await sbMembro(lg.emp, user);
+  if (!u) { await st.sb.auth.signOut({ scope: 'local' }); lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(`Este usuário não tem acesso a ${lg.emp.nome}. Peça a um administrador do ambiente para incluir o seu e-mail.`); return; }
   if (u.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u, manter }; renderLogin(); return; }
   await entrar(u, manter);
 }
@@ -3514,7 +3711,14 @@ const normLogin = v => String(v || '').trim().toLowerCase();
 const colUsuarios = emp => emp.id + '_usuarios';
 const usuariosDe = async emp => (await st.base.list(colUsuarios(emp))).map(d => d.data);
 const salvarUsuario = (emp, u) => st.base.set(colUsuarios(emp), u.id, u);
-function validaSenha(a, b) { if (String(a).length < SENHA_MIN) return `A senha precisa ter ao menos ${SENHA_MIN} caracteres.`; if (a !== b) return 'As duas senhas não são iguais.'; return ''; }
+function validaSenha(a, b) {
+  const s = String(a);
+  if (s.length < SENHA_MIN) return `A senha precisa ter ao menos ${SENHA_MIN} caracteres.`;
+  if (!/[A-Za-zÀ-ÿ]/.test(s) || !/\d/.test(s)) return 'Use letras e números na senha.';
+  if (SENHAS_FRACAS.includes(s.toLowerCase())) return 'Essa senha é muito comum. Escolha outra.';
+  if (a !== b) return 'As duas senhas não são iguais.';
+  return '';
+}
 
 function limparSessao() { for (const n of ['localStorage', 'sessionStorage']) { try { window[n].removeItem(SES_KEY); } catch (e) { /* ignora */ } } }
 function salvarSessao(emp, u, manter) {
@@ -3579,6 +3783,20 @@ const LG_TELAS = {
     return `<h1>Crie a sua senha</h1><p class="sub">Você entrou com uma senha provisória. Escolha a sua para continuar.</p>
       <form id="fTrocar">${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}<button class="btn primary lg-go" type="submit">Salvar e entrar</button></form>`;
   },
+  mfa() {
+    return `<h1>Verificação em duas etapas</h1><p class="sub">Digite o código de 6 dígitos que aparece agora no aplicativo autenticador${st.sb ? '' : ', ou um dos códigos de reserva'}.</p>
+      <form id="fMfa">${textoCampo('codigo', 'Código', 'one-time-code', 'inputmode="numeric" maxlength="11"')}<button class="btn primary lg-go" type="submit">Verificar e entrar</button></form>
+      <div class="lg-row"><button class="lg-link" type="button" data-lg="cancelaMfa">Voltar para o login</button><span class="muted" style="font-size:12px">Perdeu o celular? Peça ao administrador para desligar as duas etapas da sua conta.</span></div>`;
+  },
+  mfaCadastro() {
+    return `<h1>Ative a verificação em duas etapas</h1><p class="sub">O ambiente <b>${esc(lg.emp.nome)}</b> exige um código do celular, além da senha, para proteger os dados. Leva um minuto.</p><div id="lgMfa"></div>
+      <div class="lg-row"><button class="lg-link" type="button" data-lg="recusa">Sair</button></div>`;
+  },
+  privacidade() {
+    return `<h1>Aviso de privacidade</h1><p class="sub">Antes de continuar, veja como os dados são tratados no Roteirizador, conforme a Lei Geral de Proteção de Dados (LGPD).</p>${avisoPrivacidadeHtml()}
+      <label class="chk"><input type="checkbox" id="lgAceito"> Li e concordo com o aviso de privacidade</label>
+      <div class="lg-row"><button class="btn" type="button" data-lg="recusa">Não concordo e sair</button><button class="btn primary" type="button" data-lg="aceita">Concordo e continuar</button></div>`;
+  },
   novaSenha() {
     return `<h1>Crie uma nova senha</h1><form id="fNovaSenha">${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}<button class="btn primary lg-go" type="submit">Salvar nova senha</button></form>`;
   },
@@ -3602,8 +3820,9 @@ function renderLogin() {
   $('#loginView').innerHTML = `<div class="lg"><div class="lg-brand">${LOGO}<span>Roteirizador <b>RRM</b></span></div>
     <div class="card lg-card">${comEnv ? `<div class="lg-env"><span class="oi sg">${esc(e.sigla)}</span><b>${esc(e.nome)}</b>${trocar ? '<button class="btn sm" type="button" data-lg="empresa">Trocar de ambiente</button>' : ''}</div>` : ''}
       <div id="lgMsg" role="alert"></div>${LG_TELAS[lg.step]()}</div>
-    <p class="lg-foot">${st.sb ? 'Acesso protegido. Os dados ficam no banco de dados da empresa.' : 'Os acessos e os dados ficam guardados neste navegador.'}</p></div>`;
+    <p class="lg-foot">${st.sb ? 'Acesso protegido por senha, verificação em duas etapas e registro de atividades. Os dados ficam no banco de dados da empresa.' : 'Os acessos e os dados ficam guardados neste navegador.'}</p></div>`;
   const f = $('#loginView input:not([type=checkbox])'); if (f) f.focus();
+  if (lg.step === 'mfaCadastro') montaCadastroMfa($('#lgMfa'), () => liberar(), t => lgMsg(t));
   if (st.sbFalhou) lgMsg('Não foi possível carregar a conexão com o banco de dados. Verifique a internet e recarregue a página.');
   else if (!st.sb && (!window.crypto || !crypto.subtle)) lgMsg('Este endereço não permite o login com segurança. Abra o sistema por https ou por 127.0.0.1 (Live Server).');
 }
@@ -3615,17 +3834,49 @@ async function escolherEmpresa(id) {
 }
 async function entrar(u, manter) {
   salvarSessao(lg.emp, u, manter); st.empresa = lg.emp; st.usuario = u;
-  const leg = st.sb ? await sbDadosLocais(lg.emp) : await dadosAntigos(lg.emp);
-  if (leg) { lg.step = 'legado'; lg.ctx = { leg }; renderLogin(); return; }
+  audita('login', st.sb ? 'senha' + ((await mfaAtivo()) ? ' + duas etapas' : '') : 'login neste navegador');
+  st.legadoVisto = false;
+  await liberar();
+}
+// Últimos passos antes de abrir o sistema: duas etapas obrigatória e aceite do aviso de privacidade
+async function liberar() {
+  lg.emp = st.empresa;
+  await carregaPolitica();
+  st.mfaAtivo = await mfaAtivo();
+  if (st.politica.exige2fa && !st.mfaAtivo) { lg.step = 'mfaCadastro'; lg.ctx = {}; renderLogin(); return; }
+  if (!(await privacidadeAceita())) { lg.step = 'privacidade'; lg.ctx = {}; renderLogin(); return; }
+  if (st.legadoVisto === false) { // só no login com senha, não ao reabrir a sessão
+    st.legadoVisto = true;
+    const leg = st.sb ? await sbDadosLocais(lg.emp) : await dadosAntigos(lg.emp);
+    if (leg) { lg.step = 'legado'; lg.ctx = { leg }; renderLogin(); return; }
+  }
   await boot();
 }
 const LG_FORMS = {
   async fLogin(f) {
     if (st.sb) return sbLogin(f);
-    const us = await usuariosDe(lg.emp), u = us.find(x => x.login === normLogin(f.get('login'))), manter = !!f.get('manter');
-    if (!u || !(await confere(f.get('senha'), u.senha))) { lgMsg('Usuário ou senha incorretos.'); return; }
-    if (u.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u, manter }; renderLogin(); return; }
-    await entrar(u, manter);
+    const login = normLogin(f.get('login')), at = bloqueado(lg.emp, login); if (at) { lgMsg(msgBloqueio(at)); return; }
+    const us = await usuariosDe(lg.emp), u = us.find(x => x.login === login), manter = !!f.get('manter');
+    if (!u || !(await confere(f.get('senha'), u.senha))) { const b = registraFalha(lg.emp, login); lgMsg(b ? msgBloqueio(b) : 'Usuário ou senha incorretos.'); return; }
+    limpaFalhas(lg.emp, login);
+    const seguir = async () => {
+      const u2 = (await usuariosDe(lg.emp)).find(x => x.id === u.id) || u;
+      if (u2.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u: u2, manter }; renderLogin(); return; }
+      await entrar(u2, manter);
+    };
+    if (u.mfa && u.mfa.on) { lg.step = 'mfa'; lg.ctx = { u, manter, login, seguir }; renderLogin(); return; }
+    await seguir();
+  },
+  async fMfa(f) {
+    const k = 'mfa:' + (lg.ctx.login || ''), at = bloqueado(lg.emp, k); if (at) { lgMsg(msgBloqueio(at)); return; }
+    if (!(await mfaConferirLogin(f.get('codigo'), lg.ctx.u))) {
+      const b = registraFalha(lg.emp, k);
+      if (b) { if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {}); lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(msgBloqueio(b)); return; }
+      lgMsg('Código incorreto ou vencido. Digite o código que aparece agora no aplicativo.'); const i = $('#fMfa input'); if (i) i.select(); return;
+    }
+    limpaFalhas(lg.emp, k);
+    if (lg.ctx.usouReserva !== undefined) toast(`Código de reserva usado. Restam ${lg.ctx.usouReserva}; gere novos desligando e ativando as duas etapas.`, 8000);
+    await lg.ctx.seguir();
   },
   async fPrimeiro(f) {
     const login = normLogin(f.get('login')), nome = f.get('nome').trim(), manter = !!f.get('manter'), erro = validaSenha(f.get('senha'), f.get('senha2'));
@@ -3672,10 +3923,16 @@ function bindLogin() {
     else if (ds.lg === 'empresa') { lg.step = 'empresa'; lg.emp = null; renderLogin(); }
     else if (ds.lg === 'login' || ds.lg === 'esqueci') { lg.step = ds.lg; renderLogin(); }
     else if (ds.lg === 'seguir') await lg.ctx.seguir();
-    else if (ds.lg === 'naolegado') await boot();
+    else if (ds.lg === 'naolegado') await liberar();
+    else if (ds.lg === 'cancelaMfa') { if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {}); lg.step = 'login'; lg.ctx = {}; renderLogin(); }
+    else if (ds.lg === 'recusa') { if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {}); limparSessao(); location.reload(); }
+    else if (ds.lg === 'aceita') {
+      if (!$('#lgAceito').checked) { lgMsg('Marque “Li e concordo” para continuar.'); return; }
+      t.disabled = true; try { await registraAceite(); await liberar(); } catch (err) { t.disabled = false; lgMsg((err && err.message) || 'Não foi possível registrar o aceite. Tente de novo.'); }
+    }
     else if (ds.lg === 'simlegado') {
       t.disabled = true;
-      try { if (st.sb) { t.textContent = 'Enviando…'; await sbEnviarLocais(lg.emp, lg.ctx.leg.pre); } else await moverDadosAntigos(lg.emp); await boot(); }
+      try { if (st.sb) { t.textContent = 'Enviando…'; await sbEnviarLocais(lg.emp, lg.ctx.leg.pre); } else await moverDadosAntigos(lg.emp); await liberar(); }
       catch (err) { t.disabled = false; lgMsg('Não foi possível mover os dados: ' + ((err && err.message) || 'erro') + ' Nada foi perdido.'); }
     }
   });
@@ -3683,6 +3940,305 @@ function bindLogin() {
 async function copiarTexto(txt, btn) {
   try { await navigator.clipboard.writeText(txt); btn.textContent = 'Copiado'; }
   catch (e) { btn.textContent = 'Selecione e copie'; }
+}
+
+/* ================= Segurança e privacidade (LGPD) =================
+   Verificação em duas etapas (código de 6 dígitos de um app autenticador, padrão TOTP), aviso de privacidade com aceite
+   registrado, registro de atividades, fim da sessão por inatividade e bloqueio após tentativas erradas.
+   Com o Supabase, as duas etapas usam o MFA do próprio Supabase Auth e o banco exige a segunda etapa (migração 04).
+   Sem o Supabase, o segredo fica no navegador junto com o usuário: separa o acesso casual, mas não protege contra quem
+   tem acesso ao computador. */
+const SEG = Object.assign({ inatividadeMin: 30, tentativas: 5, bloqueioMin: 5 }, CFG.seguranca || {});
+const PRIV = Object.assign({ versao: '2026-11', controlador: '', encarregado: '', contato: '' }, (CFG.seguranca || {}).privacidade || {});
+st.politica = { exige2fa: false, inatividadeMin: SEG.inatividadeMin };
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function b32enc(bytes) { let bits = 0, val = 0, out = ''; for (const b of bytes) { val = ((val << 8) | b) & 0xffff; bits += 8; while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits > 0) out += B32[(val << (5 - bits)) & 31]; return out; }
+function b32dec(s) { const out = []; let bits = 0, val = 0; for (const c of String(s).toUpperCase().replace(/[^A-Z2-7]/g, '')) { val = ((val << 5) | B32.indexOf(c)) & 0xffff; bits += 5; if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; } } return new Uint8Array(out); }
+async function totpEm(secret, ctr) {
+  const key = await crypto.subtle.importKey('raw', b32dec(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const buf = new ArrayBuffer(8), dv = new DataView(buf); dv.setUint32(0, Math.floor(ctr / 2 ** 32)); dv.setUint32(4, ctr >>> 0);
+  const h = new Uint8Array(await crypto.subtle.sign('HMAC', key, buf)), o = h[h.length - 1] & 15;
+  return String((((h[o] & 127) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3]) % 1e6).padStart(6, '0');
+}
+// Aceita o código do intervalo atual e de um antes/depois (relógio do celular um pouco adiantado ou atrasado). Devolve o contador usado
+async function totpConfere(secret, code, ultimo = -1) {
+  const c = String(code || '').replace(/\D/g, ''); if (c.length !== 6) return -1;
+  const agora = Math.floor(Date.now() / 30000);
+  for (const d of [0, -1, 1]) { const ctr = agora + d; if (ctr > ultimo && (await totpEm(secret, ctr)) === c) return ctr; }
+  return -1;
+}
+const somenteDigitos = v => String(v || '').replace(/\D/g, '');
+let qrLib = null;
+function carregaQr() {
+  if (window.qrcode) return Promise.resolve(window.qrcode);
+  if (!qrLib) qrLib = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'; sc.onload = () => (window.qrcode ? res(window.qrcode) : rej(new Error('QR indisponível'))); sc.onerror = () => { qrLib = null; rej(new Error('QR indisponível')); }; document.head.append(sc); });
+  return qrLib;
+}
+async function qrDeUri(uri) { try { const q = await carregaQr(); const g = q(0, 'M'); g.addData(uri); g.make(); return g.createDataURL(5, 2); } catch (e) { return ''; } }
+
+/* ----- Bloqueio depois de tentativas erradas (neste navegador; o Supabase tem o próprio limite no servidor) ----- */
+const chaveFalha = (emp, login) => `rt1:falhas:${emp && emp.id}:${normLogin(login)}`;
+function bloqueado(emp, login) { try { const v = JSON.parse(localStorage.getItem(chaveFalha(emp, login)) || 'null'); return v && v.ate > Date.now() ? v.ate : 0; } catch (e) { return 0; } }
+function registraFalha(emp, login) {
+  try {
+    const k = chaveFalha(emp, login), v = JSON.parse(localStorage.getItem(k) || '{"n":0,"vez":0}'); v.n++;
+    if (v.n >= SEG.tentativas) { v.vez = (v.vez || 0) + 1; v.ate = Date.now() + SEG.bloqueioMin * 60000 * 2 ** (v.vez - 1); v.n = 0; }
+    localStorage.setItem(k, JSON.stringify(v)); return v.ate && v.ate > Date.now() ? v.ate : 0;
+  } catch (e) { return 0; }
+}
+function limpaFalhas(emp, login) { try { localStorage.removeItem(chaveFalha(emp, login)); } catch (e) { /* ignora */ } }
+const msgBloqueio = ate => `Acesso bloqueado por excesso de tentativas. Tente de novo às ${new Date(ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`;
+
+/* ----- Registro de atividades (quem fez o quê e quando). Com o Supabase, ninguém altera nem apaga um registro ----- */
+const AUD_MAX_LOCAL = 1500;
+const AUD_ACAO = { login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)' };
+const audLocalColl = () => (st.empresa ? st.empresa.id : 'x') + '_auditoria';
+async function audLocalLer() { try { const d = (await st.base.list(audLocalColl())).find(x => x.id === 'log'); return (d && d.data && d.data.items) || []; } catch (e) { return []; } }
+function audita(acao, detalhe = '') {
+  const u = st.usuario || {}, e = st.empresa; if (!e) return Promise.resolve();
+  const reg = { acao, detalhe: String(detalhe || '').slice(0, 500), usuario: u.nome || '', email: u.login || '', em: Date.now() };
+  if (st.sb) {
+    if (st.audSemTabela || !u.id) return Promise.resolve();
+    return st.sb.from('auditoria').insert({ empresa_id: e.id, user_id: u.id, usuario: reg.usuario, email: reg.email, acao, detalhe: reg.detalhe, agente: navigator.userAgent.slice(0, 200) })
+      .then(({ error }) => { if (error && /auditoria|does not exist|PGRST205|42P01/i.test((error.message || '') + error.code)) st.audSemTabela = true; }, () => {});
+  }
+  return audLocalLer().then(l => { l.unshift({ ...reg, uid: u.id || '' }); return st.base.set(audLocalColl(), 'log', { items: l.slice(0, AUD_MAX_LOCAL) }); }).catch(() => {});
+}
+async function audLista(proprios) {
+  if (st.sb) {
+    let q = st.sb.from('auditoria').select('acao,detalhe,usuario,email,em,user_id').eq('empresa_id', st.empresa.id).order('em', { ascending: false }).limit(300);
+    if (proprios) q = q.eq('user_id', st.usuario.id);
+    const { data, error } = await q; if (error) throw error;
+    return data.map(r => ({ ...r, em: Date.parse(r.em) }));
+  }
+  const l = await audLocalLer(); return proprios ? l.filter(r => r.uid === st.usuario.id) : l;
+}
+
+/* ----- Política do ambiente: duas etapas obrigatória e minutos de inatividade ----- */
+const polColl = () => st.empresa.id + '_seguranca';
+async function carregaPolitica() {
+  const p = { exige2fa: false, inatividadeMin: SEG.inatividadeMin };
+  try {
+    if (st.sb) {
+      const { data, error } = await st.sb.from('empresas').select('exige_2fa,inatividade_min').eq('id', st.empresa.id).maybeSingle();
+      if (!error && data) { p.exige2fa = !!data.exige_2fa; if (isNum(+data.inatividade_min) && data.inatividade_min !== null) p.inatividadeMin = +data.inatividade_min; }
+      else if (error) st.polSemColuna = true;
+    } else { const d = (await st.base.list(polColl())).find(x => x.id === 'politica'); if (d && d.data) Object.assign(p, d.data); }
+  } catch (e) { /* fica o padrão */ }
+  st.politica = p; return p;
+}
+async function salvaPolitica(p) {
+  if (st.sb) { const { error } = await st.sb.from('empresas').update({ exige_2fa: !!p.exige2fa, inatividade_min: p.inatividadeMin }).eq('id', st.empresa.id); if (error) throw error; }
+  else await st.base.set(polColl(), 'politica', p);
+  st.politica = { ...st.politica, ...p }; audita('politica', `Duas etapas obrigatória: ${p.exige2fa ? 'sim' : 'não'} · inatividade: ${p.inatividadeMin || 'sem limite'} min`);
+  iniciaInatividade();
+}
+
+/* ----- Duas etapas: estado, cadastro e conferência ----- */
+async function sbFatores() { const { data, error } = await st.sb.auth.mfa.listFactors(); if (error) throw error; return { ok: (data.totp || []).filter(f => f.status === 'verified'), todos: data.all || [] }; }
+async function sbPrecisaMfa() { try { const { data } = await st.sb.auth.mfa.getAuthenticatorAssuranceLevel(); return !!data && data.nextLevel === 'aal2' && data.currentLevel !== 'aal2'; } catch (e) { return false; } }
+async function mfaAtivo() {
+  if (st.sb) { try { return (await sbFatores()).ok.length > 0; } catch (e) { return false; } }
+  return !!(st.usuario && st.usuario.mfa && st.usuario.mfa.on);
+}
+// Começa o cadastro: devolve { secret, qr (imagem), uri, factorId? }
+async function mfaIniciar() {
+  const e = st.empresa, login = (st.usuario && st.usuario.login) || '';
+  if (st.sb) {
+    const f = await sbFatores();
+    for (const x of f.todos.filter(x => x.status === 'unverified')) await st.sb.auth.mfa.unenroll({ factorId: x.id }).catch(() => {});
+    const { data, error } = await st.sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: `RRM ${e.sigla} ${new Date().toLocaleDateString('pt-BR')}`, issuer: 'Roteirizador RRM' });
+    if (error) throw error;
+    // O Supabase devolve o SVG cru depois de "data:image/svg+xml;utf-8,": codificado, um "#" do SVG não corta a imagem
+    const q = String(data.totp.qr_code || ''), svg = q.replace(/^data:image\/svg\+xml;[^,]*,/, '');
+    return { factorId: data.id, secret: data.totp.secret, uri: data.totp.uri, qr: svg.trim().startsWith('<') ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) : q || await qrDeUri(data.totp.uri) };
+  }
+  const secret = b32enc(crypto.getRandomValues(new Uint8Array(20)));
+  const uri = `otpauth://totp/${encodeURIComponent(`Roteirizador RRM (${e.sigla}):${login}`)}?secret=${secret}&issuer=${encodeURIComponent('Roteirizador RRM')}&algorithm=SHA1&digits=6&period=30`;
+  return { secret, uri, qr: await qrDeUri(uri) };
+}
+// Confirma o primeiro código. Sem o Supabase, devolve também os códigos de reserva (aparecem uma vez só)
+async function mfaConfirmar(ini, code) {
+  if (st.sb) {
+    const { error } = await st.sb.auth.mfa.challengeAndVerify({ factorId: ini.factorId, code: somenteDigitos(code) });
+    if (error) throw new Error(/invalid|expired/i.test(error.message || '') ? 'Código incorreto ou vencido. Confira a hora do celular e digite o código que aparece agora.' : sbMensagem(error));
+    st.mfaAtivo = true; audita('mfa_ativada'); return { reservas: [] };
+  }
+  const ctr = await totpConfere(ini.secret, code); if (ctr < 0) throw new Error('Código incorreto ou vencido. Confira a hora do celular e digite o código que aparece agora.');
+  const reservas = [...Array(8)].map(() => novoCodigo().slice(0, 9));
+  const hashes = []; for (const r of reservas) hashes.push(await segredo(normCodigo(r)));
+  st.usuario = { ...st.usuario, mfa: { on: true, secret: ini.secret, ult: ctr, reservas: hashes, em: Date.now() } };
+  await salvarUsuario(st.empresa, st.usuario); st.mfaAtivo = true; audita('mfa_ativada');
+  return { reservas };
+}
+async function mfaDesligar(code) {
+  if (st.sb) {
+    const f = await sbFatores(); if (!f.ok.length) return;
+    const v = await st.sb.auth.mfa.challengeAndVerify({ factorId: f.ok[0].id, code: somenteDigitos(code) });
+    if (v.error) throw new Error('Código incorreto. Digite o código que aparece agora no aplicativo.');
+    for (const x of f.ok) { const { error } = await st.sb.auth.mfa.unenroll({ factorId: x.id }); if (error) throw error; }
+    await st.sb.auth.refreshSession().catch(() => {});
+  } else {
+    if ((await totpConfere(st.usuario.mfa.secret, code)) < 0) throw new Error('Código incorreto. Digite o código que aparece agora no aplicativo.');
+    const u = { ...st.usuario }; delete u.mfa; st.usuario = u; await salvarUsuario(st.empresa, u);
+  }
+  st.mfaAtivo = false; audita('mfa_desativada');
+}
+// Segunda etapa do login. u = usuário local (sem Supabase). Aceita também um código de reserva
+async function mfaConferirLogin(code, u) {
+  if (st.sb) {
+    const f = await sbFatores(); if (!f.ok.length) return true;
+    const { error } = await st.sb.auth.mfa.challengeAndVerify({ factorId: f.ok[0].id, code: somenteDigitos(code) });
+    return !error;
+  }
+  const m = u.mfa; if (!m || !m.on) return true;
+  const ctr = await totpConfere(m.secret, code, m.ult ?? -1);
+  if (ctr >= 0) { await salvarUsuario(lg.emp, { ...u, mfa: { ...m, ult: ctr } }); return true; }
+  const n = normCodigo(code);
+  if (n.length >= 8) for (let i = 0; i < (m.reservas || []).length; i++) if (await confere(n, m.reservas[i])) {
+    const res = m.reservas.slice(); res.splice(i, 1); await salvarUsuario(lg.emp, { ...u, mfa: { ...m, reservas: res } }); lg.ctx.usouReserva = res.length; return true;
+  }
+  return false;
+}
+
+/* ----- Aviso de privacidade (LGPD): o aceite fica registrado com a versão do texto ----- */
+async function privacidadeAceita() {
+  const u = st.usuario;
+  if (st.sb) {
+    try { const { data, error } = await st.sb.from('consentimentos').select('versao').eq('empresa_id', st.empresa.id).eq('user_id', u.id).eq('versao', PRIV.versao).maybeSingle(); if (error) { st.consSemTabela = true; return lerAceiteLocal(); } return !!data; }
+    catch (e) { return lerAceiteLocal(); }
+  }
+  return !!(u.privacidade && u.privacidade.versao === PRIV.versao);
+}
+const chaveAceite = () => `rt1:privacidade:${st.empresa.id}:${st.usuario.id}`;
+function lerAceiteLocal() { try { return localStorage.getItem(chaveAceite()) === PRIV.versao; } catch (e) { return false; } }
+async function registraAceite() {
+  const u = st.usuario;
+  if (st.sb) {
+    if (!st.consSemTabela) { const { error } = await st.sb.from('consentimentos').upsert({ empresa_id: st.empresa.id, user_id: u.id, versao: PRIV.versao, agente: navigator.userAgent.slice(0, 200) }, { onConflict: 'empresa_id,user_id,versao' }); if (error) st.consSemTabela = true; }
+    try { localStorage.setItem(chaveAceite(), PRIV.versao); } catch (e) { /* ignora */ }
+  } else { st.usuario = { ...u, privacidade: { versao: PRIV.versao, em: Date.now() } }; await salvarUsuario(st.empresa, st.usuario); }
+  audita('privacidade', 'Versão ' + PRIV.versao);
+}
+function avisoPrivacidadeHtml() {
+  const ctrl = PRIV.controlador || (st.empresa && st.empresa.nome) || 'a empresa do ambiente';
+  const enc = PRIV.encarregado ? `${esc(PRIV.encarregado)}${PRIV.contato ? ' · ' + esc(PRIV.contato) : ''}` : 'o administrador do ambiente, em Minha conta';
+  return `<div class="priv">
+    <p><b>Quem trata os dados:</b> ${esc(ctrl)} (controladora). Encarregado pelo tratamento de dados pessoais: ${enc}.</p>
+    <p><b>Para quê:</b> planejar setores e rotas de visita, calcular KM, tempo e custos de deslocamento e comparar cenários. Os dados não são usados para outra finalidade nem vendidos.</p>
+    <p><b>Quais dados:</b> nome e e-mail de quem usa o sistema; cadastro de clientes (código, nome, endereço e coordenadas); colaboradores (código, nome e endereço da base de saída, que pode ser residencial); e o registro das atividades no sistema (quem fez o quê e quando).</p>
+    <p><b>Base legal:</b> execução do contrato de trabalho e de prestação de serviços e legítimo interesse da empresa na organização das visitas (LGPD, art. 7º, V e IX).</p>
+    <p><b>Com quem é compartilhado:</b> o banco de dados (Supabase) guarda as informações. Para localizar endereços e calcular rotas, apenas o endereço ou as coordenadas, sem nomes, são enviados aos serviços de mapa escolhidos (OpenStreetMap/Nominatim, OSRM, Valhalla ou Google).</p>
+    <p><b>Segurança:</b> conexão criptografada, acesso separado por empresa, verificação em duas etapas, fim da sessão por inatividade e registro de atividades que não pode ser alterado.</p>
+    <p><b>Seus direitos:</b> confirmar e acessar os seus dados, corrigir, pedir anonimização ou exclusão do que não for necessário, saber com quem são compartilhados e revogar este aceite (LGPD, art. 18). Em Configurações → Segurança e privacidade você baixa os seus dados e envia pedidos.</p>
+    <p class="muted" style="font-size:12px">Versão ${esc(PRIV.versao)}.</p></div>`;
+}
+
+/* ----- Fim da sessão por inatividade. A atividade em qualquer aba conta para todas ----- */
+const ATV_KEY = 'rt1:atividade';
+let atvT = null, atvAviso = null, atvUlt = 0;
+function marcaAtividade() { const t = Date.now(); if (t - atvUlt < 15000) return; atvUlt = t; try { localStorage.setItem(ATV_KEY, String(t)); } catch (e) { /* ignora */ } }
+function ultimaAtividade() { try { return Math.max(atvUlt, +localStorage.getItem(ATV_KEY) || 0); } catch (e) { return atvUlt; } }
+function iniciaInatividade() {
+  clearInterval(atvT); atvT = null;
+  const min = +st.politica.inatividadeMin || 0; if (!min) return;
+  atvUlt = 0; marcaAtividade();
+  if (!iniciaInatividade.ligado) { iniciaInatividade.ligado = true; ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => addEventListener(ev, marcaAtividade, { passive: true, capture: true })); }
+  atvT = setInterval(() => {
+    const ocioso = Date.now() - ultimaAtividade(), lim = min * 60000;
+    if (ocioso >= lim) { clearInterval(atvT); atvT = null; encerrarPorInatividade(); }
+    else if (ocioso >= lim - 60000 && !atvAviso) avisoInatividade(Math.ceil((lim - ocioso) / 1000));
+    else if (atvAviso && ocioso < lim - 60000) fechaAvisoInatividade();
+  }, 5000);
+}
+function avisoInatividade(seg) {
+  const d = document.createElement('div'); d.id = 'atvAviso'; d.className = 'float'; d.setAttribute('role', 'alertdialog');
+  d.innerHTML = `<b>Sua sessão vai terminar por inatividade</b><span class="muted">em <span id="atvSeg" class="num">${seg}</span> s, para proteger os dados.</span><button class="btn sm primary" type="button">Continuar conectado</button>`;
+  document.body.append(d); atvAviso = { el: d, fim: Date.now() + seg * 1000, t: setInterval(() => { const s = $('#atvSeg'); if (s) s.textContent = Math.max(0, Math.ceil((atvAviso.fim - Date.now()) / 1000)); }, 1000) };
+  d.querySelector('button').onclick = () => { atvUlt = 0; marcaAtividade(); fechaAvisoInatividade(); };
+}
+function fechaAvisoInatividade() { if (!atvAviso) return; clearInterval(atvAviso.t); atvAviso.el.remove(); atvAviso = null; }
+async function encerrarPorInatividade() {
+  fechaAvisoInatividade();
+  audita('sessao_expirada', `${st.politica.inatividadeMin} min sem uso`);
+  try { localStorage.setItem('rt1:saiuPorInatividade', '1'); } catch (e) { /* ignora */ }
+  await sair(true);
+}
+
+/* ----- Senha forte ----- */
+const SENHAS_FRACAS = ['12345678', '123456789', '1234567890', 'senha123', 'password', 'qwerty123', 'abc12345', 'mudar123', 'admin123', '11111111', '00000000'];
+function forcaSenha(s) { s = String(s); let p = 0; if (s.length >= SENHA_MIN) p++; if (s.length >= 14) p++; if (/[a-z]/.test(s) && /[A-Z]/.test(s)) p++; if (/\d/.test(s)) p++; if (/[^A-Za-z0-9]/.test(s)) p++; return Math.min(4, p); }
+
+/* ----- Tela de segurança e privacidade ----- */
+async function segurancaForm() {
+  const admin = st.usuario.papel === 'admin', p = st.politica;
+  st.mfaAtivo = await mfaAtivo();
+  openModal(`<div class="dh"><h2>Segurança e privacidade</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db">
+    <section class="acct-sec" style="border-top:0;padding-top:0"><h3>Verificação em duas etapas</h3>
+      <p class="muted" style="margin:0">Além da senha, o login pede um código de 6 dígitos gerado no celular por um aplicativo autenticador (Google Authenticator, Microsoft Authenticator, Authy ou outro).</p>
+      <div class="row">${st.mfaAtivo ? `<span class="pill ok">Ativa nesta conta</span>${p.exige2fa ? '<span class="muted" style="font-size:12.5px">Obrigatória neste ambiente: não pode ser desligada.</span>' : '<button class="btn sm danger" type="button" id="sgMfaOff">Desligar</button>'}` : `<span class="pill warn">Desligada</span><button class="btn sm primary" type="button" id="sgMfaOn">Ativar agora</button>`}</div>
+      <div id="sgMfa"></div></section>
+    ${admin ? `<section class="acct-sec"><h3>Política do ambiente</h3>
+      <form id="sgPol" class="stack"><label class="chk"><input type="checkbox" name="exige"${p.exige2fa ? ' checked' : ''}> Exigir a verificação em duas etapas de todos os usuários de ${esc(st.empresa.nome)}</label>
+        <label class="field" style="max-width:280px"><span class="lbl">Encerrar a sessão sem uso depois de</span><select name="inat">${[0, 10, 15, 30, 60, 120].map(m => `<option value="${m}"${+p.inatividadeMin === m ? ' selected' : ''}>${m ? m + ' minutos' : 'nunca (não recomendado)'}</option>`).join('')}</select></label>
+        ${st.sb && st.polSemColuna ? '<div class="banner" style="font-size:12.5px">O banco ainda não tem as colunas da política. Rode <b>supabase/migracao_04_seguranca.sql</b> no Supabase.</div>' : ''}
+        <div class="row"><button class="btn sm primary" type="submit">Salvar política</button></div></form></section>` : ''}
+    <section class="acct-sec"><h3>Privacidade (LGPD)</h3>
+      <details><summary>Ler o aviso de privacidade</summary>${avisoPrivacidadeHtml()}</details>
+      <div class="row"><button class="btn sm" type="button" id="sgMeus">Baixar os meus dados</button><button class="btn sm" type="button" id="sgPedido">Enviar pedido (correção, exclusão…)</button></div>
+      <form id="sgPedForm" class="stack" hidden><label class="field"><span class="lbl">Seu pedido</span><textarea name="txt" maxlength="500" required placeholder="Ex.: corrigir o meu nome; excluir o endereço da minha base de saída"></textarea><span class="hint">Fica no registro de atividades, que o administrador do ambiente acompanha.</span></label><div class="row"><button class="btn sm primary" type="submit">Enviar pedido</button></div></form></section>
+    <section class="acct-sec"><h3>${admin ? 'Registro de atividades do ambiente' : 'Minhas atividades'}</h3><div id="sgAud" class="muted">Carregando…</div></section>
+    <div id="sgMsg" role="alert"></div>
+  </div><div class="df"><button class="btn" type="button" data-act="conta">Minha conta</button><button class="btn primary" type="button" data-close>Fechar</button></div>`, 'lg');
+  const msg = (t, c = 'bad') => { const m = $('#sgMsg'); if (m) m.innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
+  const on = $('#sgMfaOn'), off = $('#sgMfaOff');
+  if (on) on.onclick = () => { on.disabled = true; montaCadastroMfa($('#sgMfa'), () => segurancaForm(), msg); };
+  if (off) off.onclick = () => {
+    $('#sgMfa').innerHTML = `<form id="sgOff" class="row"><label class="field"><span class="lbl">Código atual do aplicativo</span><input name="c" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label><button class="btn sm danger" type="submit">Confirmar e desligar</button></form>`;
+    $('#sgOff').onsubmit = async ev => { ev.preventDefault(); try { await mfaDesligar(new FormData(ev.target).get('c')); toast('Verificação em duas etapas desligada'); segurancaForm(); } catch (e) { msg(e.message || sbMensagem(e)); } };
+  };
+  const pol = $('#sgPol'); if (pol) pol.onsubmit = async ev => { ev.preventDefault(); const f = new FormData(ev.target); try { await salvaPolitica({ exige2fa: !!f.get('exige'), inatividadeMin: +f.get('inat') }); msg('Política salva. Quem ainda não tiver as duas etapas faz o cadastro no próximo login.', 'info'); } catch (e) { msg(sbMensagem(e)); } };
+  $('#sgMeus').onclick = baixarMeusDados;
+  $('#sgPedido').onclick = () => { $('#sgPedForm').hidden = false; $('#sgPedForm textarea').focus(); };
+  $('#sgPedForm').onsubmit = ev => { ev.preventDefault(); const t = String(new FormData(ev.target).get('txt')).trim(); if (!t) return; audita('titular_pedido', t); ev.target.reset(); ev.target.hidden = true; msg('Pedido registrado. O administrador do ambiente acompanha os pedidos no registro de atividades.', 'info'); };
+  try {
+    const l = await audLista(!admin), el = $('#sgAud'); if (!el) return;
+    el.classList.remove('muted');
+    el.innerHTML = l.length ? `<div class="tblwrap" style="max-height:260px;overflow:auto"><table class="t"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th></tr></thead><tbody>${l.slice(0, 200).map(r => `<tr><td>${fdh(r.em)}</td><td>${esc(r.usuario || r.email || '—')}</td><td>${esc(AUD_ACAO[r.acao] || r.acao)}</td><td class="wrap">${esc(r.detalhe || '')}</td></tr>`).join('')}</tbody></table></div>
+      <div class="row"><button class="btn sm" type="button" id="sgAudXls">Exportar registro (.xlsx)</button><span class="muted" style="font-size:12px">${st.sb ? 'Os registros ficam no banco e não podem ser alterados nem apagados pelo sistema.' : `Os últimos ${AUD_MAX_LOCAL} registros ficam neste navegador.`}</span></div>` : '<span class="muted">Nenhuma atividade registrada ainda.</span>';
+    const x = $('#sgAudXls'); if (x) x.onclick = () => { saveFile(`atividades_${slug(st.empresa.nome)}_${dstamp()}.xlsx`, xlsxBlob([['Atividades', l.map(r => ({ Quando: fdh(r.em), Usuario: r.usuario || '', Email: r.email || '', Acao: AUD_ACAO[r.acao] || r.acao, Detalhe: r.detalhe || '' }))]])); audita('exportacao', 'Registro de atividades'); };
+  } catch (e) { const el = $('#sgAud'); if (el) el.innerHTML = st.sb ? 'O banco ainda não tem o registro de atividades. Rode <b>supabase/migracao_04_seguranca.sql</b> no Supabase.' : 'Não foi possível ler o registro.'; }
+}
+// Cadastro das duas etapas, usado em Segurança e no login quando o ambiente exige
+async function montaCadastroMfa(box, fim, msg) {
+  box.innerHTML = '<p class="muted">Preparando…</p>';
+  let ini; try { ini = await mfaIniciar(); } catch (e) { box.innerHTML = ''; msg(sbMensagem(e)); return; }
+  box.innerHTML = `<div class="mfa-cad"><ol class="mfa-passos"><li>Abra o aplicativo autenticador no celular e escolha adicionar conta.</li><li>Leia o QR code ao lado${ini.qr ? '' : ' (indisponível agora)'} ou digite a chave.</li><li>Digite abaixo o código de 6 dígitos que aparecer.</li></ol>
+    <div class="mfa-qr">${ini.qr ? `<img src="${esc(ini.qr)}" alt="QR code para o aplicativo autenticador" width="168" height="168">` : ''}<div class="lbl">Chave</div><code class="mfa-key">${esc(ini.secret.match(/.{1,4}/g).join(' '))}</code></div></div>
+    <form id="mfaCad" class="row"><label class="field"><span class="lbl">Código do aplicativo</span><input name="c" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label><button class="btn primary" type="submit">Confirmar e ativar</button></form>`;
+  const inp = box.querySelector('input'); inp.focus();
+  box.querySelector('#mfaCad').onsubmit = async ev => {
+    ev.preventDefault(); const b = ev.target.querySelector('button'); b.disabled = true;
+    try {
+      const r = await mfaConfirmar(ini, inp.value);
+      if (r.reservas.length) { box.innerHTML = `<div class="banner info">Duas etapas ativadas. Guarde estes códigos de reserva fora do computador: cada um vale uma vez, se você perder o celular.</div><div class="lg-code mfa-res">${r.reservas.map(esc).join('<br>')}</div><div class="row"><button class="btn" type="button" id="mfaCop">Copiar códigos</button><button class="btn primary" type="button" id="mfaFim">Já guardei, continuar</button></div>`; $('#mfaCop').onclick = e => copiarTexto(r.reservas.join('\n'), e.target); $('#mfaFim').onclick = fim; }
+      else { toast('Verificação em duas etapas ativada'); fim(); }
+    } catch (e) { b.disabled = false; msg(e.message || sbMensagem(e)); inp.select(); }
+  };
+}
+// Baixa o que o sistema guarda sobre a própria pessoa (LGPD, art. 18, II)
+async function baixarMeusDados() {
+  const u = st.usuario, out = { geradoEm: new Date().toISOString(), ambiente: { id: st.empresa.id, nome: st.empresa.nome }, conta: { id: u.id, nome: u.nome, login: u.login, papel: u.papel, criado: u.criado ? new Date(u.criado).toISOString() : undefined, duasEtapas: !!st.mfaAtivo }, aceitesPrivacidade: [], atividades: [] };
+  try {
+    if (st.sb) { const { data } = await st.sb.from('consentimentos').select('versao,aceito_em').eq('empresa_id', st.empresa.id).eq('user_id', u.id); out.aceitesPrivacidade = data || []; }
+    else if (u.privacidade) out.aceitesPrivacidade = [{ versao: u.privacidade.versao, aceito_em: new Date(u.privacidade.em).toISOString() }];
+  } catch (e) { /* segue sem */ }
+  try { out.atividades = (await audLista(true)).map(r => ({ em: new Date(r.em).toISOString(), acao: AUD_ACAO[r.acao] || r.acao, detalhe: r.detalhe || '' })); } catch (e) { /* segue sem */ }
+  const col = [...(st.col ? st.col.values() : [])].find(c => normLogin(c.email || '') === normLogin(u.login));
+  if (col) out.cadastroDeColaborador = col;
+  saveFile(`meus_dados_${slug(u.nome || 'usuario')}_${dstamp()}.json`, new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
+  audita('titular_exportou');
 }
 
 /* ----- Minha conta ----- */
@@ -3699,27 +4255,31 @@ function mostraSegredo(titulo, texto, valor) {
 }
 /* ----- Minha conta com Supabase: as contas ficam no Supabase Auth, o sistema só vincula ao ambiente ----- */
 function contaFormSb() {
-  const e = st.empresa, u = st.usuario, admin = u.papel === 'admin';
+  const e = st.empresa, u = st.usuario, admin = u.papel === 'admin', mfa = !!st.mfaAtivo;
   openModal(`<div class="dh"><h2>Minha conta</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
   <div class="db">
     <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(u.nome)}</b> <span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span><div class="muted">${esc(u.login)} · Ambiente ${esc(e.nome)}</div></div></div>
-    <section class="acct-sec"><h3>Alterar senha</h3><form id="ctSenha"><div class="fgrid">${senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div><div class="row"><button class="btn sm primary" type="submit">Salvar senha</button></div></form></section>
+    <section class="acct-sec"><h3>Alterar senha</h3><form id="ctSenha"><div class="fgrid">${mfa ? `<label class="field"><span class="lbl">Código do aplicativo (2 etapas)</span><input type="text" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label>` : senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div><div class="row"><button class="btn sm primary" type="submit">Salvar senha</button></div></form></section>
     ${admin ? `<section class="acct-sec"><h3>Usuários do ambiente</h3><div id="ctUsuarios" class="muted">Carregando…</div>
       <form id="ctNovo"><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off"></label><label class="field"><span class="lbl">E-mail</span><input type="text" name="email" required autocomplete="off"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"><span class="hint">Usada só se a pessoa ainda não tiver conta</span></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div><div class="row"><button class="btn sm primary" type="submit">Incluir usuário</button></div></form></section>` : ''}
     <div id="ctMsg" role="alert"></div>
   </div>
-  <div class="df"><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
+  <div class="df"><button class="btn" type="button" data-act="seguranca">Segurança e privacidade</button><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
   const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
   $$('#modal [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
   $('#ctSair').onclick = sair;
   $('#ctSenha').onsubmit = async ev => {
     ev.preventDefault(); const f = new FormData(ev.target);
     const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { msg(erro); return; }
-    const ent = await st.sb.auth.signInWithPassword({ email: st.usuario.login, password: f.get('atual') });
-    if (ent.error) { msg(/invalid login/i.test(ent.error.message) ? 'A senha atual está incorreta.' : sbMensagem(ent.error)); return; }
+    // Com as duas etapas, a confirmação é o código do aplicativo: entrar de novo com a senha rebaixaria a sessão para uma etapa só
+    if (mfa) { if (!(await mfaConferirLogin(f.get('codigo')))) { msg('Código incorreto ou vencido. Digite o código que aparece agora no aplicativo.'); return; } }
+    else {
+      const ent = await st.sb.auth.signInWithPassword({ email: st.usuario.login, password: f.get('atual') });
+      if (ent.error) { msg(/invalid login/i.test(ent.error.message) ? 'A senha atual está incorreta.' : sbMensagem(ent.error)); return; }
+    }
     const { error } = await st.sb.auth.updateUser({ password: f.get('senha') });
     if (error) { msg(sbMensagem(error)); return; }
-    ev.target.reset(); msg('Senha alterada.', 'info');
+    ev.target.reset(); msg('Senha alterada.', 'info'); audita('senha');
   };
   if (admin) {
     listaMembros(msg);
@@ -3735,7 +4295,7 @@ function contaFormSb() {
         const { error } = await temp.auth.signUp({ email, password: f.get('senha'), options: { data: { trocar_senha: true } } });
         if (error) throw error;
         if ((await vincula()) !== 'ok') throw new Error('A conta foi criada, mas não pôde ser incluída no ambiente. Tente de novo.');
-        contaFormSb(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 6000);
+        contaFormSb(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 6000); audita('usuario_incluido', email);
       } catch (err) { msg(sbMensagem(err)); }
       finally { b.disabled = false; }
     };
@@ -3757,7 +4317,7 @@ async function listaMembros(msg) {
     else armButton(b, async () => {
       const { error: er } = await st.sb.from('membros_empresa').delete().eq('empresa_id', e.id).eq('user_id', u.user_id);
       if (er) { msg(sbMensagem(er)); return; }
-      listaMembros(msg); msg(`${u.nome} saiu do ambiente. A conta continua existindo no Supabase.`, 'info');
+      listaMembros(msg); msg(`${u.nome} saiu do ambiente. A conta continua existindo no Supabase.`, 'info'); audita('usuario_removido', u.email || u.nome);
     }, 'Confirmar');
   };
 }
@@ -3773,7 +4333,7 @@ function contaForm() {
       <form id="ctNovo"><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off"></label><label class="field"><span class="lbl">Usuário ou e-mail</span><input type="text" name="login" required autocomplete="off"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div><div class="row"><button class="btn sm primary" type="submit">Criar usuário</button><span class="muted" style="font-size:12px">A pessoa troca a senha no primeiro login.</span></div></form></section>` : ''}
     <div id="ctMsg" role="alert"></div>
   </div>
-  <div class="df"><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
+  <div class="df"><button class="btn" type="button" data-act="seguranca">Segurança e privacidade</button><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
   const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
   $$('#modal [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
   $('#ctSair').onclick = sair;
@@ -3782,7 +4342,7 @@ function contaForm() {
     const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { msg(erro); return; }
     if (!(await confere(f.get('atual'), st.usuario.senha))) { msg('A senha atual está incorreta.'); return; }
     st.usuario = { ...st.usuario, senha: await segredo(f.get('senha')) };
-    await salvarUsuario(e, st.usuario); ev.target.reset(); msg('Senha alterada.', 'info');
+    await salvarUsuario(e, st.usuario); ev.target.reset(); msg('Senha alterada.', 'info'); audita('senha');
   };
   $('#ctCodigo').onclick = async () => {
     const codigo = novoCodigo(); st.usuario = { ...st.usuario, rec: await segredo(normCodigo(codigo)) };
@@ -3796,7 +4356,7 @@ function contaForm() {
       if (String(f.get('senha')).length < SENHA_MIN) { msg(`A senha provisória precisa ter ao menos ${SENHA_MIN} caracteres.`); return; }
       if ((await usuariosDe(e)).some(x => x.login === login)) { msg('Já existe um usuário com esse login neste ambiente.'); return; }
       await salvarUsuario(e, { id: uid('u'), nome: f.get('nome').trim(), login, papel: f.get('papel'), senha: await segredo(f.get('senha')), trocarSenha: true, criado: Date.now() });
-      contaForm(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 5000);
+      contaForm(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 5000); audita('usuario_incluido', login);
     };
   }
 }
@@ -3813,12 +4373,17 @@ async function listaUsuarios(msg) {
       await salvarUsuario(e, novo);
       mostraSegredo(`Senha provisória de ${u.nome}`, 'Passe esta senha para a pessoa. Ela escolhe a própria senha no próximo login.', prov);
     }, 'Confirmar');
-    else armButton(b, async () => { await st.base.del(colUsuarios(e), u.id); listaUsuarios(msg); msg(`Usuário ${u.nome} excluído.`, 'info'); }, 'Confirmar exclusão');
+    else armButton(b, async () => { await st.base.del(colUsuarios(e), u.id); listaUsuarios(msg); msg(`Usuário ${u.nome} excluído.`, 'info'); audita('usuario_removido', u.login); }, 'Confirmar exclusão');
   };
 }
-async function sair() {
+async function sair(porInatividade) {
   for (const s of Save.stores) { clearTimeout(s.t); s.t = null; if (s.dirty.size) await s.flush(); }
-  if (Save.err) { toast('Há alterações que não foram salvas: ' + (Save.err.message || 'erro')); return; }
+  if (Save.err) {
+    toast((porInatividade ? 'A sessão não foi encerrada porque há alterações que não foram salvas: ' : 'Há alterações que não foram salvas: ') + (Save.err.message || 'erro'), 8000);
+    if (porInatividade) iniciaInatividade();
+    return;
+  }
+  if (!porInatividade) await Promise.race([audita('logout'), sleep(1500)]);
   if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {});
   limparSessao(); location.reload();
 }
@@ -3842,21 +4407,26 @@ async function init() {
       const ses = lerSessao(), emp = ses && EMPRESAS.find(x => x.id === ses.emp);
       if (session && emp) {
         let u = null; try { u = await sbMembro(emp, session.user); } catch (e) { /* vai para o login */ }
-        if (u && !u.trocarSenha) { st.empresa = emp; st.usuario = u; await boot(); return; }
+        if (u && !u.trocarSenha) {
+          st.empresa = emp; st.usuario = u; lg.emp = emp;
+          if (await sbPrecisaMfa()) { lg.step = 'mfa'; lg.ctx = { login: u.login, seguir: () => liberar() }; renderLogin(); return; }
+          await liberar(); return;
+        }
       }
       if (session) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {});
     }
-    limparSessao(); renderLogin();
+    limparSessao(); renderLogin(); avisoSaida();
     if (linkVencido) lgMsg('Este link de senha já venceu ou foi usado. Peça um novo em “Esqueci minha senha”.');
     return;
   }
   const ses = lerSessao(), emp = ses && EMPRESAS.find(x => x.id === ses.emp);
   if (emp) {
     let u = null; try { u = (await usuariosDe(emp)).find(x => x.id === ses.uid); } catch (e) { /* vai para o login */ }
-    if (u && !u.trocarSenha) { st.empresa = emp; st.usuario = u; await boot(); return; }
+    if (u && !u.trocarSenha) { st.empresa = emp; st.usuario = u; await liberar(); return; }
   }
-  limparSessao(); renderLogin();
+  limparSessao(); renderLogin(); avisoSaida();
 }
+function avisoSaida() { try { if (localStorage.getItem('rt1:saiuPorInatividade')) { localStorage.removeItem('rt1:saiuPorInatividade'); lgMsg('A sua sessão terminou por inatividade, para proteger os dados. Entre de novo.', 'info'); } } catch (e) { /* ignora */ } }
 async function boot() {
   const e = st.empresa;
   Object.assign(DEF_P, e.padroes || {}); if (e.pontoMar) Object.assign(SEA, e.pontoMar);
@@ -3881,13 +4451,23 @@ async function boot() {
   if (innerWidth >= 1100) st.panelR = true;
   applyPanels();
   await openAmb(first || null, false);
-  setScreen('home');
+  setScreen('home', 'hub');
   $('#loading').hidden = true;
+  iniciaInatividade();
+  if (window.RotasMod) window.RotasMod.iniciar().then(() => { if (st.screen === 'home') renderHome(); }).catch(() => {});
   addEventListener('beforeunload', ev => {
     for (const s of Save.stores) if (s.dirty.size) s.flush();
     if (geoQ.busy) { ev.preventDefault(); ev.returnValue = ''; } // a busca de coordenadas para se a página fechar
     if (st.sb && [...Save.stores].some(s => s.dirty.size || s.busy || s.t)) { ev.preventDefault(); ev.returnValue = ''; } // gravação no banco em andamento
   });
 }
-init();
+/* Funções internas usadas pelos módulos em arquivos separados (js/rotas.js) */
+window.RRM = {
+  st, $, $$, esc, toast, openModal, closeModal, armButton, ICON, ICON_MOD, nf0, nf1, fkm, fhm, fpct, ocPill, E, P, DEF_P, BucketStore, buildRoutes, sumRoutes,
+  DIA_C, DIA_L, COR_DIA, COR_SEM, isNum, uid, clone, norm, numBR, parseDias, parseSemanas, hasXY, hbars, vcols, kcard, saveFile, xlsxBlob, slug, dstamp, fdate, fdh,
+  tokens, isDark, BASES, PinMarker, setScreen, renderHome, enterStudy, openImport, downloadModelo, audita, migalha, roadRoute, realFromLegs, decodePoly, sleep,
+  get map() { return map; }
+};
+// Começa depois de todos os scripts da página (js/rotas.js vem depois deste arquivo)
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else setTimeout(init, 0);
 })();

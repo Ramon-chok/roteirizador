@@ -17,7 +17,9 @@ Alternativa sem extensão (precisa do Node.js instalado): no terminal do VS Code
 ## Como o sistema está organizado
 
 - **Acesso**: a pessoa escolhe o ambiente (G4 Distribuidora, J.Arantes, Chok Distribuidora ou Grupo Arantes) e faz login. Cada ambiente tem usuários, clientes, colaboradores e estudos separados. Veja [Ambientes e login](#ambientes-e-login).
-- **Início** (tela de abertura): atalhos para Listagens, Estudos, Importações e Configurações, botão **Mapa da base**, indicadores gerais (estudos, clientes, bases de saída, cidades), indicadores e gráficos do estudo em foco (KM por estudo e por setor, ocupação da jornada, visitas por dia), mapa de cobertura das bases, lista de colaboradores e tabela de estudos.
+- **Início** (tela de abertura): quatro módulos com acesso rápido. **Planejamento**, **Rotas**, **Verba Indenizatória** (em breve) e **Configurações**. Cada cartão mostra os números principais do módulo.
+- **Planejamento**: o painel que antes era o início. Atalhos para Listagens, Estudos, Importações e Configurações, botão **Mapa da base**, indicadores gerais (estudos, clientes, bases de saída, cidades), indicadores e gráficos do estudo em foco (KM por estudo e por setor, ocupação da jornada, visitas por dia), mapa de cobertura das bases, lista de colaboradores e tabela de estudos.
+- **Rotas**: bases de roteiros importadas mês a mês, com visão geral, tabela, mapa, histórico e comparação com os estudos. Veja [Rotas](#rotas).
 - **Planner**: o sistema de mapa, roteiros, estudos, clientes e colaboradores. Entre pelo botão **Abrir Planner**, que oferece: abrir um **estudo existente**, criar um **planner vazio e novo** ou **importar** um roteiro (Excel/CSV). Para voltar, clique em **Roteirizador RRM** no topo.
 - **Importação** (aba do Planner, também acessível pela página inicial): baixe os modelos .xlsx de colaboradores, clientes e roteiro (cada um com exemplos e uma aba “Instruções”) e importe-os. Ordem recomendada: colaboradores → clientes → roteiro.
 - **Configurações** (aba do Planner, também acessível pela página inicial): Minha conta, mapa de fundo, busca de endereços, servidores de rota, backup e dados de exemplo.
@@ -42,7 +44,9 @@ O painel da esquerda tem três visões:
 - **Rotas**: começa sem ninguém marcado. Marque colaboradores ou clique em um dia para ver só aqueles roteiros; o painel direito lista as rotas marcadas com KM, tempo e ocupação, e cada uma abre com a sequência de visitas.
 - **Base**: todos os clientes cadastrados, mesmo sem estudo. Filtre por uma ou mais cidades e por clientes específicos, buscando por nome ou SOLD ou colando uma lista de códigos. Também abre pelo botão **Mapa da base** na tela inicial, em Listagens e em **Clientes → Ver no mapa**, que leva o filtro daquela página.
 
-As ferramentas de seleção (clique, retângulo e laço) ficam na barra de ferramentas do mapa e funcionam nas três visões.
+As ferramentas de seleção (clique, retângulo e laço) ficam na barra de ferramentas do mapa e funcionam nas três visões. Durante o arrasto, o contorno aparece com halo e preenchimento, acima dos clientes, e um contador junto ao cursor mostra quantos clientes entram (ou saem, com Alt) da seleção.
+
+Os clientes aparecem como **pinos de GPS**, cada um na cor do setor, do dia, da semana ou do colaborador (conforme **Colorir por**). Com as linhas das rotas visíveis, o número da visita fica dentro do pino; cliente selecionado ganha um visto. Para voltar aos pontos simples, desmarque **Pinos de GPS** em **Exibição do mapa** (ou no painel da visão Base).
 
 ## Da base de clientes às rotas diárias
 
@@ -78,7 +82,30 @@ O sistema grava no Supabase: clientes, colaboradores, estudos, setores, roteiros
 - **Dados do navegador:** no login, se o banco do ambiente estiver vazio e o navegador tiver dados, o sistema oferece enviá-los. Eles continuam no navegador.
 - **Várias pessoas ao mesmo tempo:** cada alteração é gravada linha a linha, e a última gravação vale. O que outra pessoa alterou aparece ao recarregar a página.
 
-Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do arquivo. Quem já tinha o schema roda também `supabase/migracao_02_usuarios.sql` e `supabase/migracao_03_importacoes.sql` (histórico de importações). Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
+Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, depois `supabase/migracao_04_seguranca.sql` e `supabase/migracao_05_rotas.sql`, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do `schema.sql`. Quem já tinha o schema roda também, nesta ordem, `migracao_02_usuarios.sql`, `migracao_03_importacoes.sql` (histórico de importações), `migracao_04_seguranca.sql` (duas etapas, privacidade e registro de atividades) e `migracao_05_rotas.sql` (módulo Rotas). Todas podem rodar mais de uma vez. Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
+
+## Rotas
+
+O módulo **Rotas** guarda os roteiros em uso, por período (mês/ano), para acompanhar KM, tempo e custo e comparar com os estudos do Planejamento.
+
+- **Importar:** baixe o modelo em **Rotas → Modelo (.xlsx)**. Colunas obrigatórias: SOLD cliente, SOLD vendedor e Dia (com Semana) ou a Data de cada visita. Opcionais: Período, Equipe, Região, Segmento, Cidade, Nome, Tempo de atendimento, Sequência, Latitude e Longitude. Uma planilha com vários meses (coluna Período ou datas de meses diferentes) vira uma base por mês. Importar de novo o mesmo mês substitui a base daquele mês, se a opção estiver marcada.
+- **Posição dos clientes:** vem da base de clientes; a Latitude/Longitude da planilha completa quem não estiver nela. Clientes sem coordenada ficam fora do mapa e do KM, e a importação lista quais são.
+- **Visões:** Visão geral (indicadores e gráficos), Tabela (por vendedor, com os dias ao clicar, ou por cliente; exporta para Excel), Mapa (pinos coloridos por vendedor, dia, semana, cidade ou segmento, linhas das rotas, regiões e bases de saída), Histórico (KM, visitas, clientes, horas e custo por mês, com a matriz vendedor × mês) e Comparar com estudo.
+- **Filtros:** vendedor, equipe, cidade, região, segmento, dia, semana, tempo de atendimento e busca por cliente. No histórico, os filtros valem pela rota (uma rota entra se atende algum cliente do filtro); atendimento e busca valem só na base aberta.
+- **KM e custo:** o KM é estimado como no Planejamento (linha reta × fator de rota, com ida e volta da base do colaborador) e pode ser recalculado pelas ruas em **Mapa → Calcular KM pelas ruas** (até 300 rotas por vez, cerca de 1 por segundo no servidor público). O valor do KM (R$) e os demais parâmetros ficam em **Rotas → Parâmetros** e valem para o ambiente todo. O mês considera 4 semanas: KM do mês = KM do ciclo × 4 ÷ semanas do ciclo; para bases por data, é o total do mês.
+- **Comparar com estudo:** escolha o vendedor da base aberta, um estudo salvo e o setor (por padrão, os setores do mesmo colaborador). Os dois mapas ficam lado a lado e se movem juntos; a tabela mostra a diferença de clientes, visitas, dias de rota, KM por mês, semana e dia, horas e custo, e a lista de clientes que só existem de um lado.
+
+## Segurança e privacidade (LGPD)
+
+Fica em **Configurações → Segurança e privacidade** (também em **Minha conta** e no cartão Configurações do início).
+
+- **Verificação em duas etapas:** além da senha, um código de 6 dígitos de um aplicativo autenticador (Google Authenticator, Microsoft Authenticator, Authy…). Com o Supabase, usa o MFA do Supabase Auth: deixe o TOTP ligado em **Authentication → Multi-Factor**. A migração 04 faz o banco exigir a segunda etapa de quem a tem cadastrada, então a proteção não depende só da tela. Sem o Supabase, o sistema também gera 8 códigos de reserva. Quem perder o celular: com Supabase, o administrador apaga o fator em **Authentication → Users**; sem Supabase, o administrador redefine a senha em Minha conta e a pessoa cadastra de novo.
+- **Política do ambiente (administrador):** exigir as duas etapas de todos (quem não tiver cadastra no próximo login) e o tempo sem uso para encerrar a sessão (padrão 30 minutos, com aviso 1 minuto antes; a atividade em qualquer aba conta).
+- **Aviso de privacidade:** no primeiro acesso (e quando a versão do texto mudar) cada pessoa lê e aceita o aviso: finalidade, dados tratados, base legal, compartilhamento com os serviços de mapa, segurança e direitos do titular. O aceite fica registrado com a versão. Preencha controlador, encarregado (DPO) e contato em `js/config.js` → `seguranca.privacidade`.
+- **Direitos do titular:** cada pessoa baixa os próprios dados (conta, aceites e atividades) e envia pedidos de correção ou exclusão, que ficam no registro de atividades.
+- **Registro de atividades:** entradas e saídas, fim de sessão por inatividade, duas etapas, política, aceite, exportações e backups, importações, exclusões e inclusão ou remoção de usuários. Com o Supabase, ninguém altera nem apaga um registro pelo sistema e a data é a do servidor. O administrador vê o do ambiente e exporta para Excel; cada pessoa vê o próprio.
+- **Senha e tentativas:** senha com ao menos 10 caracteres, com letras e números. Depois de 5 senhas ou códigos errados seguidos, o login fica bloqueado neste navegador por 5 minutos (o tempo dobra a cada novo bloqueio). O Supabase tem o próprio limite no servidor. Os valores ficam em `js/config.js` → `seguranca`.
+- **Política de conteúdo (CSP):** o `index.html` só deixa rodar scripts do próprio sistema e dos CDNs usados, o que bloqueia script injetado. Com isso, o recarregamento automático do Live Server deixa de funcionar (o script dele é embutido): recarregue com F5. O `dist/roteirizador.html` libera scripts embutidos, porque é um arquivo único. Ao hospedar, envie também os cabeçalhos `Content-Security-Policy` (com `frame-ancestors 'none'`), `Strict-Transport-Security` e `X-Content-Type-Options: nosniff` pelo servidor.
 
 ## Importação pelo endereço
 
@@ -101,10 +128,13 @@ Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, crie o usuári
 | `css/style.css` | Visual: cores, tema claro/escuro, layout do mapa e painéis |
 | `js/config.js` | **Configurações**: ambientes de login, chave do Google e servidores de rotas (OSRM e Valhalla) |
 | `js/engine.js` | Motor de cálculo: setorização (k-means balanceado), distribuição em dias/semanas pela frequência, sequência (vizinho mais próximo + 2-opt + Or-opt), métricas de KM e tempo |
-| `js/app.js` | Aplicação: bases, estudos, mapa (Leaflet), laço, régua, seleção, importação/exportação Excel, roteirização pelas ruas (OSRM), Google opcional |
+| `js/app.js` | Aplicação: bases, estudos, mapa (Leaflet), pinos de GPS, laço, régua, seleção, importação/exportação Excel, roteirização pelas ruas (OSRM), Google opcional, login, duas etapas, privacidade e registro de atividades |
+| `js/rotas.js` | Módulo Rotas: bases de roteiros por período, tabela, mapa, histórico e comparação com estudos |
 | `exemplos/` | Modelos CSV de clientes, colaboradores e roteiro (os modelos .xlsx com instruções são baixados na aba Importação) |
 | `ferramentas/build.py` | Gera `dist/roteirizador.html`, um arquivo único com tudo embutido |
 | `supabase/schema.sql` | Estrutura do banco para o Supabase: tabelas, regras de acesso e consultas prontas |
+| `supabase/migracao_04_seguranca.sql` | Duas etapas exigida pelo banco, política do ambiente, aceite de privacidade e registro de atividades |
+| `supabase/migracao_05_rotas.sql` | Tabelas do módulo Rotas |
 | `ferramentas/backup_para_sql.py` | Converte um backup do sistema em SQL para carregar no Supabase |
 | `dist/roteirizador.html` | Versão em arquivo único, pronta para enviar ou hospedar |
 
