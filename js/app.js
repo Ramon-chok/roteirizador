@@ -3267,7 +3267,8 @@ function bindEvents() {
   });
   document.addEventListener('change', e => {
     const t = e.target;
-    if (t.id === 'hFocus') { st.homeFocus = t.value; renderHome(); return; }
+    if (t.id === 'hFocus') { st.homeFocus = t.value; st.homeSetor = ''; renderHome(); return; }
+    if (t.id === 'hSetor') { st.homeSetor = t.value; renderHome(); return; }
     if (t.id === 'geoSrc') { setGeoSrc(t.value); if (t.value === 'google') ensureGoogle(); return; }
     if (!t.closest('#pageView')) return;
     const id = t.id;
@@ -3342,7 +3343,10 @@ function pageAct(act, btn) {
     case 'newamb': newAmbForm(); break;
     case 'plannerOpen': openPlannerChooser(); break;
     case 'rotasImport': openImport('rotas'); break;
-    case 'focoplan': st.homeFocus = btn.dataset.fid; renderHome(); break;
+    case 'focoplan': if (st.homeFocus !== btn.dataset.fid) st.homeSetor = ''; st.homeFocus = btn.dataset.fid; renderHome(); $('#homeView').scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'setorver': st.homeSetor = btn.dataset.sid; renderHome(); break;
+    case 'setorlimpa': st.homeSetor = ''; renderHome(); break;
+    case 'abrirsetor': { const sid = btn.dataset.sid; enterStudy(btn.dataset.fid).then(() => { if (sid) soloSetor(sid); }); break; }
     case 'seguranca': segurancaForm(); break;
     case 'listagens': openListagens(); break;
     case 'conta': contaForm(); break;
@@ -3400,9 +3404,18 @@ const fdate = ts => (ts ? new Date(ts).toLocaleDateString('pt-BR') : '—');
 function studySummary(a, items, routes) {
   const rs = [...routes.values()], t = sumRoutes(rs), base = ambStats(a, items, routes);
   const cnt = new Map(); for (const it of items.values()) if (it.s) cnt.set(it.s, (cnt.get(it.s) || 0) + 1);
+  // Detalhe por setor, para o painel do Planejamento mostrar os números do setor escolhido
+  const porSetor = new Map(Object.keys(a.setores || {}).map(id => [id, { cid: {}, semDia: 0 }]));
+  for (const [sold, it] of items) {
+    const x = it.s && porSetor.get(it.s); if (!x) continue;
+    const c = st.cli.get(sold), cid = (c && c.cidade) || 'Sem cidade'; x.cid[cid] = (x.cid[cid] || 0) + 1;
+    if (!(it.d || []).length || !(it.w || []).length) x.semDia++;
+  }
   const setoresList = Object.entries(a.setores || {}).map(([id, s]) => {
-    const r2 = rs.filter(r => r.s === id), m = sumRoutes(r2);
-    return { id, nome: s.nome, cor: s.cor, colab: s.colab, clientes: cnt.get(id) || 0, rotas: r2.length, km: m.km, horas: m.total, oc: m.ocMed };
+    const r2 = rs.filter(r => r.s === id), m = sumRoutes(r2), dias = {}, kmD = {}, nD = {}, occ = [0, 0, 0, 0];
+    for (const r of r2) { dias[r.d] = (dias[r.d] || 0) + r.m.n; kmD[r.d] = (kmD[r.d] || 0) + r.m.km; nD[r.d] = (nD[r.d] || 0) + 1; const o = r.m.ocup; occ[o > 1 ? 3 : o >= 0.9 ? 2 : o < 0.5 ? 0 : 1]++; }
+    const x = porSetor.get(id);
+    return { id, nome: s.nome, cor: s.cor, colab: s.colab, clientes: cnt.get(id) || 0, rotas: r2.length, km: m.km, horas: m.total, desl: m.tDesl, atend: m.tAtend, oc: m.ocMed, ocMax: Math.max(0, ...r2.map(r => r.m.ocup)), visitas: m.n, dias, kmD, nD, occ, cid: x.cid, semDia: x.semDia };
   }).sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR', { numeric: true }));
   const dias = {}, occ = [0, 0, 0, 0];
   for (const r of rs) { dias[r.d] = (dias[r.d] || 0) + r.m.n; const o = r.m.ocup; occ[o > 1 ? 3 : o >= 0.9 ? 2 : o < 0.5 ? 0 : 1]++; }
@@ -3410,7 +3423,7 @@ function studySummary(a, items, routes) {
   for (const [sold, it] of items) {
     if (i++ % stride) continue;
     const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) continue;
-    pts.push([c.lat, c.lng, it.s && a.setores && a.setores[it.s] ? a.setores[it.s].cor : '']);
+    pts.push([c.lat, c.lng, it.s && a.setores && a.setores[it.s] ? a.setores[it.s].cor : '', it.s || '']);
   }
   return { id: a.id, nome: a.nome, desc: a.desc || '', exemplo: !!a.exemplo, alterado: a.alterado || a.criado || 0, semanas: P(a).semanas, diasP: P(a).dias, ...base, desl: t.tDesl, atend: t.tAtend, setoresList, dias, occ, pts };
 }
@@ -3439,18 +3452,18 @@ function kcard(k, v, s) { return `<div class="kc"><span class="k">${k}</span><sp
 function hbars(rows) {
   const max = Math.max(0, ...rows.map(r => r.v)) || 1;
   return `<div class="hbars">${rows.map(r => {
-    const tag = r.enter ? 'button type="button"' : 'div', end = r.enter ? 'button' : 'div';
-    return `<${tag} class="hb" tabindex="0" data-tip="${esc(r.tip)}"${r.enter ? ` data-enter="${esc(r.enter)}"` : ''}><span class="hl${r.strong ? ' strong' : ''}">${r.cor ? `<i class="sw" style="background:${esc(r.cor)}"></i>` : ''}<span>${esc(r.label)}</span></span><span class="ht"><i style="width:${r.v > 0 ? Math.max(2, r.v / max * 100) : 0}%${r.cor ? ';background:' + esc(r.cor) : ''}"></i></span><span class="hv num">${esc(r.fmt)}</span></${end}>`;
+    const btn = r.enter || r.attrs, tag = btn ? 'button type="button"' : 'div', end = btn ? 'button' : 'div';
+    return `<${tag} class="hb${r.on ? ' on' : ''}" tabindex="0" data-tip="${esc(r.tip)}"${r.enter ? ` data-enter="${esc(r.enter)}"` : ''}${r.attrs ? ' ' + r.attrs : ''}><span class="hl${r.strong ? ' strong' : ''}">${r.cor ? `<i class="sw" style="background:${esc(r.cor)}"></i>` : ''}<span>${esc(r.label)}</span></span><span class="ht"><i style="width:${r.v > 0 ? Math.max(2, r.v / max * 100) : 0}%${r.cor ? ';background:' + esc(r.cor) : ''}"></i></span><span class="hv num">${esc(r.fmt)}</span></${end}>`;
   }).join('')}</div>`;
 }
 function vcols(cols) {
   const max = Math.max(0, ...cols.map(c => c.v)) || 1;
   return `<div class="vcols">${cols.map(c => `<div class="vc" tabindex="0" data-tip="${esc(c.tip)}"><span class="vv num">${nf0.format(c.v)}</span><span class="vb"><i style="height:${c.v > 0 ? Math.max(3, c.v / max * 100) : 0}%;background:${c.cor || 'var(--accent)'}"></i></span><span class="vl">${esc(c.label)}</span>${c.sub ? `<span class="vs">${esc(c.sub)}</span>` : ''}</div>`).join('')}</div>`;
 }
-function homeScatter(f) {
-  let pts = f && f.pts.length ? f.pts : null;
+function homeScatter(f, soColab) {
+  let pts = f && (f.pts.length || soColab) ? f.pts : null;
   if (!pts) { const all = [...st.cli.values()].filter(c => isNum(c.lat) && isNum(c.lng)), stride = Math.max(1, Math.ceil(all.length / 3000)); pts = all.filter((c, i) => i % stride === 0).map(c => [c.lat, c.lng, '']); }
-  const bases = [...st.col.values()].filter(c => isNum(c.lat) && isNum(c.lng));
+  const bases = [...st.col.values()].filter(c => isNum(c.lat) && isNum(c.lng) && (!soColab || c.codigo === soColab));
   if (!pts.length && !bases.length) return '<div class="empty"><p>Nenhum cliente ou base com coordenadas ainda. Importe as planilhas em Importação: as coordenadas são buscadas pelo endereço.</p><button class="btn sm" data-go="importar">Abrir Importação</button></div>';
   const q = (arr, p) => arr[Math.round(p * (arr.length - 1))];
   const ys = pts.map(p => p[0]).sort((a, b) => a - b), xs = pts.map(p => p[1]).sort((a, b) => a - b), big = ys.length > 40;
@@ -3531,7 +3544,8 @@ function renderHub(el) {
     <div class="mod-s">${stats}</div>${extra ? `<div class="mod-a">${extra}</div>` : ''}</article>`;
   const mfa = st.mfaAtivo ? '<span class="pill ok">2 etapas ativa</span>' : '<span class="pill warn">2 etapas desligada</span>';
   el.innerHTML = `<div class="page home hub">
-    <section class="hub-hero"><div><span class="lbl">${esc(st.empresa.nome)}</span><h1>${saud}${nome ? ', ' + esc(nome) : ''}</h1><p>Escolha por onde começar. Os módulos usam as mesmas bases de clientes e colaboradores deste ambiente.</p></div></section>
+    <section class="hub-hero"><div><span class="lbl">${esc(st.empresa.nome)}</span><h1>${saud}${nome ? ', ' + esc(nome) : ''}</h1><p>Escolha por onde começar. Os módulos usam as mesmas bases de clientes e colaboradores.</p></div>
+      <div class="row hub-at">${st.cli.size ? '<button class="btn sm" data-act="mapabase">Mapa da base</button>' : ''}<button class="btn sm" data-go="importar">Importações</button><button class="btn sm" data-act="listagens">Listagens</button><button class="btn sm" data-go="estudos">Estudos</button></div></section>
     <nav class="mods" aria-label="Módulos">
       ${mod('plan', 'Planejamento', 'Estudos, setores e roteirização no mapa, com KM, tempo e comparação de cenários.', stat(nf0.format(st.amb.size), 'estudos') + stat(nf0.format(st.cli.size), 'clientes') + stat(nf0.format(st.col.size), 'colaboradores'),
         `<button class="btn sm primary" type="button" data-act="plannerOpen">Abrir Planner</button>${cur ? `<button class="btn sm" type="button" data-enter="${esc(cur.id)}">Continuar: ${esc(cur.nome)}</button>` : ''}`)}
@@ -3544,7 +3558,6 @@ function renderHub(el) {
       ${mod('config', 'Configurações', 'Minha conta, segurança e privacidade, mapa de fundo, servidores de rota e backup.', mfa + (st.usuario && st.usuario.papel === 'admin' ? '<span class="pill idle">Administrador</span>' : ''),
         `<button class="btn sm" type="button" data-hub="config">Abrir</button><button class="btn sm" type="button" data-act="seguranca">Segurança</button>`)}
     </nav>
-    <section class="card"><div class="cb row" style="justify-content:space-between"><span class="muted">Atalhos</span><span class="row">${st.cli.size ? '<button class="btn sm" data-act="mapabase">Mapa da base</button>' : ''}<button class="btn sm" data-go="importar">Importações</button><button class="btn sm" data-act="listagens">Listagens</button><button class="btn sm" data-go="estudos">Estudos</button></span></div></section>
   </div>`;
   el.scrollTop = 0;
 }
@@ -3559,10 +3572,13 @@ function renderPlanejamento(el) {
   const f = byId.get(st.homeFocus) || byId.get(st.cur) || recent[0] || null;
   const clis = [...st.cli.values()], cols = [...st.col.values()];
   const comCoord = clis.filter(c => isNum(c.lat) && isNum(c.lng)).length;
-  const cidades = new Map(); for (const c of clis) if (c.cidade) cidades.set(c.cidade, (cidades.get(c.cidade) || 0) + 1);
   const basesOk = cols.filter(c => isNum(c.lat) && isNum(c.lng)).length;
-  const comRotas = ready.filter(s => s.rotas > 0), nSea = seaList().length;
-  const topo = `${migalha('Planejamento')}<div class="ph"><div><h1>Planejamento</h1><p>Estudos de setores e roteiros sobre o mapa.</p></div>
+  const nSea = seaList().length;
+  // Setor escolhido: tudo abaixo do seletor mostra os números dele ('' = o estudo inteiro)
+  const set = f && st.homeSetor ? f.setoresList.find(s => s.id === st.homeSetor) || null : null;
+  if (f && st.homeSetor && !set) st.homeSetor = '';
+  const colSet = set && set.colab ? st.col.get(set.colab) : null;
+  const topo = `${migalha('Planejamento')}<div class="ph"><div><h1>Planejamento</h1><p>${nf0.format(st.amb.size)} estudo(s) · ${nf0.format(clis.length)} clientes na base${nSea ? ` (<button type="button" class="linkbtn" data-act="adj">${nf0.format(nSea)} a ajustar</button>)` : ''} · ${nf0.format(basesOk)} de ${nf0.format(cols.length)} colaboradores com base localizada</p></div>
     <div class="row">${st.cli.size ? '<button class="btn" data-act="mapabase">Mapa da base</button>' : ''}<button class="btn" data-act="plannerImport">Importar roteiro</button><button class="btn primary" data-act="plannerOpen">Abrir Planner</button></div></div>`;
 
   if (!st.amb.size && !st.cli.size) {
@@ -3571,53 +3587,76 @@ function renderPlanejamento(el) {
     el.scrollTop = keep; return;
   }
 
-  const kpis = `<div class="kgrid k4">
-    ${kcard('Estudos', nf0.format(st.amb.size), `${comRotas.length} com rotas`)}
-    ${kcard('Clientes', nf0.format(clis.length), clis.length ? `${fpct(comCoord / clis.length)} no mapa${nSea ? ` · <button type="button" class="linkbtn" data-act="adj">${nf0.format(nSea)} a ajustar</button>` : ''}` : 'base vazia')}
-    ${kcard('Colaboradores', `${nf0.format(basesOk)}<span class="of">/${nf0.format(cols.length)}</span>`, 'com base de saída localizada')}
-    ${kcard('Cidades', nf0.format(cidades.size), cidades.size ? esc([...cidades].sort((x, y) => y[1] - x[1])[0][0]) + ' é a maior' : 'sem cidade informada')}</div>`;
+  // Seletor de estudo e setor
+  const seletor = f ? `<div class="card plan-sel"><div class="cb row">
+      <label class="field"><span class="lbl">Estudo</span><select id="hFocus">${recent.map(s => `<option value="${esc(s.id)}"${s.id === f.id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
+      <label class="field"><span class="lbl">Setor</span><select id="hSetor"><option value="">Todos os setores (${f.setoresList.length})</option>${f.setoresList.map(s => `<option value="${esc(s.id)}"${set && s.id === set.id ? ' selected' : ''}>${esc(s.nome)}${s.colab ? ' · ' + esc((st.col.get(s.colab) || {}).nome || s.colab) : ''}</option>`).join('')}</select></label>
+      ${set ? `<span class="plan-set"><i class="sw" style="background:${esc(set.cor)}"></i><b>${esc(set.nome)}</b><span class="muted">${colSet ? esc(colSet.nome) + (hasXY(colSet) ? ' · base localizada' : ' · base sem coordenada') : 'sem colaborador'}</span></span>` : ''}
+      <span class="sp"></span>${set ? `<button class="btn sm" type="button" data-act="setorlimpa">Ver o estudo inteiro</button>` : ''}<button class="btn sm primary" type="button" data-act="abrirsetor" data-fid="${esc(f.id)}" data-sid="${set ? esc(set.id) : ''}">${set ? 'Abrir o setor no mapa' : 'Abrir no mapa'}</button></div></div>` : '';
 
-  // Lista de estudos: o essencial de cada um e um clique para abrir
-  const lista = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0)).map(a => {
-    const s = byId.get(a.id), tags = (a.id === st.cur ? ' <span class="pill ok">último aberto</span>' : '') + (a.exemplo ? ' <span class="pill idle">exemplo</span>' : '');
-    return `<tr class="clk${s && f && s.id === f.id ? ' on' : ''}" data-enter="${esc(a.id)}"><td class="wrap"><b>${esc(a.nome)}</b>${tags}${a.desc ? `<div class="muted" style="font-size:12px">${esc(a.desc)}</div>` : ''}</td>
-      ${s ? `<td class="n">${s.setores}</td><td class="n">${nf0.format(s.clientes)}</td><td class="n">${fkm(s.km)}</td><td>${s.rotas ? ocPill(s.oc) : '<span class="muted">sem rotas</span>'}</td>` : '<td class="muted" colspan="4">calculando…</td>'}
-      <td class="muted">${fdate(a.alterado || a.criado)}</td><td class="n"><button class="btn sm" type="button" data-act="focoplan" data-fid="${esc(a.id)}" title="Ver os indicadores abaixo">Indicadores</button> <button class="btn sm primary" type="button" data-enter="${esc(a.id)}">Abrir</button></td></tr>`;
-  }).join('');
-  const estudos = `<section class="card"><div class="ch"><h2>Estudos</h2><span class="row"><button class="btn sm" data-act="plannerNew">Novo estudo</button></span></div>
-    <div class="tblwrap flat"><table class="t"><thead><tr><th>Estudo</th><th class="n">Setores</th><th class="n">Clientes</th><th class="n">KM no ciclo</th><th>Ocupação</th><th>Alterado</th><th></th></tr></thead><tbody>${lista}</tbody></table></div></section>`;
-
-  // Estudo em foco, compacto: quatro números e o KM por setor
-  let foco = '';
+  // Indicadores: do setor escolhido ou do estudo inteiro
+  let kpis = '', foco = '';
   if (f) {
-    const setRows = [...f.setoresList].filter(s => s.rotas).sort((x, y) => y.km - x.km).map(s => ({ label: s.nome, cor: s.cor, v: s.km, fmt: fkm(s.km) + ' km', tip: `${s.nome}\n${s.clientes} clientes · ${s.rotas} rotas\n${fkm(s.km)} km · ${fhm(s.horas)}\nOcupação média ${fpct(s.oc)}` }));
-    const mini = (k, v, s2) => `<div class="mini"><span class="lbl">${k}</span><b class="num">${v}</b><span class="muted">${s2}</span></div>`;
-    foco = `<section class="card"><div class="ch"><h2>${esc(f.nome)}</h2><span class="row"><select id="hFocus" aria-label="Estudo em foco">${recent.map(s => `<option value="${esc(s.id)}"${s.id === f.id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select><button class="btn sm primary" data-enter="${esc(f.id)}">Abrir no mapa</button></span></div>
-      <div class="cb foco"><div class="minis">${mini('Rotas', nf0.format(f.rotas), `ciclo de ${f.semanas} sem.`)}${mini('KM no ciclo', fkm(f.km), f.rotas ? `${fkm(f.km / f.rotas)} por rota` : 'sem rotas')}${mini('Tempo no ciclo', fhm(f.horas), `${fhm(f.desl)} desloc.`)}${mini('Ocupação', f.rotas ? fpct(f.oc) : '—', f.rotas ? `maior ${fpct(f.ocMax)}` : '')}</div>
-      <div><div class="lbl" style="margin-bottom:6px">KM por setor</div>${setRows.length ? hbars(setRows) : '<p class="muted" style="margin:0">Este estudo ainda não tem rotas montadas.</p>'}</div></div></section>`;
+    const x = set || f, nCid = set ? Object.keys(set.cid).length : null;
+    const semDia = set ? set.semDia : f.setoresList.reduce((s2, s) => s2 + s.semDia, 0);
+    kpis = `<div class="kgrid">
+      ${kcard('Clientes', nf0.format(x.clientes), set ? (semDia ? `${nf0.format(semDia)} sem dia de visita` : 'todos com dia de visita') : `${nf0.format(f.setorizados)} com setor`)}
+      ${set ? kcard('Cidades', nf0.format(nCid), nCid ? esc(Object.entries(set.cid).sort((a, b) => b[1] - a[1])[0][0]) + ' é a maior' : '—') : kcard('Setores', nf0.format(f.setores), `${f.setoresList.filter(s => s.colab).length} com colaborador`)}
+      ${kcard('Rotas', nf0.format(x.rotas), `ciclo de ${f.semanas} semana${f.semanas > 1 ? 's' : ''}`)}
+      ${kcard('KM no ciclo', fkm(x.km), x.rotas ? `${fkm(x.km / x.rotas)} km por rota` : 'sem rotas')}
+      ${kcard('Tempo no ciclo', fhm(x.horas), `${fhm(x.desl)} desloc. · ${fhm(x.atend)} atend.`)}
+      ${kcard('Ocupação média', x.rotas ? fpct(x.oc) : '—', x.rotas ? `maior rota: ${fpct(x.ocMax)}` : 'sem rotas')}</div>`;
+    const chart = (t, sub, body) => `<div class="card"><div class="ch"><h2>${t}</h2><span class="muted" style="font-size:12px">${sub}</span></div><div class="cb">${body}</div></div>`;
+    const none = msg => `<p class="muted" style="margin:0">${msg}</p>`;
+    const OCC = [['Com folga', '< 50%', 'var(--muted)'], ['Adequada', '50–90%', 'var(--ok)'], ['No limite', '90–100%', 'var(--warn)'], ['Excede', '> 100%', 'var(--bad)']];
+    if (set) {
+      const dias = Object.keys(set.dias).map(Number).sort((a, b) => a - b);
+      const kmDia = dias.map(d => ({ label: DIA_L[d], cor: COR_DIA[d], v: set.kmD[d] / set.nD[d], fmt: fkm(set.kmD[d] / set.nD[d]) + ' km', tip: `${DIA_L[d]}\n${set.nD[d]} rota(s) no ciclo · ${fkm(set.kmD[d])} km\n${fkm(set.kmD[d] / set.nD[d])} km por rota\n${nf0.format(set.dias[d])} visitas no ciclo` }));
+      const cidRows = Object.entries(set.cid).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([c, n]) => ({ label: c, v: n, fmt: nf0.format(n), tip: `${c}\n${nf0.format(n)} clientes no setor` }));
+      foco = `<div class="cgrid">
+        ${chart('KM por rota em cada dia', esc(set.nome), kmDia.length ? hbars(kmDia) : none('Este setor ainda não tem rotas montadas.'))}
+        ${chart('Visitas por dia da semana', 'no ciclo', dias.length ? vcols(dias.map(d => ({ label: DIA_C[d], v: set.dias[d], cor: COR_DIA[d], tip: `${DIA_L[d]}\n${nf0.format(set.dias[d])} visitas no ciclo` }))) : none('Sem rotas para medir.'))}
+        ${chart('Clientes por cidade', `${nf0.format(Object.keys(set.cid).length)} cidade(s)`, cidRows.length ? hbars(cidRows) : none('Nenhum cliente no setor.'))}
+        ${chart('Ocupação da jornada', `${set.rotas} rota(s)`, set.rotas ? vcols(OCC.map(([n, r, cor], i) => ({ label: n, sub: r, v: set.occ[i], cor, tip: `${n} (${r} da jornada)\n${set.occ[i]} rota(s)` }))) : none('Sem rotas para medir.'))}</div>`;
+    } else {
+      const setRows = [...f.setoresList].sort((a, b) => b.km - a.km).map(s => ({ label: s.nome, cor: s.cor, v: s.km, fmt: s.rotas ? fkm(s.km) + ' km' : 'sem rotas', attrs: `data-act="setorver" data-sid="${esc(s.id)}"`, tip: `${s.nome}\n${s.clientes} clientes · ${s.rotas} rotas\n${fkm(s.km)} km · ${fhm(s.horas)}\nOcupação média ${fpct(s.oc)}\nClique para ver o setor` }));
+      const dias = [...new Set([...f.diasP, ...Object.keys(f.dias).map(Number)])].filter(d => d >= 1 && d <= 7).sort((a, b) => a - b);
+      foco = `<div class="cgrid">
+        ${chart('KM no ciclo por setor', 'clique em um setor para ver os números dele', setRows.length ? hbars(setRows) : none('Este estudo ainda não tem setores.'))}
+        ${chart('Visitas por dia da semana', 'no ciclo', f.rotas ? vcols(dias.map(d => ({ label: DIA_C[d], v: f.dias[d] || 0, cor: COR_DIA[d], tip: `${DIA_L[d]}\n${nf0.format(f.dias[d] || 0)} visitas no ciclo` }))) : none('Sem rotas para medir.'))}</div>`;
+    }
   }
 
-  // O restante fica recolhido: cobertura no mapa, bases de dados e colaboradores
-  const cityRows = [...cidades].sort((x, y) => y[1] - x[1]).slice(0, 6).map(([c, n]) => ({ label: c, v: n, fmt: nf0.format(n), tip: `${c}\n${nf0.format(n)} clientes` }));
-  const legend = f ? f.setoresList.slice(0, 12).map(s => `<span class="li"><i class="sw" style="background:${esc(s.cor)}"></i>${esc(s.nome)}</span>`).join('') : '';
-  const colRows = [...cols].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).slice(0, 10).map(c => {
+  // Lista de estudos
+  const lista = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0)).map(a => {
+    const s = byId.get(a.id), tags = (a.id === st.cur ? ' <span class="pill ok">último aberto</span>' : '') + (a.exemplo ? ' <span class="pill idle">exemplo</span>' : '');
+    return `<tr class="clk${s && f && s.id === f.id ? ' on' : ''}" data-act="focoplan" data-fid="${esc(a.id)}"><td class="wrap"><b>${esc(a.nome)}</b>${tags}${a.desc ? `<div class="muted" style="font-size:12px">${esc(a.desc)}</div>` : ''}</td>
+      ${s ? `<td class="n">${s.setores}</td><td class="n">${nf0.format(s.clientes)}</td><td class="n">${fkm(s.km)}</td><td>${s.rotas ? ocPill(s.oc) : '<span class="muted">sem rotas</span>'}</td>` : '<td class="muted" colspan="4">calculando…</td>'}
+      <td class="muted">${fdate(a.alterado || a.criado)}</td><td class="n"><button class="btn sm primary" type="button" data-enter="${esc(a.id)}">Abrir</button></td></tr>`;
+  }).join('');
+  const estudos = `<section class="card"><div class="ch"><h2>Estudos</h2><span class="row"><span class="muted" style="font-size:12px">clique em um estudo para ver os números dele acima</span><button class="btn sm" data-act="plannerNew">Novo estudo</button></span></div>
+    <div class="tblwrap flat"><table class="t"><thead><tr><th>Estudo</th><th class="n">Setores</th><th class="n">Clientes</th><th class="n">KM no ciclo</th><th>Ocupação</th><th>Alterado</th><th></th></tr></thead><tbody>${lista}</tbody></table></div></section>`;
+
+  // Cobertura e bases, recolhidos. Com setor escolhido, o mapa mostra só ele e a base do colaborador dele
+  const fMapa = f && set ? { ...f, pts: f.pts.filter(p => p[3] === set.id) } : f;
+  const legend = f ? (set ? [set] : f.setoresList.slice(0, 12)).map(s => `<span class="li"><i class="sw" style="background:${esc(s.cor)}"></i>${esc(s.nome)}</span>`).join('') : '';
+  const colRows = [...cols].filter(c => !set || c.codigo === set.colab).sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).slice(0, 10).map(c => {
     const s = f && f.setoresList.find(x => x.colab === c.codigo);
     return `<tr><td><span class="sw" style="background:${esc(c.cor || 'var(--muted)')}"></span></td><td><b>${esc(c.nome)}</b> <span class="muted">${esc(c.codigo)}</span></td><td class="wrap">${esc(c.endereco || '—')}</td><td>${isNum(c.lat) && isNum(c.lng) ? '<span class="pill ok">localizada</span>' : '<span class="pill warn">sem coordenadas</span>'}</td><td>${s ? esc(s.nome) : '<span class="muted">—</span>'}</td></tr>`;
   }).join('');
   st.planMais = st.planMais || false;
-  const mais = `<details class="card mais" id="planMais"${st.planMais ? ' open' : ''}><summary><b>Bases e cobertura</b><span class="muted">clientes por cidade, mapa de cobertura e bases de saída</span></summary>
+  const mais = `<details class="card mais" id="planMais"${st.planMais ? ' open' : ''}><summary><b>Cobertura e bases</b><span class="muted">${set ? 'mapa e base de saída de ' + esc(set.nome) : 'mapa de cobertura, bases de dados e bases de saída'}</span></summary>
     <div class="cb stack"><div class="cols-b">
-      <div class="stack">${homeScatter(f)}<div class="legend-row"><span class="li"><i class="sw" style="background:var(--muted);opacity:.6"></i>Clientes${f ? ' fora de setor' : ''}</span>${legend}<span class="li"><i class="sw sq" style="background:var(--ink)"></i>Base do colaborador</span></div></div>
+      <div class="stack">${homeScatter(fMapa, set ? set.colab || '__nenhum' : '')}<div class="legend-row"><span class="li"><i class="sw" style="background:var(--muted);opacity:.6"></i>Clientes${f && !set ? ' fora de setor' : ''}</span>${legend}<span class="li"><i class="sw sq" style="background:var(--ink)"></i>Base do colaborador</span></div></div>
       <div class="stack">
         <div class="dbrow"><div><div class="lbl">Clientes</div><b class="num">${nf0.format(clis.length)}</b> <span class="muted">· ${nf0.format(clis.length - comCoord)} sem coordenadas</span></div><button class="btn sm" data-go="clientes">Gerenciar</button></div>
         <div class="dbrow"><div><div class="lbl">Colaboradores</div><b class="num">${nf0.format(cols.length)}</b> <span class="muted">· ${nf0.format(cols.length - basesOk)} sem base localizada</span></div><button class="btn sm" data-go="colaboradores">Gerenciar</button></div>
-        <div class="dbrow"><div><div class="lbl">Importação</div><span class="muted">${impUltima() || 'Modelos de planilha para clientes, colaboradores e roteiro'}</span></div><button class="btn sm" data-go="importar">Abrir</button></div>
-        <div><div class="lbl" style="margin-bottom:6px">Clientes por cidade</div>${cityRows.length ? hbars(cityRows) : '<p class="muted" style="margin:0">Nenhuma cidade informada.</p>'}</div></div></div>
-      ${colRows ? `<div class="tblwrap"><table class="t"><thead><tr><th></th><th>Colaborador</th><th>Base de saída</th><th>Localização</th><th>Setor${f ? ' em ' + esc(f.nome) : ''}</th></tr></thead><tbody>${colRows}</tbody></table></div>${cols.length > 10 ? `<div class="pager">Mostrando 10 de ${cols.length} · <button class="btn sm" data-go="colaboradores">Ver todos</button></div>` : ''}` : ''}
+        <div class="dbrow"><div><div class="lbl">Importação</div><span class="muted">${impUltima() || 'Modelos de planilha para clientes, colaboradores e roteiro'}</span></div><button class="btn sm" data-go="importar">Abrir</button></div></div></div>
+      ${colRows ? `<div class="tblwrap"><table class="t"><thead><tr><th></th><th>Colaborador</th><th>Base de saída</th><th>Localização</th><th>Setor${f ? ' em ' + esc(f.nome) : ''}</th></tr></thead><tbody>${colRows}</tbody></table></div>${!set && cols.length > 10 ? `<div class="pager">Mostrando 10 de ${cols.length} · <button class="btn sm" data-go="colaboradores">Ver todos</button></div>` : ''}` : ''}
       <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12.5px">${st.sb ? 'Os dados ficam no banco de dados da empresa.' : 'Os dados ficam neste navegador.'} O backup guarda bases e estudos em um arquivo.</span><span class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button><button class="btn sm" data-act="sample">Dados de exemplo</button></span></div>
     </div></details>`;
 
-  el.innerHTML = `<div class="page home plan">${topo}${kpis}${estudos}${foco}${mais}</div>`;
+  el.innerHTML = `<div class="page home plan">${topo}${seletor}${kpis}${foco}${estudos}${mais}</div>`;
   const d = $('#planMais'); if (d) d.ontoggle = () => { st.planMais = d.open; };
   el.scrollTop = keep;
 }

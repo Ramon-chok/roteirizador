@@ -25,6 +25,7 @@ const isoDe = d => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.
 const dataDe = iso => { const [y, m, d] = String(iso).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
 const somaDias = (iso, n) => { const d = dataDe(iso); d.setUTCDate(d.getUTCDate() + n); return isoDe(d); };
 const dowDe = iso => ((dataDe(iso).getUTCDay() + 6) % 7) + 1; // 1 = segunda … 7 = domingo
+const iniSemana = iso => somaDias(iso, -(dowDe(iso) % 7)); // domingo que abre a semana
 const hojeIso = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
 const fmtData = iso => { const [y, m, d] = String(iso).split('-'); return `${d}/${m}/${y}`; };
 const fmtLonga = iso => `${DIA_L[dowDe(iso)].toLowerCase()}, ${+iso.slice(8)} de ${MES_L[+iso.slice(5, 7) - 1].toLowerCase()} de ${iso.slice(0, 4)}`;
@@ -78,10 +79,10 @@ function indiceEventos() {
 }
 
 /* ---------- Semana do ciclo ----------
-   Semanas de segunda a domingo. A semana que contém a data de referência é a S1; daí em diante S2, S3, S4, S1…
+   Semanas de domingo a sábado (padrão do calendário brasileiro). A semana que contém a data de referência é a S1; daí em diante S2, S3, S4, S1…
    (e para trás também). Com ciclo de W semanas, a conta é a mesma com W no lugar de 4. */
 function semana(iso, W = 4) {
-  const seg = somaDias(iso, 1 - dowDe(iso)), a = cfg().ancora, ref = somaDias(a, 1 - dowDe(a));
+  const seg = iniSemana(iso), ref = iniSemana(cfg().ancora);
   const n = Math.round((dataDe(seg) - dataDe(ref)) / 6048e5);
   return ((n % W) + W) % W + 1;
 }
@@ -108,13 +109,13 @@ function resumoMes(ym) {
 /* ---------- Desenho de um mês: tabela com S1–S4 à esquerda e 1,3/2,4 à direita ----------
    marca(dia) pode devolver { cls, tip, txt } para destacar dias (a Verba usa isso no extrato). */
 function mesHtml(y, m, opts = {}) {
-  const ym = `${y}-${pad2(m + 1)}`, ds = diasDoMes(ym), hoje = hojeIso(), semHoje = somaDias(hoje, 1 - dowDe(hoje)), grande = !!opts.grande;
+  const ym = `${y}-${pad2(m + 1)}`, ds = diasDoMes(ym), hoje = hojeIso(), semHoje = iniSemana(hoje), grande = !!opts.grande;
   const primeiro = ds[0], cel = [];
-  for (let i = 1; i < primeiro.dow; i++) cel.push(null);
+  for (let i = 0; i < primeiro.dow % 7; i++) cel.push(null); // domingo é a primeira coluna
   ds.forEach(d => cel.push(d)); while (cel.length % 7) cel.push(null);
   const linhas = [];
   for (let i = 0; i < cel.length; i += 7) {
-    const sem = cel.slice(i, i + 7), ref = sem.find(Boolean), seg = somaDias(ref.iso, 1 - ref.dow), s4 = semana(ref.iso, 4);
+    const sem = cel.slice(i, i + 7), ref = sem.find(Boolean), seg = iniSemana(ref.iso), s4 = semana(ref.iso, 4);
     const tds = sem.map(d => {
       if (!d) return '<td class="cd vazio"></td>';
       const vis = d.evs.filter(e => !CS.ocultas.has(e.cat)), ferVis = d.fer && !CS.ocultas.has('__fer' + d.fer.tipo);
@@ -129,7 +130,7 @@ function mesHtml(y, m, opts = {}) {
   }
   const r = resumoMes(ym);
   return `<div class="cal-mes${grande ? ' grande' : ''}"><div class="cal-mh"><b>${MES_L[m]}${opts.comAno ? ' ' + y : ''}</b><span class="muted">${r.uteis} dias úteis${r.sabados ? ` · ${r.sabados} sáb.` : ''}${r.feriados.length ? ` · ${r.feriados.length} feriado${r.feriados.length > 1 ? 's' : ''}` : ''}</span></div>
-    <table class="cal"><thead><tr><th class="cw" title="Semana do ciclo de 4 semanas">Sem.</th>${[1, 2, 3, 4, 5, 6, 7].map(d => `<th class="${d >= 6 ? 'fds' : ''}">${grande ? DIA_C[d] : DIA_C[d][0]}</th>`).join('')}<th class="cw" title="Quinzena: semanas 1 e 3 ou 2 e 4">Quinz.</th></tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
+    <table class="cal"><thead><tr><th class="cw" title="Semana do ciclo de 4 semanas">Sem.</th>${[7, 1, 2, 3, 4, 5, 6].map(d => `<th class="${d >= 6 ? 'fds' : ''}">${grande ? DIA_C[d] : DIA_C[d][0]}</th>`).join('')}<th class="cw" title="Quinzena: semanas 1 e 3 ou 2 e 4">Quinz.</th></tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
 }
 
 /* ---------- Página ---------- */
@@ -235,12 +236,12 @@ function cicloForm() {
   const c = cfg();
   openModal(`<div class="dh"><h2>Ciclo e feriados</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
     <form id="calCiclo"><div class="db">
-      <label class="field"><span class="lbl">Semana de referência (S1)</span><input type="date" name="ancora" value="${esc(c.ancora)}" required><span class="hint">A semana (segunda a domingo) desta data é a S1; as seguintes são S2, S3, S4 e o ciclo recomeça.</span></label>
+      <label class="field"><span class="lbl">Semana de referência (S1)</span><input type="date" name="ancora" value="${esc(c.ancora)}" required><span class="hint">A semana (domingo a sábado) desta data é a S1; as seguintes são S2, S3, S4 e o ciclo recomeça.</span></label>
       <div class="muted" id="calPrev" style="font-size:12.5px"></div>
       <label class="chk"><input type="checkbox" name="facult"${c.facultSemRota ? ' checked' : ''}> Pontos facultativos (Carnaval e Corpus Christi) são dias sem rota</label>
       <p class="muted" style="margin:0;font-size:12.5px">Feriados estaduais e municipais: inclua como evento da categoria “Feriado local” (ou outra marcada como sem rota).</p></div>
     <div class="df"><button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`, 'sm');
-  const f = $('#calCiclo'), prev = () => { const a = f.ancora.value; if (!a) return; const n = Math.round((dataDe(somaDias(hojeIso(), 1 - dowDe(hojeIso()))) - dataDe(somaDias(a, 1 - dowDe(a)))) / 6048e5), s = ((n % 4) + 4) % 4 + 1; $('#calPrev').textContent = `Com esta referência, a semana de hoje é a S${s} (quinzena ${quinzena(s)}).`; };
+  const f = $('#calCiclo'), prev = () => { const a = f.ancora.value; if (!a) return; const n = Math.round((dataDe(iniSemana(hojeIso())) - dataDe(iniSemana(a))) / 6048e5), s = ((n % 4) + 4) % 4 + 1; $('#calPrev').textContent = `Com esta referência, a semana de hoje é a S${s} (quinzena ${quinzena(s)}).`; };
   f.ancora.oninput = prev; prev();
   f.onsubmit = ev => { ev.preventDefault(); CS.store.put(CFG_ID, { id: CFG_ID, tipo: 'cfg', ancora: f.ancora.value, facultSemRota: f.facult.checked }); R.audita('calendario', `Ciclo: S1 na semana de ${fmtData(f.ancora.value)}`); closeModal(); render(); toast('Ciclo salvo'); };
 }

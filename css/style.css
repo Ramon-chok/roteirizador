@@ -716,3 +716,30 @@ table.t tr.perd td { color: var(--feriado); background: color-mix(in srgb, var(-
 .extrato .cal-mes.grande .ev { font-size: 11px; }
 .ext-g { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .ext-g table.t td, .ext-g table.t th { padding-left: 8px; padding-right: 8px; }
+
+/* ---------- Início compacto: os cinco módulos cabem numa tela de notebook ---------- */
+.hub { gap: 12px; padding-top: 14px; }
+.hub-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px 20px; flex-wrap: wrap; padding: 6px 2px 2px; }
+.hub-hero h1 { font-size: 26px; margin: 0 0 2px; }
+.hub-hero p { font-size: 13px; }
+.hub-at { justify-content: flex-end; }
+.mods { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.mod { padding: 14px 16px; gap: 10px; }
+.mod-h { gap: 12px; }
+.mod-h h2 { font-size: 17px; }
+.mod-h p { font-size: 12.5px; line-height: 1.4; }
+.mod-i { width: 38px; height: 38px; border-radius: 9px; }
+.mod-i svg { width: 21px; height: 21px; }
+.mod-s { gap: 6px 18px; margin-top: auto; }
+.ms b { font-size: 17px; }
+.ms b.longo { font-size: 13px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+@media (max-width: 1100px) { .mods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .mods { grid-template-columns: 1fr; } .hub-at { justify-content: flex-start; } .hub-hero h1 { font-size: 22px; } }
+
+/* ---------- Planejamento: seletor de estudo e setor ---------- */
+.plan-sel .cb { gap: 10px 14px; align-items: flex-end; }
+.plan-sel .field { min-width: 220px; flex: 0 1 300px; }
+.plan-set { display: inline-flex; align-items: center; gap: 8px; padding-bottom: 6px; flex-wrap: wrap; }
+.plan-set .sw { width: 12px; height: 12px; }
+.plan-set .muted { font-size: 12.5px; }
+button.hb:hover .hl span { text-decoration: underline; }
