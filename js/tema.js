@@ -8,6 +8,7 @@
   var PADRAO = 'dark';
   var TEMAS = [
     { id: 'dark', nome: 'Escuro', desc: 'Navy Vortex', cores: ['#0B1426', '#22D3EE', '#3B82F6', '#F97316'] },
+    { id: 'black', nome: 'Preto e branco', desc: 'Preto absoluto e cinza', cores: ['#000000', '#F5F5F5', '#A3A3A3', '#292929'] },
     { id: 'light', nome: 'Claro', desc: 'Fundo claro', cores: ['#F5F8FC', '#0B1426', '#2563EB', '#F97316'] },
     { id: 'mono', nome: 'Monocromático', desc: 'Azul e branco', cores: ['#1D4ED8', '#FFFFFF', '#FFFFFF', '#FFFFFF'] },
     { id: 'vertical', nome: 'Vertical', desc: 'Noite', cores: ['#111D35', '#E8F1FF', '#3B82F6', '#22D3EE'] },

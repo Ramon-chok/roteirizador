@@ -6,7 +6,7 @@ h = (R / "index.html").read_text(encoding="utf-8")
 css = "<style>\n" + (R / "css/style.css").read_text(encoding="utf-8") + "\n</style>"
 h, n = re.subn(r'<link rel="stylesheet" href="css/style.css"\s*/?>', lambda m: css, h)
 assert n == 1, "link do css/style.css não encontrado no index.html"
-for f in ["js/tema.js", "js/config.js", "js/engine.js", "js/app.js", "js/rotas.js", "js/calendario.js", "js/verba.js", "js/pedagios.js"]:
+for f in ["js/tema.js", "js/config.js", "js/seguranca.js", "js/engine.js", "js/app.js", "js/rotas.js", "js/calendario.js", "js/verba.js", "js/pedagios.js"]:
     js = "<script>\n" + (R / f).read_text(encoding="utf-8") + "\n</script>"
     h, n = re.subn(r'<script src="' + re.escape(f) + r'"></script>', lambda m: js, h)
     assert n == 1, f"script {f} não encontrado no index.html"

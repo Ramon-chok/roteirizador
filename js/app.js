@@ -1,6 +1,7 @@
 (function () {
 'use strict';
 const E = window.Engine;
+const Seg = window.RVXSeg; // js/seguranca.js: criptografia, higienização, freio contra tentativas, CAPTCHA
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -133,8 +134,43 @@ const SB_MAPA = {
     item: r => [r.codigo, { ...semVazios({ codigo: r.codigo, nome: r.nome, funcao: r.funcao, endereco: r.endereco, bairro: r.bairro, cidade: r.cidade, uf: r.uf, cep: r.cep, jornada: r.jornada_min, cor: r.cor, geo: r.geo_origem, geoNivel: r.geo_nivel, geoPend: r.geo_pendencia, exemplo: r.exemplo || null }), lat: r.lat, lng: r.lng }]
   }
 };
+/* Campos sensíveis cifrados no navegador com AES-256-GCM e a chave do ambiente (migração 08, função chave_dados).
+   No banco ficam ilegíveis; quem é do ambiente vê normalmente. O "aad" amarra cada valor ao ambiente, tabela, registro e campo.
+   Colaboradores: endereço, bairro, CEP e coordenadas da base de saída (que pode ser a casa da pessoa).
+   Verba Indenizatória: o lançamento inteiro (valores, motivo, comprovantes); ficam abertos só o tipo, o mês e o código do vendedor. */
+const CIFRA = { colaboradores: { pk: 'codigo', campos: ['endereco', 'bairro', 'cep'], geo: true }, verba: { pk: 'id', dados: true } };
+const aadDe = (emp, coll, k, campo) => `${emp}|${coll}|${k}|${campo}`;
+async function cifraLinha(emp, coll, l) {
+  const c = CIFRA[coll], ch = st.cifra; if (!c) return l;
+  if (!ch) { if (c.geo && st.srv >= 8) l.geo_cifrado = null; return l; } // sem a chave: grava aberto e invalida a coordenada cifrada antiga
+  const k = l[c.pk];
+  for (const f of c.campos || []) if (l[f] !== null && l[f] !== undefined) l[f] = await Seg.cifrar(ch, l[f], aadDe(emp, coll, k, f));
+  if (c.geo) { l.geo_cifrado = isNum(l.lat) && isNum(l.lng) ? await Seg.cifrar(ch, JSON.stringify([l.lat, l.lng]), aadDe(emp, coll, k, 'geo')) : null; l.lat = null; l.lng = null; }
+  if (c.dados) l.dados = { _c: await Seg.cifrar(ch, JSON.stringify(l.dados), aadDe(emp, coll, k, 'dados')) };
+  return l;
+}
+// Abre os campos cifrados da linha (no lugar). Devolve true se a linha ainda tinha dado sensível em texto puro
+async function decifraLinha(emp, coll, r) {
+  const c = CIFRA[coll], ch = st.cifra, k = r[c.pk]; let aberto = false;
+  const abre = async (v, campo) => {
+    if (!Seg.cifrado(v)) return v;
+    if (!ch) throw { code: 'cifra', message: 'há dados cifrados e a chave de criptografia do ambiente não está disponível. Recarregue a página' };
+    try { return await Seg.decifrar(ch, v, aadDe(emp, coll, k, campo)); }
+    catch (e) { throw { code: 'cifra', message: `um dado cifrado de ${coll} (${k}) não abriu: a chave não confere ou o valor foi alterado no banco` }; }
+  };
+  for (const f of c.campos || []) { if (r[f] !== null && r[f] !== undefined && !Seg.cifrado(r[f])) aberto = true; r[f] = await abre(r[f], f); }
+  if (c.geo) {
+    if (isNum(r.lat) && isNum(r.lng)) aberto = true; // coordenada aberta (gravada sem a chave ou por versão antiga) vale mais que a cifrada
+    else if (r.geo_cifrado) { const g = Seg.json(await abre(r.geo_cifrado, 'geo')); if (Array.isArray(g)) { r.lat = coordOk(+g[0], 90); r.lng = coordOk(+g[1], 180); } }
+  }
+  if (c.dados) {
+    if (r.dados && r.dados._c) r.dados = Seg.json(await abre(r.dados._c, 'dados'));
+    else if (r.dados && Object.keys(r.dados).length) aberto = true;
+  }
+  return aberto;
+}
 function SupabaseBackend(sb, emp, antesDosFilhos) {
-  const enviados = new Map(), setores = new Map();
+  const enviados = new Map(), setores = new Map(), pendCifra = new Map();
   const cache = c => { if (!enviados.has(c)) enviados.set(c, new Map()); return enviados.get(c); };
   const erro = e => {
     const msg = (e && e.message) || 'erro no banco de dados';
@@ -189,7 +225,13 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
   const ler0 = async coll => {
     if (coll === 'ambientes') return COLECOES.lerAmb();
     const items = {}; const m = SB_MAPA[coll];
-    if (m) { for (const r of await tudo(m.tab, m.pk)) { const [k, v] = m.item(r); items[k] = v; } return items; }
+    if (m) {
+      const rows = await tudo(m.tab, m.pk), abertos = [];
+      if (CIFRA[coll]) for (const r of rows) if (await decifraLinha(emp, coll, r)) abertos.push(r[CIFRA[coll].pk]);
+      for (const r of rows) { const [k, v] = m.item(r); items[k] = v; }
+      if (abertos.length && st.cifra) pendCifra.set(coll, abertos);
+      return items;
+    }
     const [, estudo] = coll.split('/');
     if (coll.startsWith('rotasl/')) { for (const r of await tudo('rotas_linhas', ['chave'], q => q.eq('base_id', estudo))) items[r.chave] = r.dados || {}; return items; }
     if (coll.startsWith('itens/')) { for (const r of await tudo('estudo_clientes', ['sold'], q => q.eq('estudo_id', estudo))) items[r.sold] = { s: r.setor_id || '', d: r.dias || [], w: r.semanas || [], q: r.sequencia || {} }; return items; }
@@ -200,7 +242,11 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
     if (coll === 'ambientes') return COLECOES.gravaAmb(novos, sumidos, antes);
     const m = SB_MAPA[coll];
     if (m) {
-      if (novos.length) await grava(m.tab, novos.map(([k, v]) => ({ empresa_id: emp, ...m.linha(k, v) })), `empresa_id,${m.pk[0]}`);
+      if (novos.length) {
+        let linhas = novos.map(([k, v]) => ({ empresa_id: emp, ...m.linha(k, v) }));
+        if (CIFRA[coll]) linhas = await Promise.all(linhas.map(l => cifraLinha(emp, coll, l)));
+        await grava(m.tab, linhas, `empresa_id,${m.pk[0]}`);
+      }
       await emLotes(sumidos, SB_LOTE_APAGAR, l => pede(sb.from(m.tab).delete().eq('empresa_id', emp).in(m.pk[0], l)));
       return;
     }
@@ -228,6 +274,15 @@ function SupabaseBackend(sb, emp, antesDosFilhos) {
     async list(coll) {
       const items = await ler(coll), c = cache(coll); c.clear();
       for (const k in items) c.set(k, JSON.stringify(items[k]));
+      // Dados sensíveis gravados antes da criptografia: regrava cifrado, em segundo plano (a Verba só o administrador grava)
+      const ks = pendCifra.get(coll);
+      if (ks) {
+        pendCifra.delete(coll);
+        if (coll !== 'verba' || (st.usuario && st.usuario.papel === 'admin')) setTimeout(async () => {
+          try { await escreve0(coll, ks.filter(k => k in items).map(k => [k, items[k]]), [], c); audita('cifra_migrada', `${ks.length} registro(s) de ${coll}`); }
+          catch (e) { /* tenta de novo na próxima vez que os dados forem abertos */ }
+        }, 1500);
+      }
       return Object.keys(items).length ? [{ id: 'todos', data: { items } }] : [];
     },
     async set(coll, balde, data) {
@@ -269,12 +324,13 @@ const Save = {
 
 class BucketStore {
   constructor(coll) { this.coll = coll; this.map = new Map(); this.dirty = new Set(); this.t = null; this.busy = false; this.again = false; Save.stores.add(this); }
-  async load() { this.map.clear(); const docs = await withRetry(() => st.backend.list(this.coll)); for (const d of docs) { const it = (d.data && d.data.items) || {}; for (const k in it) this.map.set(k, it[k]); } }
+  // O que vem do banco é limpo antes de chegar à tela (cores, imagens, caracteres de controle), mesmo que alguém tenha gravado pela API
+  async load() { this.map.clear(); const docs = await withRetry(() => st.backend.list(this.coll)); for (const d of docs) { const it = (d.data && d.data.items) || {}; for (const k in it) { if (Seg.cifrado(k)) continue; this.map.set(k, Seg.higienizar(it[k])); } } }
   get(k) { return this.map.get(k); }
   has(k) { return this.map.has(k); }
   values() { return this.map.values(); }
   get size() { return this.map.size; }
-  put(k, v) { if (st.ro) return; this.map.set(k, v); this.dirty.add(bucketOf(k)); this.sched(); }
+  put(k, v) { if (st.ro) return; this.map.set(k, Seg.higienizar(v)); this.dirty.add(bucketOf(k)); this.sched(); }
   del(k) { if (st.ro) return; if (this.map.delete(k)) { this.dirty.add(bucketOf(k)); this.sched(); } }
   replaceAll(m) { for (const k of this.map.keys()) this.dirty.add(bucketOf(k)); this.map = m; for (const k of m.keys()) this.dirty.add(bucketOf(k)); this.sched(); }
   markAll() { for (let i = 0; i < NB; i++) this.dirty.add('b' + String(i).padStart(2, '0')); }
@@ -322,7 +378,8 @@ const st = {
   panelL: true, panelR: false, mk: new Map(), ruler: { pts: [], active: false },
   undo: [], redo: [], baseKind: 'auto', tileOk: 0, tileErr: 0, autoResequence: true,
   pg: { clientes: { q: '', page: 0, cidade: '', semCoord: false, noEstudo: '', chk: new Set() }, colaboradores: { q: '', chk: new Set() }, roteiros: { mode: 'grade', setor: '', chk: new Set() }, imp: { tipo: '', n: 15 } },
-  cmp: null, g: 'idle', gMsg: '', geo: null, pathCache: new Map(), road: 'idle', vh: 'idle', roadMsg: '', autoRoad: true, bgBusy: false, roadFail: new Set()
+  cmp: null, g: 'idle', gMsg: '', geo: null, pathCache: new Map(), road: 'idle', vh: 'idle', roadMsg: '', autoRoad: true, bgBusy: false, roadFail: new Set(),
+  accountReturn: null
 };
 const uiKey = () => 'rt1:' + st.empresa.id + '_ui';
 function loadUI() { try { const v = JSON.parse(localStorage.getItem(uiKey()) || '{}'); Object.assign(st, { colorBy: v.colorBy || 'setor', baseKind: v.baseKind || 'auto', pinos: v.pinos !== false }); if (v.view) st.view = v.view; st.lastAmb = v.amb; } catch (e) { /* ignora */ } }
@@ -463,6 +520,7 @@ function armButton(btn, fn, txt = 'Confirmar') {
 
 function setScreen(s, sec) {
   if (sec) st.homeSec = sec;
+  if (s === 'home' && st.view === 'conta') st.accountReturn = null;
   if (s !== 'home' || st.homeSec !== 'rotas') { const R = window.RotasMod; if (R) R.limpar(); }
   if ((s !== 'home' || st.homeSec !== 'ped') && window.PedMod) window.PedMod.limpar();
   st.screen = s;
@@ -475,6 +533,7 @@ function enterPlanner(v = 'mapa') { setView(v); if (v === 'mapa') setTimeout(fit
 async function enterStudy(id) { if (id === '__cur') id = st.cur; if (id && id !== st.cur) await openAmb(id, false); enterPlanner('mapa'); }
 function setView(v) {
   if (st.screen !== 'planner') setScreen('planner');
+  if (st.view === 'conta' && v !== 'conta') st.accountReturn = null;
   st.view = v; saveUI(); document.body.classList.toggle('view-map', v === 'mapa');
   $$('#tabs .tab').forEach(b => { const on = b.dataset.view === v; b.setAttribute('aria-selected', String(on)); if (on) b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); });
   $('#mapView').hidden = v !== 'mapa';
@@ -1877,6 +1936,7 @@ function renderPage() {
   else if (v === 'colaboradores') el.innerHTML = pageColabs();
   else if (v === 'importar') el.innerHTML = pageImportar();
   else if (v === 'config') el.innerHTML = pageConfig();
+  else if (v === 'conta') renderContaPage();
   el.scrollTop = keepScroll;
 }
 
@@ -2349,6 +2409,7 @@ function parseText(txt) {
   setRows(lines.map(l => l.split(sep)));
 }
 function setRows(rows) {
+  rows = rows.map(r => (Array.isArray(r) ? r : []).map(v => (typeof v === 'string' ? Seg.texto(v, 2000) : v))); // sem controles invisíveis, até 2000 caracteres por célula
   const ne = rows.filter(r => r.some(v => String(v).trim() !== ''));
   wz.headers = (ne[0] || []).map(h => String(h).trim()); wz.rows = ne.slice(1);
 }
@@ -2617,8 +2678,9 @@ function xlsxBlob(sheets) {
 }
 const dstamp = () => new Date().toISOString().slice(0, 10);
 const slug = s => norm(s).slice(0, 40) || 'estudo';
-function doExport(kind) {
+async function doExport(kind) {
   if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
+  if (kind === 'colaboradores' && !(await confirmarIdentidade('Exportar os colaboradores (dados pessoais)'))) return;
   audita('exportacao', 'Planilha de ' + kind);
   if (kind === 'clientes') {
     const rows = [...st.cli.values()].map(c => ({ SOLD: c.sold, Nome: c.nome || '', 'Endereço': c.endereco || '', Bairro: c.bairro || '', Cidade: c.cidade || '', UF: c.uf || '', CEP: c.cep || '', 'Visitas por mês': c.f || '', 'Atendimento (min)': c.t || '', Latitude: c.lat ?? '', Longitude: c.lng ?? '', 'Situação da coordenada': hasXY(c) ? (c.geoNivel === 'rua' ? 'Rua (sem o número)' : 'OK') : (c.geoPend ? 'No mar: ' + c.geoPend.msg : 'Sem coordenada') }));
@@ -2641,6 +2703,27 @@ function doExport(kind) {
   }
 }
 async function doBackup() {
+  if (!(await confirmarIdentidade('Exportar o backup completo'))) return;
+  openModal(`<div class="dh"><h2>Exportar backup</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+    <form class="db stack" id="bkForm"><p class="muted" style="margin:0">O backup tem todos os clientes, os colaboradores (com os endereços) e os estudos. Proteja o arquivo com uma senha: ele é cifrado com AES-256 e só abre com ela.</p>
+      <label class="chk"><input type="checkbox" name="proteger" checked> Proteger com senha (recomendado)</label>
+      <div class="fgrid" id="bkSenhas">${senhaCampo('senha', 'Senha do arquivo', 'new-password')}${senhaCampo('senha2', 'Repita a senha', 'new-password')}</div>
+      <span class="hint">Guarde a senha em lugar seguro: sem ela, o backup não pode ser restaurado.</span><div id="bkMsg" role="alert"></div></form>
+    <div class="df"><button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit" form="bkForm">Exportar</button></div>`, 'sm');
+  const fm = $('#bkForm'), chk = fm.querySelector('[name=proteger]'), ins = $$('#bkSenhas input');
+  chk.onchange = () => ins.forEach(i => { i.required = chk.checked; i.disabled = !chk.checked; });
+  $$('#bkForm [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  fm.onsubmit = async ev => {
+    ev.preventDefault();
+    const f = new FormData(fm), proteger = chk.checked, senha = String(f.get('senha') || ''), aviso = t => { $('#bkMsg').innerHTML = `<div class="banner bad">${esc(t)}</div>`; };
+    if (proteger && senha.length < SENHA_MIN) { aviso(`Use uma senha com ao menos ${SENHA_MIN} caracteres.`); return; }
+    if (proteger && senha !== f.get('senha2')) { aviso('As duas senhas não são iguais.'); return; }
+    const b = $('#modal .df .primary'); b.disabled = true; b.textContent = 'Gerando…';
+    try { await gerarBackup(proteger ? senha : ''); closeModal(); }
+    catch (e) { b.disabled = false; b.textContent = 'Exportar'; aviso('Não foi possível gerar o backup: ' + (e.message || e)); }
+  };
+}
+async function gerarBackup(senha) {
   const estudos = [];
   for (const a of st.amb.values()) {
     let items;
@@ -2648,17 +2731,24 @@ async function doBackup() {
     estudos.push({ meta: a, itens: Object.fromEntries(items) });
   }
   const data = { app: 'roteirizador', versao: 1, empresa: st.empresa.id, exportado: new Date().toISOString(), clientes: [...st.cli.values()], colaboradores: [...st.col.values()], estudos };
-  saveFile(`backup_roteirizador_${slug(st.empresa.nome)}_${dstamp()}.json`, new Blob([JSON.stringify(data)], { type: 'application/json' }));
-  audita('backup', `${data.clientes.length} clientes · ${data.colaboradores.length} colaboradores · ${estudos.length} estudos`);
+  const arq = senha ? await Seg.selar(data, senha, { app: 'roteirizador', empresa: data.empresa, exportado: data.exportado }) : data;
+  saveFile(`backup_roteirizador_${slug(st.empresa.nome)}_${dstamp()}${senha ? '_protegido' : ''}.json`, new Blob([JSON.stringify(arq)], { type: 'application/json' }));
+  audita('backup', `${data.clientes.length} clientes · ${data.colaboradores.length} colaboradores · ${estudos.length} estudos · ${senha ? 'protegido por senha (AES-256-GCM)' : 'sem senha'}`);
 }
-function restoreForm() {
+async function restoreForm() {
+  if (!(await confirmarIdentidade('Restaurar um backup'))) return;
   openModal(`<div class="dh"><h2>Restaurar backup</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
   <div class="db"><label class="field"><span class="lbl">Arquivo .json exportado por este sistema</span><input type="file" id="rsFile" accept=".json,application/json"></label>
   <p class="muted" style="margin:0">Clientes e colaboradores são mesclados pelo código. Estudos do backup entram como estudos novos se ainda não existirem.</p><div id="rsAviso"></div></div>
   <div class="df"><button class="btn" data-close>Cancelar</button></div>`, 'sm');
   $('#rsFile').onchange = async e => {
     try {
-      const d = JSON.parse(await e.target.files[0].text()); if (d.app !== 'roteirizador') throw new Error('arquivo não reconhecido');
+      const arq = e.target.files[0]; if (!arq) return;
+      if (arq.size > 300 * 1024 * 1024) throw new Error('arquivo grande demais');
+      // JSON lido sem __proto__/constructor; backup protegido pede a senha; tudo passa pela limpeza antes de entrar
+      let d = Seg.json(await arq.text()); if (!d || d.app !== 'roteirizador') throw new Error('arquivo não reconhecido');
+      if (d.formato === 'rvx-cofre') { d = await pedeSenhaBackup(d); if (!d || d.app !== 'roteirizador') throw new Error('arquivo não reconhecido'); }
+      Seg.higienizar(d);
       const deOutro = d.empresa && d.empresa !== st.empresa.id ? EMPRESAS.find(x => x.id === d.empresa) : null;
       if (deOutro) {
         $('#rsAviso').innerHTML = `<div class="banner"><span>Este backup é do ambiente <b>${esc(deOutro.nome)}</b>. Restaurar aqui mistura os dados dele com os de <b>${esc(st.empresa.nome)}</b>.</span><button class="btn sm danger" type="button" id="rsMesmo">Restaurar mesmo assim</button></div>`;
@@ -2668,6 +2758,20 @@ function restoreForm() {
       await aplicarBackup(d);
     } catch (err) { toast('Não foi possível restaurar: ' + (err.message || err)); }
   };
+}
+// Backup protegido: pede a senha dentro da própria janela de restauração
+function pedeSenhaBackup(env) {
+  return new Promise(res => {
+    const box = $('#rsAviso');
+    box.innerHTML = `<form class="stack" id="rsSenhaF"><div class="banner info">Este backup está protegido por senha (AES-256).</div>${senhaCampo('senha', 'Senha do arquivo', 'off')}<div class="row"><button class="btn sm primary" type="submit">Abrir o backup</button></div><div id="rsSenhaMsg" role="alert"></div></form>`;
+    $$('#rsSenhaF [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+    $('#rsSenhaF input[type=password]').focus();
+    $('#rsSenhaF').onsubmit = async ev => {
+      ev.preventDefault(); const b = ev.target.querySelector('[type=submit]'); b.disabled = true; b.textContent = 'Abrindo…';
+      try { const d = await Seg.abrir(env, new FormData(ev.target).get('senha')); box.innerHTML = ''; res(d); }
+      catch (err) { $('#rsSenhaMsg').innerHTML = `<div class="banner bad">${esc(err.message)}</div>`; b.disabled = false; b.textContent = 'Abrir o backup'; }
+    };
+  });
 }
 async function aplicarBackup(d) {
   audita('restauracao', `Backup de ${d && d.exportado ? d.exportado.slice(0, 10) : 'data desconhecida'}`);
@@ -3188,7 +3292,7 @@ function pageConfig() {
 
 /* ================= Eventos ================= */
 function bindEvents() {
-  $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) setView(b.dataset.view); });
+  $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) { if (b.dataset.view === 'conta') contaForm(); else setView(b.dataset.view); } });
   $('#goHome').onclick = () => setScreen('home', 'hub');
   $('#openPlanner').onclick = openPlannerChooser;
   $('#acctBtn').onclick = contaForm;
@@ -3406,7 +3510,8 @@ function pageAct(act, btn) {
     case 'abrirsetor': { const sid = btn.dataset.sid; enterStudy(btn.dataset.fid).then(() => { if (sid) soloSetor(sid); }); break; }
     case 'seguranca': segurancaForm(); break;
     case 'listagens': openListagens(); break;
-    case 'conta': contaForm(); break;
+    case 'conta': if (btn && btn.closest('#modal')) closeModal(); contaForm(); break;
+    case 'contaVoltar': voltarConta(); break;
     case 'mapabase': closeModal(); setVisao('base'); enterPlanner('mapa'); break;
     case 'clibase': {
       const pc = pg.clientes; st.baseF.cidades.clear(); st.baseF.soldes.clear();
@@ -3597,7 +3702,7 @@ const ICON_MOD = {
 function renderHub(el) {
   const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   const nome = String((st.usuario && st.usuario.nome) || '').split(' ')[0];
-  const cur = amb(), R = window.RotasMod ? window.RotasMod.resumoHub() : null, C = window.CalMod ? window.CalMod.resumoHub() : null, V = window.VerbaMod ? window.VerbaMod.resumoHub() : null, PD = window.PedMod ? window.PedMod.resumoHub() : null;
+  const cur = amb(), rotasMod = window.RotasMod, R = rotasMod ? rotasMod.resumoHub() : null, C = window.CalMod ? window.CalMod.resumoHub() : null, V = window.VerbaMod ? window.VerbaMod.resumoHub() : null, PD = window.PedMod ? window.PedMod.resumoHub() : null;
   const stat = (v, l) => `<span class="ms"><b class="num${String(v).length > 12 ? ' longo' : ''}">${v}</b><span>${l}</span></span>`;
   const mod = (k, titulo, desc, stats, extra = '', cls = '') => `<article class="mod ${cls}"><button type="button" class="mod-go" data-hub="${k}" aria-label="Abrir ${esc(titulo)}"></button>
     <div class="mod-h"><span class="mod-i">${ICON_MOD[k]}</span><div><h2>${titulo}</h2><p>${desc}</p></div></div>
@@ -3609,7 +3714,7 @@ function renderHub(el) {
     <nav class="mods" aria-label="Módulos">
       ${mod('plan', 'Planejamento', 'Estudos, setores e roteirização no mapa, com KM, tempo e comparação de cenários.', stat(nf0.format(st.amb.size), 'estudos') + stat(nf0.format(st.cli.size), 'clientes') + stat(nf0.format(st.col.size), 'colaboradores'),
         `<button class="btn sm primary" type="button" data-act="plannerOpen">Abrir Planner</button>${cur ? `<button class="btn sm" type="button" data-enter="${esc(cur.id)}">Continuar: ${esc(cur.nome)}</button>` : ''}`)}
-      ${mod('rotas', 'Rotas', 'Bases de roteiros por mês e ano: tabela, mapa com pinos e regiões, filtros e comparação com os estudos.', R ? stat(nf0.format(R.bases), R.bases === 1 ? 'base' : 'bases') + stat(R.ultimo || '—', 'último período') + stat(R.km, 'KM/mês') : stat('—', 'carregando'),
+      ${mod('rotas', 'Rotas', 'Bases importadas por mês e ano e estudos do Planejamento, com tabela, mapa, filtros e comparação.', R ? (R.erro ? stat('—', 'indisponível') : R.semTabela ? stat('—', 'migração pendente') + stat(nf0.format(R.estudos), 'estudos no Planner') : stat(nf0.format(R.bases), R.bases === 1 ? 'base importada' : 'bases importadas') + stat(nf0.format(R.estudos), 'estudos no Planner') + stat(R.ultimo || '—', 'último período') + stat(R.km, 'KM/mês')) : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn sm" type="button" data-act="rotasImport"${st.ro ? ' disabled' : ''}>Importar base</button>`)}
       ${mod('ped', 'Pedágios', 'Praças de pedágio com local e valores, mapa com as rotas de um estudo ou base e relatório de quem paga, quanto e onde.', PD ? stat(nf0.format(PD.n), PD.n === 1 ? 'praça cadastrada' : 'praças cadastradas') + stat(PD.media, `tarifa média · ${esc(PD.cat.toLowerCase())}`) + stat(nf0.format(PD.semValor), 'sem valor') : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="ped">Abrir Pedágios</button>`)}
@@ -3622,6 +3727,11 @@ function renderHub(el) {
     </nav>
   </div>`;
   el.scrollTop = 0;
+  if (!R && rotasMod) rotasMod.iniciar().then(() => {
+    if (st.screen === 'home' && st.homeSec === 'hub') renderHub(el);
+  }).catch(() => {
+    if (st.screen === 'home' && st.homeSec === 'hub') renderHub(el);
+  });
 }
 
 function renderPlanejamento(el) {
@@ -3750,19 +3860,57 @@ const sbMensagem = e => {
   if (/rate limit|too many/i.test(m) || (e && e.status === 429)) return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.';
   if (/fetch|network/i.test(m)) return 'Sem conexão com o banco de dados. Verifique a internet e tente de novo.';
   if (/different from the old/i.test(m)) return 'A nova senha precisa ser diferente da atual.';
+  if (/captcha/i.test(m)) return 'A verificação de segurança não foi aceita. Resolva o desafio de novo e tente outra vez.';
+  if (/weak|pwned|leaked/i.test(m)) return 'O servidor recusou a senha por ser fraca ou já ter vazado. Escolha outra.';
+  if (/reauthentication|nonce/i.test(m)) return 'Para trocar a senha, entre de novo no sistema e repita a alteração.';
   if (/not authorized/i.test(m)) return 'O Supabase não envia e-mail para este endereço sem um servidor de e-mail próprio. Crie a conta em Authentication → Users e inclua de novo aqui.';
   return m || 'Não foi possível concluir. Tente de novo.';
 };
+async function sbIpVerificar(e) {
+  if (!st.sb || !(st.srv >= 9)) return null;
+  const { data, error } = await st.sb.rpc('seguranca_ip_verificar', { e });
+  if (error) throw error;
+  return data;
+}
+async function sbIpRegistrarFalha(e) {
+  if (!st.sb || !(st.srv >= 9)) return null;
+  const { data, error } = await st.sb.rpc('seguranca_ip_falha', { e });
+  if (error) throw error;
+  return data;
+}
+async function sbIpRegistrarSucesso(e) {
+  if (!st.sb || !(st.srv >= 9)) return;
+  const { error } = await st.sb.rpc('seguranca_ip_sucesso', { e });
+  if (error) throw error;
+}
 async function sbLogin(f) {
-  const email = String(f.get('login')).trim(), manter = !!f.get('manter');
+  const email = Seg.texto(String(f.get('login')).trim(), 320), manter = !!f.get('manter');
   const at = bloqueado(lg.emp, email); if (at) { lgMsg(msgBloqueio(at)); return; }
+  let ip;
+  try { ip = await sbIpVerificar(lg.emp.id); }
+  catch (e) { lgMsg('Não foi possível verificar o bloqueio por IP: ' + sbMensagem(e)); return; }
+  if (ip && ip.decision === 'reject') { lgMsg(ip.message || 'Acesso temporariamente bloqueado para este IP.'); return; }
+  const cap = $('#lgCaptcha'), captchaToken = Seg.captcha.token(cap);
+  if (captchaToken === '') { lgMsg('Conclua a verificação de segurança antes de entrar.'); return; }
   sbManter = manter;
   try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignora */ }
-  const { data, error } = await st.sb.auth.signInWithPassword({ email, password: f.get('senha') });
-  if (error) { const b = /invalid login/i.test(error.message || '') ? registraFalha(lg.emp, email) : 0; lgMsg(b ? msgBloqueio(b) : sbMensagem(error)); return; }
-  limpaFalhas(lg.emp, email);
+  const { data, error } = await st.sb.auth.signInWithPassword({ email, password: f.get('senha'), options: captchaToken ? { captchaToken } : undefined });
+  Seg.captcha.reiniciar(cap); // cada desafio vale para uma tentativa
+  if (error) {
+    const falhaSenha = /invalid login/i.test(error.message || '');
+    const b = falhaSenha ? registraFalha(lg.emp, email) : 0;
+    if (falhaSenha) {
+      try { ip = await sbIpRegistrarFalha(lg.emp.id); }
+      catch (e) { lgMsg('Senha incorreta. Não foi possível registrar a tentativa para o bloqueio por IP: ' + sbMensagem(e)); return; }
+      if (ip && ip.decision === 'reject') { lgMsg(ip.message || (b ? msgBloqueio(b) : 'Acesso temporariamente bloqueado para este IP.')); return; }
+    }
+    lgMsg(b ? msgBloqueio(b) : sbMensagem(error)); return;
+  }
+  lg.falhasAntes = limpaFalhas(lg.emp, email);
   const seguir = () => sbPosLogin(data.user, manter);
-  if (await sbPrecisaMfa()) { lg.step = 'mfa'; lg.ctx = { manter, login: email, seguir }; renderLogin(); return; }
+  if (await sbPrecisaMfa()) { lg.step = 'mfa'; lg.ctx = { manter, login: email, uid: data.user.id, seguir }; renderLogin(); return; }
+  try { await sbIpRegistrarSucesso(lg.emp.id); }
+  catch (e) { toast('Não foi possível atualizar o controle de tentativas por IP: ' + sbMensagem(e), 7000); }
   await seguir();
 }
 async function sbPosLogin(user, manter) {
@@ -3774,24 +3922,27 @@ async function sbPosLogin(user, manter) {
 // Endereço para onde o link de nova senha do e-mail volta. No app de Windows (endereço app://), usa a versão web de RT_CONFIG.urlWeb.
 function urlRetorno() { const w = (window.RT_CONFIG || {}).urlWeb; return (window.rrmDesktop && w) ? w : location.origin + location.pathname; }
 async function sbEsqueci(f) {
-  const { error } = await st.sb.auth.resetPasswordForEmail(String(f.get('login')).trim(), { redirectTo: urlRetorno() });
+  const cap = $('#lgCaptcha'), captchaToken = Seg.captcha.token(cap);
+  if (captchaToken === '') { lgMsg('Conclua a verificação de segurança antes de enviar.'); return; }
+  const { error } = await st.sb.auth.resetPasswordForEmail(Seg.texto(String(f.get('login')).trim(), 320), { redirectTo: urlRetorno(), captchaToken });
+  Seg.captcha.reiniciar(cap);
   if (error) { lgMsg(sbMensagem(error)); return; }
   lg.step = 'login'; lg.ctx = {}; renderLogin();
   lgMsg('Se houver uma conta com esse e-mail, o link para criar uma nova senha chega em instantes. Confira também o spam.', 'info');
 }
 async function sbTrocar(f) {
-  const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
+  const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { lgMsg(erro); return; }
   const { error } = await st.sb.auth.updateUser({ password: f.get('senha'), data: { trocar_senha: false } });
   if (error) { lgMsg(sbMensagem(error)); return; }
   const { u, manter } = lg.ctx; await entrar({ ...u, trocarSenha: false }, manter);
 }
 async function sbNovaSenha(f) {
-  const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
+  const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { lgMsg(erro); return; }
   const { error } = await st.sb.auth.updateUser({ password: f.get('senha') });
   if (error) { lgMsg(sbMensagem(error)); return; }
-  await st.sb.auth.signOut({ scope: 'local' });
+  await st.sb.auth.signOut({ scope: 'global' }).catch(() => st.sb.auth.signOut({ scope: 'local' })); // quem estava com a senha antiga sai em todo lugar
   lg.step = 'empresa'; lg.emp = null; lg.ctx = {}; renderLogin();
-  lgMsg('Senha alterada. Escolha o ambiente e entre com a nova senha.', 'info');
+  lgMsg('Senha alterada. As sessões abertas em outros dispositivos foram encerradas. Escolha o ambiente e entre com a nova senha.', 'info');
 }
 /* Dados que estão só neste navegador podem subir para um ambiente ainda vazio. Nada é apagado daqui */
 const sbMarca = pre => `rt1:enviado_${pre || 'antigos'}`;
@@ -3817,26 +3968,42 @@ async function sbEnviarLocais(emp, pre) {
 const LOGO = '<svg class="vx" viewBox="9 5 54 54" aria-hidden="true" focusable="false"><g fill="none" stroke-linecap="round" stroke-width="4.8"><path class="vx-2" d="M32 32a12 12 0 0 1 24 0"/><path class="vx-3" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path class="vx-1" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g><g class="vx-n" stroke-width="2.3"><circle class="vx-2" cx="56" cy="32" r="3.2"/><circle class="vx-3" cx="56" cy="32" r="3.2" transform="rotate(120 32 32)"/><circle class="vx-1" cx="56" cy="32" r="3.2" transform="rotate(240 32 32)"/></g><circle class="vx-h" cx="32" cy="32" r="5.2" stroke-width="2.8"/></svg>';
 
 const hexOf = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
-async function derivar(txt, salt) {
+// Senhas: PBKDF2-SHA256 com 600 mil iterações (recomendação OWASP). Códigos de recuperação e de reserva, que já são
+// aleatórios e longos: 150 mil. Hashes antigos (sem "iter") são de 150 mil e sobem para 600 mil no próximo login certo.
+const ITER_SENHA = 600000, ITER_CODIGO = 150000;
+async function derivar(txt, salt, iter = ITER_CODIGO) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(txt), 'PBKDF2', false, ['deriveBits']);
-  return hexOf(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(salt), iterations: 150000 }, k, 256));
+  return hexOf(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(salt), iterations: iter }, k, 256));
 }
-async function segredo(txt) { const salt = hexOf(crypto.getRandomValues(new Uint8Array(16))); return { salt, hash: await derivar(txt, salt) }; }
-const confere = async (txt, s) => !!s && (await derivar(txt, s.salt)) === s.hash;
+async function segredo(txt, iter = ITER_CODIGO) { const salt = hexOf(crypto.getRandomValues(new Uint8Array(16))); return { salt, hash: await derivar(txt, salt, iter), iter }; }
+const confere = async (txt, s) => !!s && Seg.iguais(await derivar(txt, s.salt, s.iter || ITER_CODIGO), s.hash);
+const precisaRehash = s => !!s && (s.iter || ITER_CODIGO) < ITER_SENHA;
 function novoCodigo() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; return [...crypto.getRandomValues(new Uint8Array(12))].map(x => A[x % A.length]).join('').match(/.{4}/g).join('-'); }
 const normCodigo = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const normLogin = v => String(v || '').trim().toLowerCase();
 const colUsuarios = emp => emp.id + '_usuarios';
 const usuariosDe = async emp => (await st.base.list(colUsuarios(emp))).map(d => d.data);
 const salvarUsuario = (emp, u) => st.base.set(colUsuarios(emp), u.id, u);
-function validaSenha(a, b) {
-  const s = String(a);
+function validaSenha(a, b, quem = {}) {
+  const s = String(a ?? ''), n = norm(s);
   if (s.length < SENHA_MIN) return `A senha precisa ter ao menos ${SENHA_MIN} caracteres.`;
+  // O Supabase Auth (bcrypt) só considera os primeiros 72 bytes: o resto seria ignorado sem aviso
+  if (new TextEncoder().encode(s).length > 72) return 'Use no máximo 72 caracteres na senha (letras acentuadas contam como dois).';
   if (!/[A-Za-zÀ-ÿ]/.test(s) || !/\d/.test(s)) return 'Use letras e números na senha.';
-  if (SENHAS_FRACAS.includes(s.toLowerCase())) return 'Essa senha é muito comum. Escolha outra.';
+  if (SENHAS_FRACAS.includes(s.toLowerCase()) || /^(.)\1+$/.test(s) || /^(?:0123456789|1234567890|9876543210|abcdefghij|qwertyuiop)/i.test(s)) return 'Essa senha é muito comum. Escolha outra.';
+  const partes = [quem.login, String(quem.login || '').split('@')[0], ...String(quem.nome || '').split(/\s+/), ...String((lg.emp || st.empresa || {}).nome || '').split(/\s+/)]
+    .map(x => norm(x || '')).filter(x => x.length >= 4);
+  if (partes.some(x => n.includes(x))) return 'A senha não pode conter o seu nome, o seu login nem o nome da empresa.';
   if (a !== b) return 'As duas senhas não são iguais.';
   return '';
 }
+// Regras acima e consulta de vazamentos (Have I Been Pwned: só o começo do hash sai do computador; sem internet, não bloqueia)
+async function validaSenhaCompleta(a, b, quem) {
+  const erro = validaSenha(a, b, quem); if (erro) return erro;
+  const n = await Seg.vazamentos(a);
+  return n > 0 ? `Essa senha já apareceu ${nf0.format(n)} vez(es) em vazamentos de dados na internet. Escolha outra.` : '';
+}
+const quemSenha = () => { const u = (lg.ctx && lg.ctx.u) || st.usuario || {}; return { login: u.login, nome: u.nome }; };
 
 function limparSessao() { for (const n of ['localStorage', 'sessionStorage']) { try { window[n].removeItem(SES_KEY); } catch (e) { /* ignora */ } } }
 function salvarSessao(emp, u, manter) {
@@ -3873,6 +4040,9 @@ async function moverDadosAntigos(emp) {
 const senhaCampo = (id, rotulo, ac) => `<label class="field"><span class="lbl">${rotulo}</span><span class="pwrap"><input type="password" name="${id}" autocomplete="${ac}" required><button type="button" data-ver aria-label="Mostrar senha">Mostrar</button></span></label>`;
 const textoCampo = (id, rotulo, ac, extra = '') => `<label class="field"><span class="lbl">${rotulo}</span><input type="text" name="${id}" autocomplete="${ac}" required ${extra}></label>`;
 const manterCampo = `<label class="chk"><input type="checkbox" name="manter"> Manter conectado</label>`;
+// Desafio "não sou um robô" (Turnstile ou hCaptcha), só com o Supabase e o CAPTCHA configurado em js/config.js
+const captchaHtml = id => (st.sb && Seg.captcha.ativo() ? `<div class="rvx-captcha" id="${id}"></div>` : '');
+const montaCaptcha = (el, aviso) => { if (el) Seg.captcha.montar(el).catch(e => aviso && aviso(e.message || 'A verificação de segurança não carregou.')); };
 const LG_TELAS = {
   empresa() {
     let ult = null; try { ult = localStorage.getItem(ULT_KEY); } catch (e) { /* ignora */ }
@@ -3882,7 +4052,7 @@ const LG_TELAS = {
   login() {
     return `<h1>Entrar</h1><form id="fLogin">${textoCampo('login', st.sb ? 'E-mail' : 'Usuário ou e-mail', 'username')}${senhaCampo('senha', 'Senha', 'current-password')}
       <div class="lg-row">${manterCampo}<button class="lg-link" type="button" data-lg="esqueci">Esqueci minha senha</button></div>
-      <button class="btn primary lg-go" type="submit">Entrar</button></form>`;
+      ${captchaHtml('lgCaptcha')}<button class="btn primary lg-go" type="submit">Entrar</button></form>`;
   },
   primeiro() {
     return `<h1>Primeiro acesso</h1><p class="sub">Este ambiente ainda não tem usuários neste navegador. Crie o administrador: depois ele cadastra os demais.</p>
@@ -3892,7 +4062,7 @@ const LG_TELAS = {
   esqueci() {
     if (st.sb) return `<h1>Redefinir senha</h1><p class="sub">Informe o seu e-mail. Enviaremos um link para você criar uma nova senha.</p>
       <form id="fEsqueci">${textoCampo('login', 'E-mail', 'username')}
-      <div class="lg-row"><button class="lg-link" type="button" data-lg="login">Voltar para o login</button></div><button class="btn primary lg-go" type="submit">Enviar o link</button></form>`;
+      <div class="lg-row"><button class="lg-link" type="button" data-lg="login">Voltar para o login</button></div>${captchaHtml('lgCaptcha')}<button class="btn primary lg-go" type="submit">Enviar o link</button></form>`;
     return `<h1>Redefinir senha</h1><p class="sub">Use o código de recuperação que apareceu quando a sua senha foi criada. Sem ele, um administrador do ambiente pode redefinir a senha em Minha conta.</p>
       <form id="fEsqueci">${textoCampo('login', 'Usuário ou e-mail', 'username')}${textoCampo('codigo', 'Código de recuperação', 'off', 'placeholder="XXXX-XXXX-XXXX"')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}
       <div class="lg-row"><button class="lg-link" type="button" data-lg="login">Voltar para o login</button></div><button class="btn primary lg-go" type="submit">Redefinir senha</button></form>`;
@@ -3940,6 +4110,7 @@ function renderLogin() {
       <div id="lgMsg" role="alert"></div>${LG_TELAS[lg.step]()}</div>
     <p class="lg-foot">${st.sb ? 'Acesso protegido por senha, verificação em duas etapas e registro de atividades. Os dados ficam no banco de dados da empresa.' : 'Os acessos e os dados ficam guardados neste navegador.'}</p></div>`;
   const f = $('#loginView input:not([type=checkbox])'); if (f) f.focus();
+  montaCaptcha($('#lgCaptcha'), t => lgMsg(t));
   if (lg.step === 'mfaCadastro') montaCadastroMfa($('#lgMfa'), () => liberar(), t => lgMsg(t));
   if (st.sbFalhou) lgMsg('Não foi possível carregar a conexão com o banco de dados. Verifique a internet e recarregue a página.');
   else if (!st.sb && (!window.crypto || !crypto.subtle)) lgMsg('Este endereço não permite o login com segurança. Abra o sistema por https ou por 127.0.0.1 (Live Server).');
@@ -3953,12 +4124,15 @@ async function escolherEmpresa(id) {
 async function entrar(u, manter) {
   salvarSessao(lg.emp, u, manter); st.empresa = lg.emp; st.usuario = u;
   audita('login', st.sb ? 'senha' + ((await mfaAtivo()) ? ' + duas etapas' : '') : 'login neste navegador');
+  st.avisoTentativas = lg.falhasAntes || 0; lg.falhasAntes = 0;
+  if (!st.sb) { st.usuario = { ...st.usuario, ultimoAcesso: Date.now() }; salvarUsuario(lg.emp, st.usuario).catch(() => {}); }
   st.legadoVisto = false;
   await liberar();
 }
 // Últimos passos antes de abrir o sistema: duas etapas obrigatória e aceite do aviso de privacidade
 async function liberar() {
   lg.emp = st.empresa;
+  if (st.sb && st.srv === undefined) st.srv = await sbVersaoSeguranca();
   await carregaPolitica();
   st.mfaAtivo = await mfaAtivo();
   if (st.politica.exige2fa && !st.mfaAtivo) { lg.step = 'mfaCadastro'; lg.ctx = {}; renderLogin(); return; }
@@ -3975,8 +4149,11 @@ const LG_FORMS = {
     if (st.sb) return sbLogin(f);
     const login = normLogin(f.get('login')), at = bloqueado(lg.emp, login); if (at) { lgMsg(msgBloqueio(at)); return; }
     const us = await usuariosDe(lg.emp), u = us.find(x => x.login === login), manter = !!f.get('manter');
-    if (!u || !(await confere(f.get('senha'), u.senha))) { const b = registraFalha(lg.emp, login); lgMsg(b ? msgBloqueio(b) : 'Usuário ou senha incorretos.'); return; }
-    limpaFalhas(lg.emp, login);
+    // Sem o usuário, faz a mesma conta: o tempo de resposta não revela quais logins existem
+    const certo = u ? await confere(f.get('senha'), u.senha) : (await derivar(String(f.get('senha')), '00', ITER_SENHA), false);
+    if (!certo) { const b = registraFalha(lg.emp, login); auditaEm(lg.emp, u || { login }, 'login_falhou', login); lgMsg(b ? msgBloqueio(b) : 'Usuário ou senha incorretos.'); return; }
+    lg.falhasAntes = limpaFalhas(lg.emp, login);
+    if (precisaRehash(u.senha)) { u.senha = await segredo(f.get('senha'), ITER_SENHA); await salvarUsuario(lg.emp, u); }
     const seguir = async () => {
       const u2 = (await usuariosDe(lg.emp)).find(x => x.id === u.id) || u;
       if (u2.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u: u2, manter }; renderLogin(); return; }
@@ -3987,38 +4164,54 @@ const LG_FORMS = {
   },
   async fMfa(f) {
     const k = 'mfa:' + (lg.ctx.login || ''), at = bloqueado(lg.emp, k); if (at) { lgMsg(msgBloqueio(at)); return; }
+    let ip;
+    try { ip = await sbIpVerificar(lg.emp.id); }
+    catch (e) { lgMsg('Não foi possível verificar o bloqueio por IP: ' + sbMensagem(e)); return; }
+    if (ip && ip.decision === 'reject') {
+      if (st.sb) await st.sb.auth.signOut({ scope: 'local' });
+      lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(ip.message || 'Acesso temporariamente bloqueado para este IP.'); return;
+    }
     if (!(await mfaConferirLogin(f.get('codigo'), lg.ctx.u))) {
       const b = registraFalha(lg.emp, k);
+      auditaEm(lg.emp, lg.ctx.u || { id: lg.ctx.uid, login: lg.ctx.login }, 'mfa_falhou', lg.ctx.login || '');
+      try { ip = await sbIpRegistrarFalha(lg.emp.id); }
+      catch (e) { lgMsg('Código incorreto. Não foi possível registrar a tentativa para o bloqueio por IP: ' + sbMensagem(e)); return; }
+      if (ip && ip.decision === 'reject') {
+        if (st.sb) await st.sb.auth.signOut({ scope: 'local' });
+        lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(ip.message || 'Acesso temporariamente bloqueado para este IP.'); return;
+      }
       if (b) { if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {}); lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(msgBloqueio(b)); return; }
       lgMsg('Código incorreto ou vencido. Digite o código que aparece agora no aplicativo.'); const i = $('#fMfa input'); if (i) i.select(); return;
     }
+    try { await sbIpRegistrarSucesso(lg.emp.id); }
+    catch (e) { toast('Não foi possível atualizar o controle de tentativas por IP: ' + sbMensagem(e), 7000); }
     limpaFalhas(lg.emp, k);
     if (lg.ctx.usouReserva !== undefined) toast(`Código de reserva usado. Restam ${lg.ctx.usouReserva}; gere novos desligando e ativando as duas etapas.`, 8000);
     await lg.ctx.seguir();
   },
   async fPrimeiro(f) {
-    const login = normLogin(f.get('login')), nome = f.get('nome').trim(), manter = !!f.get('manter'), erro = validaSenha(f.get('senha'), f.get('senha2'));
+    const login = normLogin(f.get('login')), nome = f.get('nome').trim(), manter = !!f.get('manter'), erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), { login: f.get('login'), nome: f.get('nome') });
     if (erro) { lgMsg(erro); return; }
     if ((await usuariosDe(lg.emp)).length) { lg.step = 'login'; renderLogin(); return; }
     const codigo = novoCodigo();
-    const u = { id: uid('u'), nome, login, papel: 'admin', senha: await segredo(f.get('senha')), rec: await segredo(normCodigo(codigo)), criado: Date.now() };
+    const u = { id: uid('u'), nome, login, papel: 'admin', senha: await segredo(f.get('senha'), ITER_SENHA), rec: await segredo(normCodigo(codigo)), criado: Date.now() };
     await salvarUsuario(lg.emp, u);
     lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => entrar(u, manter) }; renderLogin();
   },
   async fEsqueci(f) {
     if (st.sb) return sbEsqueci(f);
-    const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
+    const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { lgMsg(erro); return; }
     const u = (await usuariosDe(lg.emp)).find(x => x.login === normLogin(f.get('login')));
     if (!u || !(await confere(normCodigo(f.get('codigo')), u.rec))) { lgMsg('Usuário ou código de recuperação incorretos.'); return; }
-    const codigo = novoCodigo(), novo = { ...u, senha: await segredo(f.get('senha')), rec: await segredo(normCodigo(codigo)) }; delete novo.trocarSenha;
+    const codigo = novoCodigo(), novo = { ...u, senha: await segredo(f.get('senha'), ITER_SENHA), rec: await segredo(normCodigo(codigo)) }; delete novo.trocarSenha;
     await salvarUsuario(lg.emp, novo);
     lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => { lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg('Senha redefinida. Entre com a nova senha.', 'info'); } }; renderLogin();
   },
   fNovaSenha: sbNovaSenha,
   async fTrocar(f) {
     if (st.sb) return sbTrocar(f);
-    const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { lgMsg(erro); return; }
-    const { u, manter } = lg.ctx, codigo = novoCodigo(), novo = { ...u, senha: await segredo(f.get('senha')), rec: await segredo(normCodigo(codigo)) }; delete novo.trocarSenha;
+    const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { lgMsg(erro); return; }
+    const { u, manter } = lg.ctx, codigo = novoCodigo(), novo = { ...u, senha: await segredo(f.get('senha'), ITER_SENHA), rec: await segredo(normCodigo(codigo)) }; delete novo.trocarSenha;
     await salvarUsuario(lg.emp, novo);
     lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => entrar(novo, manter) }; renderLogin();
   }
@@ -4066,8 +4259,8 @@ async function copiarTexto(txt, btn) {
    Com o Supabase, as duas etapas usam o MFA do próprio Supabase Auth e o banco exige a segunda etapa (migração 04).
    Sem o Supabase, o segredo fica no navegador junto com o usuário: separa o acesso casual, mas não protege contra quem
    tem acesso ao computador. */
-const SEG = Object.assign({ inatividadeMin: 30, tentativas: 5, bloqueioMin: 5 }, CFG.seguranca || {});
-const PRIV = Object.assign({ versao: '2026-11', controlador: '', encarregado: '', contato: '' }, (CFG.seguranca || {}).privacidade || {});
+const SEG = Object.assign({ inatividadeMin: 30, tentativas: 5, bloqueioMin: 5, reautenticarMin: 5, cifrarCampos: true }, CFG.seguranca || {});
+const PRIV = Object.assign({ versao: '2026-11.2', controlador: '', encarregado: '', contato: '' }, (CFG.seguranca || {}).privacidade || {});
 st.politica = { exige2fa: false, inatividadeMin: SEG.inatividadeMin };
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 function b32enc(bytes) { let bits = 0, val = 0, out = ''; for (const b of bytes) { val = ((val << 8) | b) & 0xffff; bits += 8; while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits > 0) out += B32[(val << (5 - bits)) & 31]; return out; }
@@ -4089,42 +4282,56 @@ const somenteDigitos = v => String(v || '').replace(/\D/g, '');
 let qrLib = null;
 function carregaQr() {
   if (window.qrcode) return Promise.resolve(window.qrcode);
-  if (!qrLib) qrLib = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'; sc.onload = () => (window.qrcode ? res(window.qrcode) : rej(new Error('QR indisponível'))); sc.onerror = () => { qrLib = null; rej(new Error('QR indisponível')); }; document.head.append(sc); });
+  if (!qrLib) qrLib = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'; sc.integrity = 'sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1'; sc.crossOrigin = 'anonymous'; sc.onload = () => (window.qrcode ? res(window.qrcode) : rej(new Error('QR indisponível'))); sc.onerror = () => { qrLib = null; rej(new Error('QR indisponível')); }; document.head.append(sc); });
   return qrLib;
 }
 async function qrDeUri(uri) { try { const q = await carregaQr(); const g = q(0, 'M'); g.addData(uri); g.make(); return g.createDataURL(5, 2); } catch (e) { return ''; } }
 
 /* ----- Bloqueio depois de tentativas erradas (neste navegador; o Supabase tem o próprio limite no servidor) ----- */
-const chaveFalha = (emp, login) => `rt1:falhas:${emp && emp.id}:${normLogin(login)}`;
-function bloqueado(emp, login) { try { const v = JSON.parse(localStorage.getItem(chaveFalha(emp, login)) || 'null'); return v && v.ate > Date.now() ? v.ate : 0; } catch (e) { return 0; } }
-function registraFalha(emp, login) {
-  try {
-    const k = chaveFalha(emp, login), v = JSON.parse(localStorage.getItem(k) || '{"n":0,"vez":0}'); v.n++;
-    if (v.n >= SEG.tentativas) { v.vez = (v.vez || 0) + 1; v.ate = Date.now() + SEG.bloqueioMin * 60000 * 2 ** (v.vez - 1); v.n = 0; }
-    localStorage.setItem(k, JSON.stringify(v)); return v.ate && v.ate > Date.now() ? v.ate : 0;
-  } catch (e) { return 0; }
+// Por conta: espera progressiva a partir do 3º erro e bloqueio no N-ésimo; por navegador: mais de 20 erros em 15 min bloqueiam tudo.
+// Com a migração 08 e os hooks ligados, o servidor também bloqueia a conta, em qualquer navegador.
+const contaFreio = (emp, login) => `${emp ? emp.id : 'x'}:${normLogin(login)}`;
+const bloqueado = (emp, login) => Seg.Freio.ate(contaFreio(emp, login));
+// Devolve até quando ficou bloqueado, só quando o bloqueio passa de 1 minuto (a espera curta aparece na próxima tentativa)
+const registraFalha = (emp, login) => { const ate = Seg.Freio.falhou(contaFreio(emp, login)); return ate - Date.now() > 60000 ? ate : 0; };
+const limpaFalhas = (emp, login) => Seg.Freio.ok(contaFreio(emp, login));
+function msgBloqueio(ate) {
+  const s = Math.ceil((ate - Date.now()) / 1000);
+  return s <= 60 ? `Muitas tentativas seguidas. Aguarde ${s} segundo${s === 1 ? '' : 's'} e tente de novo.`
+    : `Acesso bloqueado por excesso de tentativas. Tente de novo às ${new Date(ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`;
 }
-function limpaFalhas(emp, login) { try { localStorage.removeItem(chaveFalha(emp, login)); } catch (e) { /* ignora */ } }
-const msgBloqueio = ate => `Acesso bloqueado por excesso de tentativas. Tente de novo às ${new Date(ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`;
 
 /* ----- Registro de atividades (quem fez o quê e quando). Com o Supabase, ninguém altera nem apaga um registro ----- */
 const AUD_MAX_LOCAL = 1500;
-const AUD_ACAO = { login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)', calendario: 'Alterou o calendário', verba: 'Verba indenizatória', pedagios: 'Pedágios' };
-const audLocalColl = () => (st.empresa ? st.empresa.id : 'x') + '_auditoria';
-async function audLocalLer() { try { const d = (await st.base.list(audLocalColl())).find(x => x.id === 'log'); return (d && d.data && d.data.items) || []; } catch (e) { return []; } }
-function audita(acao, detalhe = '') {
-  const u = st.usuario || {}, e = st.empresa; if (!e) return Promise.resolve();
-  const reg = { acao, detalhe: String(detalhe || '').slice(0, 500), usuario: u.nome || '', email: u.login || '', em: Date.now() };
+const AUD_ACAO = { bd_inclusao: 'Banco: inclusão', bd_alteracao: 'Banco: alteração', bd_exclusao: 'Banco: exclusão', usuario_alterado: 'Alterou o perfil de usuário', conta_bloqueada: 'Conta bloqueada por tentativas erradas', conta_desbloqueada: 'Desbloqueou uma conta', ip_desbloqueado: 'Desbloqueou um IP', chave_criada: 'Criou a chave de criptografia', cifra_migrada: 'Cifrou dados sensíveis existentes', privacidade_revogada: 'Revogou o aceite do aviso de privacidade', titular_resposta: 'Respondeu pedido de titular (LGPD)', reautenticacao: 'Confirmou a identidade', reautenticacao_falhou: 'Confirmação de identidade recusada', sessoes_encerradas: 'Encerrou as sessões em outros dispositivos', login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)', calendario: 'Alterou o calendário', verba: 'Verba indenizatória', pedagios: 'Pedágios' };
+const audLocalColl = (e = st.empresa) => (e ? e.id : 'x') + '_auditoria';
+async function audLocalLer(e) { try { const d = (await st.base.list(audLocalColl(e))).find(x => x.id === 'log'); return (d && d.data && d.data.items) || []; } catch (err) { return []; } }
+// Com a migração 08 o próprio banco registra estas ações (com mais detalhes): o navegador não duplica
+const AUD_DO_BANCO = new Set(['usuario_incluido', 'usuario_removido', 'politica', 'privacidade', 'privacidade_revogada', 'titular_pedido', 'titular_resposta', 'conta_desbloqueada']);
+// Texto coberto pelo hash de cada registro local (o hash do anterior entra junto: cadeia)
+const audTexto = r => [r.ha || '', r.em, r.uid || '', r.usuario || '', r.email || '', r.acao, r.detalhe || '', r.agente || ''].join('|');
+let audFila = Promise.resolve();
+const audita = (acao, detalhe = '') => auditaEm(st.empresa, st.usuario, acao, detalhe);
+function auditaEm(e, u, acao, detalhe = '') {
+  u = u || {}; if (!e) return Promise.resolve();
+  const reg = { acao, detalhe: Seg.texto(String(detalhe || ''), 500, true), usuario: u.nome || '', email: u.login || '', em: Date.now() };
   if (st.sb) {
-    if (st.audSemTabela || !u.id) return Promise.resolve();
+    if (st.audSemTabela || !u.id || (st.srv >= 8 && AUD_DO_BANCO.has(acao))) return Promise.resolve();
     return st.sb.from('auditoria').insert({ empresa_id: e.id, user_id: u.id, usuario: reg.usuario, email: reg.email, acao, detalhe: reg.detalhe, agente: navigator.userAgent.slice(0, 200) })
       .then(({ error }) => { if (error && /auditoria|does not exist|PGRST205|42P01/i.test((error.message || '') + error.code)) st.audSemTabela = true; }, () => {});
   }
-  return audLocalLer().then(l => { l.unshift({ ...reg, uid: u.id || '' }); return st.base.set(audLocalColl(), 'log', { items: l.slice(0, AUD_MAX_LOCAL) }); }).catch(() => {});
+  // Sem o Supabase: um registro por vez, cada um com o hash SHA-256 do anterior (adulterar ou apagar do meio quebra a cadeia)
+  audFila = audFila.then(async () => {
+    const l = await audLocalLer(e), r = { ...reg, uid: u.id || '', agente: navigator.userAgent.slice(0, 200), ha: (l[0] && l[0].h) || '' };
+    r.h = await Seg.sha256(audTexto(r));
+    l.unshift(r);
+    await st.base.set(audLocalColl(e), 'log', { items: l.slice(0, AUD_MAX_LOCAL) });
+  }).catch(() => {});
+  return audFila;
 }
 async function audLista(proprios) {
   if (st.sb) {
-    let q = st.sb.from('auditoria').select('acao,detalhe,usuario,email,em,user_id').eq('empresa_id', st.empresa.id).order('em', { ascending: false }).limit(300);
+    let q = st.sb.from('auditoria').select('acao,detalhe,usuario,email,em,user_id' + (st.srv >= 8 ? ',ip,seq,hash' : '')).eq('empresa_id', st.empresa.id).order('em', { ascending: false }).limit(300);
     if (proprios) q = q.eq('user_id', st.usuario.id);
     const { data, error } = await q; if (error) throw error;
     return data.map(r => ({ ...r, em: Date.parse(r.em) }));
@@ -4223,7 +4430,11 @@ async function mfaConferirLogin(code, u) {
 async function privacidadeAceita() {
   const u = st.usuario;
   if (st.sb) {
-    try { const { data, error } = await st.sb.from('consentimentos').select('versao').eq('empresa_id', st.empresa.id).eq('user_id', u.id).eq('versao', PRIV.versao).maybeSingle(); if (error) { st.consSemTabela = true; return lerAceiteLocal(); } return !!data; }
+    try {
+      let q = st.sb.from('consentimentos').select('versao').eq('empresa_id', st.empresa.id).eq('user_id', u.id).eq('versao', PRIV.versao);
+      if (st.srv >= 8) q = q.is('revogado_em', null);
+      const { data, error } = await q.maybeSingle(); if (error) { st.consSemTabela = true; return lerAceiteLocal(); } return !!data;
+    }
     catch (e) { return lerAceiteLocal(); }
   }
   return !!(u.privacidade && u.privacidade.versao === PRIV.versao);
@@ -4233,10 +4444,21 @@ function lerAceiteLocal() { try { return localStorage.getItem(chaveAceite()) ===
 async function registraAceite() {
   const u = st.usuario;
   if (st.sb) {
-    if (!st.consSemTabela) { const { error } = await st.sb.from('consentimentos').upsert({ empresa_id: st.empresa.id, user_id: u.id, versao: PRIV.versao, agente: navigator.userAgent.slice(0, 200) }, { onConflict: 'empresa_id,user_id,versao' }); if (error) st.consSemTabela = true; }
+    if (!st.consSemTabela) { const { error } = await st.sb.from('consentimentos').upsert({ empresa_id: st.empresa.id, user_id: u.id, versao: PRIV.versao, agente: navigator.userAgent.slice(0, 200), ...(st.srv >= 8 ? { revogado_em: null } : {}) }, { onConflict: 'empresa_id,user_id,versao' }); if (error) st.consSemTabela = true; }
     try { localStorage.setItem(chaveAceite(), PRIV.versao); } catch (e) { /* ignora */ }
-  } else { st.usuario = { ...u, privacidade: { versao: PRIV.versao, em: Date.now() } }; await salvarUsuario(st.empresa, st.usuario); }
+  } else { st.usuario = { ...u, privacidade: { versao: PRIV.versao, em: Date.now() } }; delete st.usuario.privacidadeRevogada; await salvarUsuario(st.empresa, st.usuario); }
   audita('privacidade', 'Versão ' + PRIV.versao);
+}
+// Revogação do aceite (LGPD, art. 8º, § 5º): fica registrada e a sessão termina; no próximo login o aviso aparece de novo
+async function revogarAceite() {
+  if (st.sb) {
+    if (!(st.srv >= 8)) throw new Error('Rode supabase/migracao_08_seguranca_avancada.sql para registrar a revogação no banco.');
+    const { error } = await st.sb.from('consentimentos').update({ revogado_em: new Date().toISOString() }).eq('empresa_id', st.empresa.id).eq('user_id', st.usuario.id).is('revogado_em', null);
+    if (error) throw error;
+    try { localStorage.removeItem(chaveAceite()); } catch (e) { /* ignora */ }
+  } else { const u = { ...st.usuario, privacidadeRevogada: Date.now() }; delete u.privacidade; st.usuario = u; await salvarUsuario(st.empresa, u); }
+  await audita('privacidade_revogada', 'Versão ' + PRIV.versao);
+  await sair();
 }
 function avisoPrivacidadeHtml() {
   const ctrl = PRIV.controlador || (st.empresa && st.empresa.nome) || 'a empresa do ambiente';
@@ -4244,11 +4466,12 @@ function avisoPrivacidadeHtml() {
   return `<div class="priv">
     <p><b>Quem trata os dados:</b> ${esc(ctrl)} (controladora). Encarregado pelo tratamento de dados pessoais: ${enc}.</p>
     <p><b>Para quê:</b> planejar setores e rotas de visita, calcular KM, tempo e custos de deslocamento e comparar cenários. Os dados não são usados para outra finalidade nem vendidos.</p>
-    <p><b>Quais dados:</b> nome e e-mail de quem usa o sistema; cadastro de clientes (código, nome, endereço e coordenadas); colaboradores (código, nome e endereço da base de saída, que pode ser residencial); e o registro das atividades no sistema (quem fez o quê e quando).</p>
+    <p><b>Quais dados:</b> nome e e-mail de quem usa o sistema; cadastro de clientes (código, nome, endereço e coordenadas); colaboradores (código, nome e endereço da base de saída, que pode ser residencial); valores da verba indenizatória; e o registro das atividades no sistema (quem fez o quê, quando, de qual endereço IP e navegador).</p>
     <p><b>Base legal:</b> execução do contrato de trabalho e de prestação de serviços e legítimo interesse da empresa na organização das visitas (LGPD, art. 7º, V e IX).</p>
     <p><b>Com quem é compartilhado:</b> o banco de dados (Supabase) guarda as informações. Para localizar endereços e calcular rotas, apenas o endereço ou as coordenadas, sem nomes, são enviados aos serviços de mapa escolhidos (OpenStreetMap/Nominatim, OSRM, Valhalla ou Google).</p>
-    <p><b>Segurança:</b> conexão criptografada, acesso separado por empresa, verificação em duas etapas, fim da sessão por inatividade e registro de atividades que não pode ser alterado.</p>
-    <p><b>Seus direitos:</b> confirmar e acessar os seus dados, corrigir, pedir anonimização ou exclusão do que não for necessário, saber com quem são compartilhados e revogar este aceite (LGPD, art. 18). Em Configurações → Segurança e privacidade você baixa os seus dados e envia pedidos.</p>
+    <p><b>Segurança:</b> conexão criptografada (HTTPS), endereço e coordenadas da base de saída dos colaboradores e lançamentos da verba cifrados com AES-256, acesso separado por empresa, verificação em duas etapas, bloqueio depois de tentativas erradas, fim da sessão por inatividade e registro de atividades que não pode ser alterado nem apagado sem deixar rastro.</p>
+    <p><b>Por quanto tempo:</b> os cadastros ficam enquanto forem necessários para a finalidade ou para cumprir obrigação legal; o registro de atividades, por até 5 anos.</p>
+    <p><b>Seus direitos:</b> confirmar e acessar os seus dados, corrigir, pedir anonimização ou exclusão do que não for necessário, portabilidade, saber com quem são compartilhados e revogar este aceite (LGPD, art. 18). Em Configurações → Segurança e privacidade você baixa os seus dados, envia pedidos (respondidos em até 15 dias) e revoga o aceite.</p>
     <p class="muted" style="font-size:12px">Versão ${esc(PRIV.versao)}.</p></div>`;
 }
 
@@ -4286,48 +4509,410 @@ async function encerrarPorInatividade() {
 /* ----- Senha forte ----- */
 const SENHAS_FRACAS = ['12345678', '123456789', '1234567890', 'senha123', 'password', 'qwerty123', 'abc12345', 'mudar123', 'admin123', '11111111', '00000000'];
 function forcaSenha(s) { s = String(s); let p = 0; if (s.length >= SENHA_MIN) p++; if (s.length >= 14) p++; if (/[a-z]/.test(s) && /[A-Z]/.test(s)) p++; if (/\d/.test(s)) p++; if (/[^A-Za-z0-9]/.test(s)) p++; return Math.min(4, p); }
+function senhaMedidorHtml() {
+  return `<div class="pw-strength" data-pw-strength data-level="0">
+    <div class="pw-strength-head"><span>Força da senha</span><b data-pw-label aria-live="polite">Digite a nova senha</b></div>
+    <div class="pw-strength-bars" role="progressbar" aria-label="Força da senha" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" aria-valuetext="Sem senha">${'<i></i>'.repeat(4)}</div>
+    <p>Use ${SENHA_MIN} ou mais caracteres, letras e números; comprimento extra e variedade aumentam a força. A validação final aplica os requisitos completos de segurança.</p>
+  </div>`;
+}
+function bindSenhaMedidor(form) {
+  if (!form) return;
+  const input = form.elements.namedItem('senha'), medidor = form.querySelector('[data-pw-strength]');
+  if (!input || !medidor) return;
+  const barra = medidor.querySelector('[role="progressbar"]'), label = medidor.querySelector('[data-pw-label]'), segmentos = [...barra.children];
+  const atualizar = () => {
+    const senha = String(input.value || ''), nivel = forcaSenha(senha);
+    const texto = !senha ? 'Digite a nova senha' : ['Muito fraca', 'Fraca', 'Razoável', 'Boa', 'Forte'][nivel];
+    medidor.dataset.level = String(nivel);
+    label.textContent = texto;
+    barra.setAttribute('aria-valuenow', String(nivel));
+    barra.setAttribute('aria-valuetext', texto);
+    segmentos.forEach((s, i) => s.classList.toggle('on', i < nivel));
+  };
+  input.addEventListener('input', atualizar);
+  form.addEventListener('reset', () => setTimeout(atualizar, 0));
+  atualizar();
+}
 
 /* ----- Tela de segurança e privacidade ----- */
-async function segurancaForm() {
-  const admin = st.usuario.papel === 'admin', p = st.politica;
+const SG = { aba: 'protecao' };
+async function segurancaForm(aba) {
+  if (aba) SG.aba = aba;
+  const admin = st.usuario.papel === 'admin';
   st.mfaAtivo = await mfaAtivo();
+  const abas = [['protecao', 'Proteção da conta'], ...(admin ? [['politica', 'Política e acessos']] : []), ['privacidade', 'Privacidade (LGPD)'], ['auditoria', admin ? 'Auditoria' : 'Minhas atividades'], ...(admin ? [['conformidade', 'Conformidade']] : [])];
+  if (!abas.some(a => a[0] === SG.aba)) SG.aba = 'protecao';
   openModal(`<div class="dh"><h2>Segurança e privacidade</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
-  <div class="db">
-    <section class="acct-sec" style="border-top:0;padding-top:0"><h3>Verificação em duas etapas</h3>
+  <div class="db"><div class="seg sg-abas" role="tablist" aria-label="Seções">${abas.map(([k, t]) => `<button type="button" role="tab" data-sgaba="${k}" aria-selected="${SG.aba === k}" aria-pressed="${SG.aba === k}">${t}</button>`).join('')}</div>
+    <div id="sgCorpo" class="sg-corpo"><p class="muted">Carregando…</p></div><div id="sgMsg" role="alert"></div></div>
+  <div class="df"><button class="btn" type="button" data-act="conta">Minha conta</button><button class="btn primary" type="button" data-close>Fechar</button></div>`, 'lg');
+  $$('#modal [data-sgaba]').forEach(b => { b.onclick = () => segurancaForm(b.dataset.sgaba); });
+  const msg = (t, c = 'bad') => { const m = $('#sgMsg'); if (m) m.innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
+  const corpo = $('#sgCorpo');
+  try { await SG_ABAS[SG.aba](corpo, msg, admin); }
+  catch (e) { if (corpo.isConnected) corpo.innerHTML = `<div class="banner bad">${esc(sbMensagem(e))}</div>`; }
+}
+const sgPill = (ok, sim, nao, cls = 'warn') => `<span class="pill ${ok ? 'ok' : cls}">${esc(ok ? sim : nao)}</span>`;
+const precisaMig08 = '<div class="banner" style="font-size:12.5px">Este recurso precisa da migração <b>supabase/migracao_08_seguranca_avancada.sql</b> no Supabase.</div>';
+const SG_ABAS = {
+  async protecao(el, msg) {
+    const p = st.politica, https = location.protocol === 'https:' || location.protocol === 'app:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    const linhas = [
+      ['Conexão', sgPill(https, location.protocol === 'app:' ? 'App de Windows' : location.protocol === 'https:' ? 'Criptografada (HTTPS)' : 'Local (este computador)', 'Sem HTTPS: publique o sistema com https', 'bad')],
+      ['Dados sensíveis', st.sb ? (st.cifra ? sgPill(true, 'Cifrados com AES-256-GCM') + ' <span class="muted">endereço e coordenadas das bases de saída, Verba Indenizatória</span>' : sgPill(false, '', st.srv >= 8 ? 'Chave indisponível' + (st.cifraErro ? ': ' + st.cifraErro : '') : 'Sem criptografia: falta a migração 08')) : '<span class="pill idle">Neste navegador</span> <span class="muted">sem servidor, os dados ficam só aqui</span>'],
+      ['Senhas', st.sb ? '<span class="pill ok">Supabase Auth (bcrypt)</span>' : '<span class="pill ok">PBKDF2-SHA256, 600 mil iterações</span>'],
+      ['Tentativas erradas', `<span class="pill ok">Bloqueio após ${SEG.tentativas}</span> <span class="muted">${st.sb ? (st.srv >= 8 ? 'no servidor (com os hooks ligados) e neste navegador' : 'neste navegador e pelos limites do Supabase') : 'neste navegador'}</span>`],
+      ['Bloqueio por IP', st.sb ? (st.srv >= 9 ? '<span class="pill ok">Ativo no fluxo do aplicativo</span> <span class="muted">mais de 20 falhas em 15 min; desbloqueio progressivo</span>' : '<span class="pill warn">Disponível após a migração 09</span>') : '<span class="pill idle">Disponível somente com Supabase</span>'],
+      ['Verificação “não sou um robô”', sgPill(Seg.captcha.ativo(), 'Ligada', 'Desligada (opcional, em js/config.js)', 'idle')],
+      ['Sessão', `<span class="pill ${+p.inatividadeMin ? 'ok' : 'warn'}">${+p.inatividadeMin ? 'Encerra depois de ' + p.inatividadeMin + ' min sem uso' : 'Sem limite de inatividade'}</span>`],
+      ['Registro de atividades', st.srv >= 8 ? '<span class="pill ok">À prova de adulteração</span> <span class="muted">cadeia SHA-256 gravada pelo banco</span>' : st.sb ? '<span class="pill ok">Só inclusão</span>' : '<span class="pill ok">Cadeia SHA-256 neste navegador</span>']
+    ];
+    el.innerHTML = `<section class="acct-sec" style="border-top:0;padding-top:0"><h3>Verificação em duas etapas</h3>
       <p class="muted" style="margin:0">Além da senha, o login pede um código de 6 dígitos gerado no celular por um aplicativo autenticador (Google Authenticator, Microsoft Authenticator, Authy ou outro).</p>
       <div class="row">${st.mfaAtivo ? `<span class="pill ok">Ativa nesta conta</span>${p.exige2fa ? '<span class="muted" style="font-size:12.5px">Obrigatória neste ambiente: não pode ser desligada.</span>' : '<button class="btn sm danger" type="button" id="sgMfaOff">Desligar</button>'}` : `<span class="pill warn">Desligada</span><button class="btn sm primary" type="button" id="sgMfaOn">Ativar agora</button>`}</div>
       <div id="sgMfa"></div></section>
-    ${admin ? `<section class="acct-sec"><h3>Política do ambiente</h3>
+    <section class="acct-sec"><h3>Sessões</h3>
+      ${st.sb ? `<p class="muted" style="margin:0">Esqueceu o sistema aberto em outro computador ou celular? Encerre as outras sessões; esta continua.</p><div class="row"><button class="btn sm" type="button" id="sgOutras">Encerrar as sessões em outros dispositivos</button></div>` : '<p class="muted" style="margin:0">Sem o servidor, a sessão existe só neste navegador.</p>'}</section>
+    <section class="acct-sec"><h3>Como os seus dados estão protegidos</h3><div class="tblwrap"><table class="t sg-prot"><tbody>${linhas.map(([a, b]) => `<tr><th scope="row">${a}</th><td class="wrap">${b}</td></tr>`).join('')}</tbody></table></div></section>`;
+    const on = $('#sgMfaOn'), off = $('#sgMfaOff'), outras = $('#sgOutras');
+    if (on) on.onclick = () => { on.disabled = true; montaCadastroMfa($('#sgMfa'), () => segurancaForm(), msg); };
+    if (off) off.onclick = () => {
+      $('#sgMfa').innerHTML = `<form id="sgOff" class="row"><label class="field"><span class="lbl">Código atual do aplicativo</span><input name="c" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label><button class="btn sm danger" type="submit">Confirmar e desligar</button></form>`;
+      $('#sgOff').onsubmit = async ev => { ev.preventDefault(); try { await mfaDesligar(new FormData(ev.target).get('c')); toast('Verificação em duas etapas desligada'); segurancaForm(); } catch (e) { msg(e.message || sbMensagem(e)); } };
+    };
+    if (outras) outras.onclick = () => armButton(outras, async () => {
+      const { error } = await st.sb.auth.signOut({ scope: 'others' });
+      if (error) { msg(sbMensagem(error)); return; }
+      audita('sessoes_encerradas'); msg('Pronto: as sessões em outros dispositivos foram encerradas.', 'info');
+    }, 'Confirmar');
+  },
+  async politica(el, msg) {
+    const p = st.politica;
+    el.innerHTML = `<section class="acct-sec" style="border-top:0;padding-top:0"><h3>Política do ambiente</h3>
       <form id="sgPol" class="stack"><label class="chk"><input type="checkbox" name="exige"${p.exige2fa ? ' checked' : ''}> Exigir a verificação em duas etapas de todos os usuários de ${esc(st.empresa.nome)}</label>
         <label class="field" style="max-width:280px"><span class="lbl">Encerrar a sessão sem uso depois de</span><select name="inat">${[0, 10, 15, 30, 60, 120].map(m => `<option value="${m}"${+p.inatividadeMin === m ? ' selected' : ''}>${m ? m + ' minutos' : 'nunca (não recomendado)'}</option>`).join('')}</select></label>
         ${st.sb && st.polSemColuna ? '<div class="banner" style="font-size:12.5px">O banco ainda não tem as colunas da política. Rode <b>supabase/migracao_04_seguranca.sql</b> no Supabase.</div>' : ''}
-        <div class="row"><button class="btn sm primary" type="submit">Salvar política</button></div></form></section>` : ''}
-    <section class="acct-sec"><h3>Privacidade (LGPD)</h3>
-      <details><summary>Ler o aviso de privacidade</summary>${avisoPrivacidadeHtml()}</details>
-      <div class="row"><button class="btn sm" type="button" id="sgMeus">Baixar os meus dados</button><button class="btn sm" type="button" id="sgPedido">Enviar pedido (correção, exclusão…)</button></div>
-      <form id="sgPedForm" class="stack" hidden><label class="field"><span class="lbl">Seu pedido</span><textarea name="txt" maxlength="500" required placeholder="Ex.: corrigir o meu nome; excluir o endereço da minha base de saída"></textarea><span class="hint">Fica no registro de atividades, que o administrador do ambiente acompanha.</span></label><div class="row"><button class="btn sm primary" type="submit">Enviar pedido</button></div></form></section>
-    <section class="acct-sec"><h3>${admin ? 'Registro de atividades do ambiente' : 'Minhas atividades'}</h3><div id="sgAud" class="muted">Carregando…</div></section>
-    <div id="sgMsg" role="alert"></div>
-  </div><div class="df"><button class="btn" type="button" data-act="conta">Minha conta</button><button class="btn primary" type="button" data-close>Fechar</button></div>`, 'lg');
-  const msg = (t, c = 'bad') => { const m = $('#sgMsg'); if (m) m.innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
-  const on = $('#sgMfaOn'), off = $('#sgMfaOff');
-  if (on) on.onclick = () => { on.disabled = true; montaCadastroMfa($('#sgMfa'), () => segurancaForm(), msg); };
-  if (off) off.onclick = () => {
-    $('#sgMfa').innerHTML = `<form id="sgOff" class="row"><label class="field"><span class="lbl">Código atual do aplicativo</span><input name="c" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label><button class="btn sm danger" type="submit">Confirmar e desligar</button></form>`;
-    $('#sgOff').onsubmit = async ev => { ev.preventDefault(); try { await mfaDesligar(new FormData(ev.target).get('c')); toast('Verificação em duas etapas desligada'); segurancaForm(); } catch (e) { msg(e.message || sbMensagem(e)); } };
-  };
-  const pol = $('#sgPol'); if (pol) pol.onsubmit = async ev => { ev.preventDefault(); const f = new FormData(ev.target); try { await salvaPolitica({ exige2fa: !!f.get('exige'), inatividadeMin: +f.get('inat') }); msg('Política salva. Quem ainda não tiver as duas etapas faz o cadastro no próximo login.', 'info'); } catch (e) { msg(sbMensagem(e)); } };
-  $('#sgMeus').onclick = baixarMeusDados;
-  $('#sgPedido').onclick = () => { $('#sgPedForm').hidden = false; $('#sgPedForm textarea').focus(); };
-  $('#sgPedForm').onsubmit = ev => { ev.preventDefault(); const t = String(new FormData(ev.target).get('txt')).trim(); if (!t) return; audita('titular_pedido', t); ev.target.reset(); ev.target.hidden = true; msg('Pedido registrado. O administrador do ambiente acompanha os pedidos no registro de atividades.', 'info'); };
-  try {
-    const l = await audLista(!admin), el = $('#sgAud'); if (!el) return;
-    el.classList.remove('muted');
-    el.innerHTML = l.length ? `<div class="tblwrap" style="max-height:260px;overflow:auto"><table class="t"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th></tr></thead><tbody>${l.slice(0, 200).map(r => `<tr><td>${fdh(r.em)}</td><td>${esc(r.usuario || r.email || '—')}</td><td>${esc(AUD_ACAO[r.acao] || r.acao)}</td><td class="wrap">${esc(r.detalhe || '')}</td></tr>`).join('')}</tbody></table></div>
+        <div class="row"><button class="btn sm primary" type="submit">Salvar política</button></div></form></section>
+      <section class="acct-sec"><h3>Contas com tentativas erradas</h3><div id="sgBloq" class="muted">Carregando…</div></section>
+      <section class="acct-sec"><h3>IPs com tentativas erradas</h3><div id="sgIpBloq" class="muted">Carregando…</div></section>`;
+    $('#sgPol').onsubmit = async ev => {
+      ev.preventDefault(); const f = new FormData(ev.target), nova = { exige2fa: !!f.get('exige'), inatividadeMin: +f.get('inat') };
+      if (!(await confirmarIdentidade('Alterar a política de segurança'))) { segurancaForm('politica'); return; }
+      try { await salvaPolitica(nova); await segurancaForm('politica'); toast('Política salva. Quem ainda não tiver as duas etapas faz o cadastro no próximo login.', 6000); }
+      catch (e) { await segurancaForm('politica'); toast(sbMensagem(e), 6000); }
+    };
+    const box = $('#sgBloq');
+    const l = await bloqueiosLista().catch(e => { box.textContent = sbMensagem(e); return undefined; });
+    if (!box.isConnected) return;
+    if (l === null) { box.classList.remove('muted'); box.innerHTML = precisaMig08; }
+    else if (l !== undefined) {
+      box.classList.remove('muted');
+      box.innerHTML = l.length ? `<div class="tblwrap"><table class="t"><thead><tr><th>Conta</th><th class="n">Erros seguidos</th><th>Situação</th><th>Último erro</th><th></th></tr></thead><tbody>${l.map(b => `<tr><td>${esc(b.nome || b.email)}${b.email && b.email !== b.nome ? `<div class="muted" style="font-size:12px">${esc(b.email)}</div>` : ''}</td><td class="n">${nf0.format(b.falhas)}</td><td>${b.bloqueadoAte ? `<span class="pill bad">Bloqueada até ${esc(fdh(b.bloqueadoAte))}</span>` : '<span class="pill warn">Em observação</span>'}</td><td>${b.ultima ? esc(fdh(b.ultima)) : '—'}</td><td><button class="btn sm" type="button" data-desbloq="${esc(b.id)}">Desbloquear</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<span class="muted">Nenhuma conta com tentativas erradas recentes.</span>';
+      box.onclick = ev => { const b = ev.target.closest('[data-desbloq]'); if (!b) return; armButton(b, async () => { try { await desbloquear(b.dataset.desbloq); toast('Conta desbloqueada'); segurancaForm('politica'); } catch (e) { msg(sbMensagem(e)); } }, 'Confirmar'); };
+    }
+    const ipBox = $('#sgIpBloq');
+    const ips = await bloqueiosIpLista().catch(e => { if (ipBox) ipBox.textContent = sbMensagem(e); return undefined; });
+    if (ips === undefined || !ipBox || !ipBox.isConnected) return;
+    if (ips === null) {
+      ipBox.classList.remove('muted');
+      ipBox.innerHTML = st.sb ? `<div class="banner" style="font-size:12.5px">Este recurso precisa da migração <b>supabase/migracao_09_bloqueio_ip.sql</b> no Supabase.</div>` : '<span class="muted">O bloqueio por IP requer o Supabase; o login local usa apenas o limite deste navegador.</span>';
+      return;
+    }
+    ipBox.classList.remove('muted');
+    ipBox.innerHTML = ips.length ? `<div class="tblwrap"><table class="t"><thead><tr><th>IP</th><th class="n">Falhas</th><th class="n">Bloqueios</th><th>Situação</th><th>Último erro</th><th></th></tr></thead><tbody>${ips.map(b => `<tr><td>${esc(b.ip)}</td><td class="n">${nf0.format(b.falhas)}</td><td class="n">${nf0.format(b.bloqueios)}</td><td>${b.bloqueadoAte > Date.now() ? `<span class="pill bad">Bloqueado até ${esc(fdh(b.bloqueadoAte))}</span>` : '<span class="pill warn">Sem bloqueio ativo</span>'}</td><td>${b.ultima ? esc(fdh(b.ultima)) : '—'}</td><td><button class="btn sm" type="button" data-ipunblock="${esc(b.ip)}">Desbloquear</button></td></tr>`).join('')}</tbody></table></div>`
+      : '<span class="muted">Nenhum IP com tentativas erradas.</span>';
+    ipBox.onclick = ev => { const b = ev.target.closest('[data-ipunblock]'); if (!b) return; armButton(b, async () => { try { await desbloquearIp(b.dataset.ipunblock); toast('IP desbloqueado'); segurancaForm('politica'); } catch (e) { msg(sbMensagem(e)); } }, 'Confirmar'); };
+  },
+  async privacidade(el, msg) {
+    el.innerHTML = `<section class="acct-sec" style="border-top:0;padding-top:0"><h3>Aviso de privacidade</h3>
+      <details><summary>Ler o aviso de privacidade (versão ${esc(PRIV.versao)})</summary>${avisoPrivacidadeHtml()}</details>
+      <div class="row"><button class="btn sm" type="button" id="sgMeus">Baixar os meus dados</button><button class="btn sm danger" type="button" id="sgRevoga">Revogar o meu aceite</button></div>
+      <p class="muted" style="margin:0;font-size:12.5px">Sem o aceite, não é possível usar o sistema: ao revogar, a sessão termina e o aviso aparece de novo no próximo login.</p></section>
+    <section class="acct-sec"><h3>Pedidos sobre os meus dados</h3>
+      <form id="sgPedForm" class="stack"><div class="fgrid"><label class="field"><span class="lbl">Tipo de pedido</span><select name="tipo">${Object.entries(PED_TIPOS).map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select></label></div>
+        <label class="field"><span class="lbl">Descreva o pedido</span><textarea name="txt" maxlength="2000" required placeholder="Ex.: corrigir o meu nome; excluir o endereço da minha base de saída"></textarea><span class="hint">O administrador do ambiente responde em até 15 dias (LGPD, art. 19).</span></label>
+        <div class="row"><button class="btn sm primary" type="submit">Enviar pedido</button></div></form>
+      <div id="sgPedidos" class="muted">Carregando…</div></section>`;
+    $('#sgMeus').onclick = baixarMeusDados;
+    const rv = $('#sgRevoga'); rv.onclick = () => armButton(rv, async () => { try { await revogarAceite(); } catch (e) { msg(e.message || sbMensagem(e)); } }, 'Confirmar: revogar e sair');
+    $('#sgPedForm').onsubmit = async ev => {
+      ev.preventDefault(); const f = new FormData(ev.target), b = ev.target.querySelector('[type=submit]'); b.disabled = true;
+      try { await pedCriar(f.get('tipo'), f.get('txt')); toast('Pedido enviado. Acompanhe o andamento aqui.', 5000); segurancaForm('privacidade'); }
+      catch (e) { b.disabled = false; msg(e.message || sbMensagem(e)); }
+    };
+    const box = $('#sgPedidos'), l = await pedLista(false).catch(() => null);
+    if (!box.isConnected) return;
+    box.classList.remove('muted');
+    box.innerHTML = l === null ? '<span class="muted" style="font-size:12.5px">Os pedidos ficam no registro de atividades, que o administrador acompanha.</span>' : pedTabela(l, false);
+  },
+  async auditoria(el, msg, admin) {
+    el.innerHTML = `${admin ? `<section class="acct-sec" style="border-top:0;padding-top:0"><h3>Integridade do registro</h3>
+      <p class="muted" style="margin:0">Cada registro guarda o hash SHA-256 do anterior. Se alguém alterar ou apagar um registro do meio, a conferência aponta onde.</p>
+      <div class="row"><button class="btn sm" type="button" id="sgInteg">Conferir integridade</button><span id="sgIntegR"></span></div></section>` : ''}
+      <section class="acct-sec"${admin ? '' : ' style="border-top:0;padding-top:0"'}><h3>${admin ? 'Registro de atividades do ambiente' : 'Minhas atividades'}</h3><div id="sgAud" class="muted">Carregando…</div></section>`;
+    const ig = $('#sgInteg');
+    if (ig) ig.onclick = async () => {
+      ig.disabled = true; const r = $('#sgIntegR'); r.innerHTML = '<span class="muted">Conferindo…</span>';
+      try {
+        const v = await integridade();
+        r.innerHTML = !v ? precisaMig08 : v.integro ? `<span class="pill ok">Íntegro</span> <span class="muted" style="font-size:12.5px">${nf0.format(v.registros)} registros · último selo <code class="mono" title="Guarde este código: ele prova o estado do registro neste momento">${esc(String(v.ultimoHash || '').slice(0, 16))}…</code></span>`
+          : `<span class="pill bad">Problema encontrado</span> <span style="font-size:12.5px">A cadeia quebra no registro ${esc(String(v.problema))}: ele foi alterado ou há registros apagados antes dele.</span>`;
+      } catch (e) { r.innerHTML = `<span class="pill bad">${esc(sbMensagem(e))}</span>`; }
+      finally { ig.disabled = false; }
+    };
+    let l;
+    try { l = await audLista(!admin); }
+    catch (e) { const b = $('#sgAud'); if (b) b.innerHTML = st.sb ? 'O banco ainda não tem o registro de atividades. Rode <b>supabase/migracao_04_seguranca.sql</b> no Supabase.' : 'Não foi possível ler o registro.'; return; }
+    const b = $('#sgAud'); if (!b) return;
+    const comIp = admin && l.some(r => r.ip);
+    b.classList.remove('muted');
+    b.innerHTML = l.length ? `<div class="tblwrap" style="max-height:340px;overflow:auto"><table class="t"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th>${comIp ? '<th>IP</th>' : ''}</tr></thead><tbody>${l.slice(0, 300).map(r => `<tr><td>${fdh(r.em)}</td><td>${esc(r.usuario || r.email || (r.user_id === '00000000-0000-0000-0000-000000000000' ? 'Banco de dados' : '—'))}</td><td>${esc(AUD_ACAO[r.acao] || r.acao)}</td><td class="wrap">${esc(r.detalhe || '')}</td>${comIp ? `<td class="mono">${esc(r.ip || '')}</td>` : ''}</tr>`).join('')}</tbody></table></div>
       <div class="row"><button class="btn sm" type="button" id="sgAudXls">Exportar registro (.xlsx)</button><span class="muted" style="font-size:12px">${st.sb ? 'Os registros ficam no banco e não podem ser alterados nem apagados pelo sistema.' : `Os últimos ${AUD_MAX_LOCAL} registros ficam neste navegador.`}</span></div>` : '<span class="muted">Nenhuma atividade registrada ainda.</span>';
-    const x = $('#sgAudXls'); if (x) x.onclick = () => { saveFile(`atividades_${slug(st.empresa.nome)}_${dstamp()}.xlsx`, xlsxBlob([['Atividades', l.map(r => ({ Quando: fdh(r.em), Usuario: r.usuario || '', Email: r.email || '', Acao: AUD_ACAO[r.acao] || r.acao, Detalhe: r.detalhe || '' }))]])); audita('exportacao', 'Registro de atividades'); };
-  } catch (e) { const el = $('#sgAud'); if (el) el.innerHTML = st.sb ? 'O banco ainda não tem o registro de atividades. Rode <b>supabase/migracao_04_seguranca.sql</b> no Supabase.' : 'Não foi possível ler o registro.'; }
+    const x = $('#sgAudXls');
+    if (x) x.onclick = async () => {
+      if (!(await confirmarIdentidade('Exportar o registro de atividades'))) { segurancaForm('auditoria'); return; }
+      saveFile(`atividades_${slug(st.empresa.nome)}_${dstamp()}.xlsx`, xlsxBlob([['Atividades', l.map(r => ({ Quando: fdh(r.em), Usuario: r.usuario || '', Email: r.email || '', Acao: AUD_ACAO[r.acao] || r.acao, Detalhe: r.detalhe || '', IP: r.ip || '', Hash: r.hash || r.h || '' }))]]));
+      audita('exportacao', 'Registro de atividades');
+      if (!$('#sgAud')) segurancaForm('auditoria');
+    };
+  },
+  async conformidade(el, msg) {
+    el.innerHTML = '<p class="muted">Carregando…</p>';
+    const [membros, pedidos] = await Promise.all([conformidadeLista().catch(() => undefined), pedLista(true).catch(() => null)]);
+    if (!el.isConnected) return;
+    const agora = Date.now(), abertos = (pedidos || []).filter(x => !['atendido', 'negado'].includes(x.status)), atrasados = abertos.filter(x => x.prazo < agora);
+    const kpi = (t, v, sub, cls = '') => `<div class="sg-kpi ${cls}"><span class="lbl">${t}</span><b class="num">${v}</b><span class="muted">${sub}</span></div>`;
+    const m = membros || [];
+    el.innerHTML = `<div class="sg-kpis">
+        ${kpi('Pessoas no ambiente', membros ? nf0.format(m.length) : '—', membros ? `${m.filter(x => x.papel === 'admin').length} administrador(es)` : 'precisa da migração 08')}
+        ${kpi('Com duas etapas', membros ? nf0.format(m.filter(x => x.duas_etapas).length) : '—', st.politica.exige2fa ? 'obrigatória no ambiente' : 'não obrigatória', membros && m.some(x => !x.duas_etapas) ? 'warn' : '')}
+        ${kpi('Aceite do aviso atual', membros ? nf0.format(m.filter(x => x.aceite_versao === PRIV.versao && !x.aceite_revogado).length) : '—', 'versão ' + esc(PRIV.versao))}
+        ${kpi('Pedidos em aberto', pedidos ? nf0.format(abertos.length) : '—', atrasados.length ? `${atrasados.length} fora do prazo` : 'nenhum atrasado', atrasados.length ? 'bad' : '')}
+      </div>
+      <section class="acct-sec" style="border-top:0"><h3>Pessoas do ambiente</h3>${membros ? `<div class="tblwrap"><table class="t"><thead><tr><th>Nome</th><th>Perfil</th><th>Duas etapas</th><th>Aceite do aviso</th><th>Último acesso</th></tr></thead><tbody>${m.map(x => `<tr><td>${esc(x.nome)}<div class="muted" style="font-size:12px">${esc(x.email || '')}</div></td><td>${x.papel === 'admin' ? 'Administrador' : 'Usuário'}</td><td>${sgPill(x.duas_etapas, 'Ativa', 'Desligada')}</td><td>${x.aceite_revogado ? '<span class="pill bad">Revogado</span>' : x.aceite_versao === PRIV.versao ? `<span class="pill ok">${esc(fdate(x.aceite_em))}</span>` : x.aceite_versao ? `<span class="pill warn">Versão ${esc(x.aceite_versao)}</span>` : '<span class="pill warn">Pendente</span>'}</td><td>${x.ultimo_acesso ? esc(fdh(x.ultimo_acesso)) : '—'}</td></tr>`).join('')}</tbody></table></div>` : precisaMig08}</section>
+      <section class="acct-sec"><h3>Pedidos de titulares</h3>${pedidos === null ? precisaMig08 : pedTabela(pedidos, true)}</section>
+      <section class="acct-sec"><h3>Relatório de conformidade</h3><p class="muted" style="margin:0">Planilha com o resumo dos controles, o inventário dos dados pessoais (finalidade, base legal, compartilhamento, proteção e retenção), as pessoas, os pedidos e as atividades. Serve para a auditoria da LGPD e para o encarregado (DPO).</p>
+        <div class="row"><button class="btn sm primary" type="button" id="sgRel">Gerar relatório (.xlsx)</button></div></section>`;
+    $('#sgRel').onclick = relatorioLgpd;
+    el.onclick = ev => {
+      const b = ev.target.closest('[data-pedresp]'); if (!b) return;
+      const id = isNaN(+b.dataset.pedresp) ? b.dataset.pedresp : +b.dataset.pedresp, p = (pedidos || []).find(x => x.id === id); if (!p) return;
+      const box = b.closest('td');
+      box.innerHTML = `<form class="stack sg-resp"><select name="status">${Object.entries(PED_STATUS).map(([k, [t]]) => `<option value="${k}"${p.status === k ? ' selected' : ''}>${t}</option>`).join('')}</select><textarea name="resp" maxlength="2000" placeholder="Resposta ao titular">${esc(p.resposta || '')}</textarea><div class="row"><button class="btn sm primary" type="submit">Salvar</button></div></form>`;
+      box.querySelector('form').onsubmit = async ev2 => {
+        ev2.preventDefault(); const f = new FormData(ev2.target);
+        try { await pedResponder(id, f.get('status'), f.get('resp')); toast('Pedido atualizado'); segurancaForm('conformidade'); } catch (e) { msg(sbMensagem(e)); }
+      };
+    };
+  }
+};
+/* ----- Pedidos de titulares (LGPD, art. 18): o titular abre, o administrador responde em até 15 dias ----- */
+const PED_TIPOS = { acesso: 'Acesso aos meus dados', correcao: 'Correção de dados', exclusao: 'Exclusão de dados', anonimizacao: 'Anonimização ou bloqueio', portabilidade: 'Portabilidade dos dados', informacao: 'Com quem os dados são compartilhados', oposicao: 'Oposição a um tratamento', revogacao: 'Revogação do consentimento', confirmacao: 'Confirmar se há tratamento dos meus dados' };
+const PED_STATUS = { aberto: ['Aberto', 'warn'], em_andamento: ['Em andamento', 'idle'], atendido: ['Atendido', 'ok'], negado: ['Negado', 'bad'] };
+const pedColl = () => st.empresa.id + '_pedidos';
+async function pedLista(todos) {
+  if (st.sb) {
+    if (!(st.srv >= 8)) return null;
+    let q = st.sb.from('pedidos_titular').select('*').eq('empresa_id', st.empresa.id).order('criado_em', { ascending: false }).limit(500);
+    if (!todos) q = q.eq('user_id', st.usuario.id);
+    const { data, error } = await q; if (error) throw error;
+    return data.map(x => ({ ...x, criado_em: Date.parse(x.criado_em), prazo: Date.parse(x.prazo), respondido_em: x.respondido_em ? Date.parse(x.respondido_em) : null }));
+  }
+  const d = (await st.base.list(pedColl())).find(x => x.id === 'lista'), l = (d && d.data && d.data.items) || [];
+  return todos ? l : l.filter(x => x.user_id === st.usuario.id);
 }
+async function pedCriar(tipo, descricao) {
+  const desc = Seg.texto(descricao, 2000, true).trim();
+  if (!PED_TIPOS[tipo]) throw new Error('Escolha o tipo de pedido.');
+  if (desc.length < 3) throw new Error('Descreva o pedido.');
+  if (st.sb) {
+    if (!(st.srv >= 8)) { await audita('titular_pedido', `${PED_TIPOS[tipo]}: ${desc}`); return; } // sem a migração 08, o pedido fica no registro
+    const { error } = await st.sb.from('pedidos_titular').insert({ empresa_id: st.empresa.id, user_id: st.usuario.id, tipo, descricao: desc }); if (error) throw error;
+    return;
+  }
+  const l = await pedLista(true), agora = Date.now(), id = l.reduce((m, x) => Math.max(m, +x.id || 0), 0) + 1;
+  l.unshift({ id, user_id: st.usuario.id, nome: st.usuario.nome, email: st.usuario.login, tipo, descricao: desc, status: 'aberto', resposta: null, criado_em: agora, prazo: agora + 15 * 864e5 });
+  await st.base.set(pedColl(), 'lista', { items: l });
+  audita('titular_pedido', `Pedido nº ${id} (${tipo}): ${desc}`);
+}
+async function pedResponder(id, status, resposta) {
+  if (!PED_STATUS[status]) throw new Error('Situação inválida.');
+  const r = Seg.texto(resposta || '', 2000, true).trim() || null;
+  if (st.sb) { const { error } = await st.sb.from('pedidos_titular').update({ status, resposta: r }).eq('id', id).eq('empresa_id', st.empresa.id); if (error) throw error; return; }
+  const l = await pedLista(true), x = l.find(y => y.id === id); if (!x) return;
+  Object.assign(x, { status, resposta: r, respondido_em: ['atendido', 'negado'].includes(status) ? Date.now() : null, respondido_por: st.usuario.nome });
+  await st.base.set(pedColl(), 'lista', { items: l });
+  audita('titular_resposta', `Pedido nº ${id} de ${x.nome || x.email}: ${status}`);
+}
+function pedTabela(l, admin) {
+  if (!l.length) return '<span class="muted">Nenhum pedido.</span>';
+  const agora = Date.now();
+  return `<div class="tblwrap"><table class="t"><thead><tr><th>Nº</th>${admin ? '<th>Titular</th>' : ''}<th>Pedido</th><th>Situação</th><th>Prazo</th><th>Resposta</th></tr></thead><tbody>${l.map(x => {
+    const [st_, cls] = PED_STATUS[x.status] || [x.status, 'idle'], aberto = !['atendido', 'negado'].includes(x.status), atraso = aberto && x.prazo < agora;
+    return `<tr><td class="num">${esc(x.id)}</td>${admin ? `<td>${esc(x.nome || '')}<div class="muted" style="font-size:12px">${esc(x.email || '')}</div></td>` : ''}<td class="wrap"><b>${esc(PED_TIPOS[x.tipo] || x.tipo)}</b><div class="muted" style="font-size:12.5px">${esc(x.descricao)}</div><div class="muted" style="font-size:11.5px">${esc(fdh(x.criado_em))}</div></td>
+      <td><span class="pill ${cls}">${esc(st_)}</span></td><td>${aberto ? `<span class="pill ${atraso ? 'bad' : 'idle'}">${atraso ? 'Atrasado · ' : ''}${esc(fdate(x.prazo))}</span>` : esc(x.respondido_em ? fdate(x.respondido_em) : '—')}</td>
+      <td class="wrap">${x.resposta ? esc(x.resposta) : '<span class="muted">—</span>'}${x.respondido_por ? `<div class="muted" style="font-size:11.5px">${esc(x.respondido_por)}</div>` : ''}${admin ? `<div class="row" style="margin-top:4px"><button class="btn sm" type="button" data-pedresp="${esc(x.id)}">Responder</button></div>` : ''}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+/* ----- Conformidade: pessoas do ambiente, integridade do registro, contas com tentativas erradas ----- */
+async function sbVersaoSeguranca() { try { const { data, error } = await st.sb.rpc('seguranca_versao'); return error ? 0 : +data || 0; } catch (e) { return 0; } }
+async function conformidadeLista() {
+  if (st.sb) {
+    if (!(st.srv >= 8)) return null;
+    const { data, error } = await st.sb.rpc('membros_conformidade', { e: st.empresa.id }); if (error) throw error;
+    return data.map(x => ({ ...x, ultimo_acesso: x.ultimo_acesso ? Date.parse(x.ultimo_acesso) : null, aceite_em: x.aceite_em ? Date.parse(x.aceite_em) : null }));
+  }
+  return (await usuariosDe(st.empresa)).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')).map(u => ({ user_id: u.id, nome: u.nome, email: u.login, papel: u.papel, duas_etapas: !!(u.mfa && u.mfa.on), ultimo_acesso: u.ultimoAcesso || null, aceite_versao: u.privacidade ? u.privacidade.versao : null, aceite_em: u.privacidade ? u.privacidade.em : null, aceite_revogado: !u.privacidade && !!u.privacidadeRevogada }));
+}
+async function integridade() {
+  if (st.sb) {
+    if (!(st.srv >= 8)) return null;
+    const { data, error } = await st.sb.rpc('auditoria_verificar', { e: st.empresa.id }); if (error) throw error;
+    const r = data[0]; return { registros: +r.registros, integro: r.integro, problema: r.primeiro_problema, ultimoHash: r.ultimo_hash, ultimoEm: r.ultimo_em ? Date.parse(r.ultimo_em) : null };
+  }
+  const l = (await audLocalLer()).slice().reverse(); let n = 0, integro = true, problema = null, ant = null, iniciou = false;
+  for (const r of l) {
+    if (!r.h) { if (iniciou && integro) { integro = false; problema = fdh(r.em); } continue; } // registro sem hash depois da cadeia começar
+    n++;
+    const ok = r.h === (await Seg.sha256(audTexto(r))) && (!iniciou || r.ha === ant);
+    if (!ok && integro) { integro = false; problema = fdh(r.em); }
+    ant = r.h; iniciou = true;
+  }
+  return { registros: n, integro, problema, ultimoHash: ant, ultimoEm: l.length ? l[l.length - 1].em : null };
+}
+async function bloqueiosLista() {
+  if (st.sb) {
+    if (!(st.srv >= 8)) return null;
+    const { data, error } = await st.sb.rpc('seguranca_bloqueios', { e: st.empresa.id }); if (error) throw error;
+    return data.map(b => ({ id: b.user_id, nome: b.nome, email: b.email, falhas: (b.falhas || 0) + (b.falhas_mfa || 0), bloqueadoAte: b.bloqueado_ate && Date.parse(b.bloqueado_ate) > Date.now() ? Date.parse(b.bloqueado_ate) : 0, ultima: b.ultima_falha ? Date.parse(b.ultima_falha) : 0 }));
+  }
+  return Seg.Freio.lista(st.empresa.id + ':').filter(v => (v.n || 0) > 0 || v.ate > Date.now()).map(v => ({ id: v.conta, nome: v.conta, email: '', falhas: v.n || 0, bloqueadoAte: v.ate > Date.now() ? v.ate : 0, ultima: v.ult || 0 }));
+}
+async function bloqueiosIpLista() {
+  if (!st.sb || !(st.srv >= 9)) return null;
+  const { data, error } = await st.sb.rpc('seguranca_ips_bloqueados', { e: st.empresa.id });
+  if (error) throw error;
+  return data.map(b => ({
+    ip: b.ip,
+    falhas: b.falhas || 0,
+    bloqueios: b.bloqueios || 0,
+    bloqueadoAte: b.bloqueado_ate ? Date.parse(b.bloqueado_ate) : 0,
+    ultima: b.ultima_falha ? Date.parse(b.ultima_falha) : 0
+  }));
+}
+async function desbloquearIp(ip) {
+  if (!st.sb || !(st.srv >= 9)) throw new Error('O bloqueio por IP não está disponível.');
+  const { error } = await st.sb.rpc('seguranca_ip_desbloquear', { e: st.empresa.id, alvo: ip });
+  if (error) throw error;
+}
+async function desbloquear(id) {
+  if (st.sb) { const { error } = await st.sb.rpc('seguranca_desbloquear', { e: st.empresa.id, alvo: id }); if (error) throw error; return; }
+  Seg.Freio.liberar(st.empresa.id + ':' + id); audita('conta_desbloqueada', id);
+}
+// Chave de criptografia dos campos sensíveis (migração 08). Sem ela, os dados continuam abertos como antes
+async function carregaChaveDados() {
+  st.cifra = null; st.cifraErro = '';
+  if (!(st.srv >= 8) || SEG.cifrarCampos === false || !Seg.temCripto()) return;
+  try { const { data, error } = await st.sb.rpc('chave_dados', { e: st.empresa.id }); if (error) throw error; st.cifra = await Seg.importarChave(data); }
+  catch (e) { st.cifraErro = sbMensagem(e); toast('A chave de criptografia do ambiente não carregou: ' + st.cifraErro, 8000); }
+}
+// Avisa no login se houve tentativas erradas na conta desde o último acesso (como fazem os bancos)
+async function avisoTentativas() {
+  let n = st.avisoTentativas || 0, quando = null; st.avisoTentativas = 0;
+  if (st.sb && st.srv >= 8) { try { const { data } = await st.sb.rpc('minhas_tentativas'); if (data && data[0]) { n = Math.max(n, data[0].falhas || 0); quando = data[0].ultima; } } catch (e) { /* segue */ } }
+  if (n > 0) toast(`Atenção: ${n} tentativa(s) com senha ou código errado na sua conta desde o último acesso${quando ? ' (a última em ' + fdh(Date.parse(quando)) + ')' : ''}. Se não foi você, troque a senha em Minha conta.`, 12000);
+}
+
+/* ----- Confirmação de identidade antes de ações sensíveis (backup, política, remover pessoas…). Vale por alguns minutos ----- */
+let reautAte = 0;
+function confirmarIdentidade(motivo) {
+  if (Date.now() < reautAte) return Promise.resolve(true);
+  const mfa = !!st.mfaAtivo, comCap = !!st.sb && !mfa && Seg.captcha.ativo();
+  return new Promise(res => {
+    let fim = false; const acaba = v => { if (!fim) { fim = true; obs.disconnect(); res(v); } };
+    openModal(`<div class="dh"><h2>Confirme que é você</h2></div>
+      <form class="db stack" id="raForm"><p class="muted" style="margin:0"><b>${esc(motivo)}</b> é uma ação sensível. ${mfa ? 'Digite o código que aparece agora no aplicativo autenticador.' : 'Digite a sua senha para continuar.'}</p>
+        ${mfa ? textoCampo('codigo', 'Código do aplicativo', 'one-time-code', 'inputmode="numeric" maxlength="7"') : senhaCampo('senha', 'Senha', 'current-password')}
+        ${comCap ? '<div class="rvx-captcha" id="raCaptcha"></div>' : ''}<div id="raMsg" role="alert"></div></form>
+      <div class="df"><button class="btn" type="button" id="raNao">Cancelar</button><button class="btn primary" type="submit" form="raForm">Confirmar</button></div>`, 'sm');
+    const m = $('#modal'), obs = new MutationObserver(() => { if (m.hidden || !$('#raForm')) acaba(false); });
+    obs.observe(m, { childList: true, attributes: true, attributeFilter: ['hidden'] });
+    const erro = t => { const x = $('#raMsg'); if (x) x.innerHTML = `<div class="banner bad">${esc(t)}</div>`; };
+    if (comCap) montaCaptcha($('#raCaptcha'), erro);
+    $$('#raForm [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+    $('#raNao').onclick = () => { acaba(false); closeModal(); };
+    $('#raForm').onsubmit = async ev => {
+      ev.preventDefault();
+      const f = new FormData(ev.target), b = $('#modal .df .primary'), k = 'reaut:' + (st.usuario.login || st.usuario.id), at = bloqueado(st.empresa, k);
+      if (at) { erro(msgBloqueio(at)); return; }
+      b.disabled = true;
+      try {
+        let ok;
+        if (mfa) ok = await mfaConferirLogin(f.get('codigo'), st.usuario);
+        else if (st.sb) {
+          const cap = $('#raCaptcha'), tok = Seg.captcha.token(cap);
+          if (tok === '') { erro('Conclua a verificação de segurança.'); return; }
+          const { error } = await st.sb.auth.signInWithPassword({ email: st.usuario.login, password: f.get('senha'), options: tok ? { captchaToken: tok } : undefined });
+          Seg.captcha.reiniciar(cap);
+          if (error && !/invalid login/i.test(error.message || '')) { erro(sbMensagem(error)); return; }
+          ok = !error;
+        } else ok = await confere(f.get('senha'), st.usuario.senha);
+        if (!ok) {
+          const bl = registraFalha(st.empresa, k); audita('reautenticacao_falhou', motivo);
+          if (bl) { erro(msgBloqueio(bl) + ' Por segurança, a sessão vai terminar.'); setTimeout(() => sair(), 2500); return; }
+          erro(mfa ? 'Código incorreto ou vencido. Digite o código que aparece agora.' : 'Senha incorreta.'); return;
+        }
+        limpaFalhas(st.empresa, k); reautAte = Date.now() + Math.max(1, +SEG.reautenticarMin || 5) * 60000;
+        audita('reautenticacao', motivo); acaba(true); closeModal();
+      } finally { if (b.isConnected) b.disabled = false; }
+    };
+  });
+}
+
+/* ----- Relatório de conformidade LGPD (administrador) ----- */
+async function relatorioLgpd() {
+  if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
+  if (!(await confirmarIdentidade('Gerar o relatório de conformidade LGPD'))) { segurancaForm('conformidade'); return; }
+  toast('Montando o relatório…', 4000);
+  const e = st.empresa, p = st.politica, agora = Date.now();
+  const [membros, pedidos, ativ, integ] = await Promise.all([conformidadeLista().catch(() => null), pedLista(true).catch(() => null), audLista(false).catch(() => []), integridade().catch(() => null)]);
+  const nCol = st.col ? st.col.size : 0, nCli = st.cli ? st.cli.size : 0, abertos = (pedidos || []).filter(x => !['atendido', 'negado'].includes(x.status));
+  const nVerba = (window.VerbaMod && window.VerbaMod.qtd) ? window.VerbaMod.qtd() : '';
+  const prot = st.cifra ? 'cifrado com AES-256-GCM (chave do ambiente no Supabase Vault)' : 'acesso separado por ambiente (RLS)';
+  const resumo = [
+    ['Ambiente', e.nome], ['Gerado em', fdh(agora)], ['Gerado por', `${st.usuario.nome} <${st.usuario.login}>`],
+    ['Controlador', PRIV.controlador || e.nome], ['Encarregado (DPO)', PRIV.encarregado ? PRIV.encarregado + (PRIV.contato ? ' · ' + PRIV.contato : '') : 'não informado (js/config.js → seguranca.privacidade)'],
+    ['Versão do aviso de privacidade', PRIV.versao], ['Onde ficam os dados', st.sb ? 'Banco de dados Supabase da empresa' : 'Neste navegador'],
+    ['Duas etapas obrigatória', p.exige2fa ? 'Sim' : 'Não'], ['Fim da sessão por inatividade', +p.inatividadeMin ? p.inatividadeMin + ' min' : 'Desligado'],
+    ['Bloqueio por tentativas erradas', `${SEG.tentativas} tentativas · ${st.srv >= 8 ? 'servidor (hooks) e navegador' : 'navegador'}`],
+    ['Criptografia dos campos sensíveis', st.cifra ? 'Ligada (AES-256-GCM)' : st.sb ? 'Desligada (falta a migração 08 ou a chave)' : 'Não se aplica (dados no navegador)'],
+    ['Integridade do registro de atividades', integ ? `${integ.integro ? 'Íntegro' : 'PROBLEMA no registro ' + integ.problema} · ${integ.registros} registros` : 'não conferida'],
+    ['Último selo do registro (SHA-256)', integ && integ.ultimoHash ? integ.ultimoHash : '—'],
+    ['Pessoas no ambiente', membros ? membros.length : '—'], ['Pessoas com duas etapas', membros ? membros.filter(x => x.duas_etapas).length : '—'],
+    ['Aceites válidos da versão atual', membros ? membros.filter(x => x.aceite_versao === PRIV.versao && !x.aceite_revogado).length : '—'],
+    ['Pedidos de titulares em aberto', pedidos ? abertos.length : '—'], ['Pedidos fora do prazo de 15 dias', pedidos ? abertos.filter(x => x.prazo < agora).length : '—']
+  ].map(([Item, Valor]) => ({ Item, Valor: String(Valor) }));
+  const compart = st.sb ? 'Supabase (operador, banco de dados)' : 'nenhum (fica no navegador)';
+  const inventario = [
+    { Categoria: 'Pessoas que usam o sistema', 'Dados pessoais': 'nome, e-mail, perfil, duas etapas, aceites', Quantidade: membros ? membros.length : '', Finalidade: 'controle de acesso e segurança', 'Base legal (LGPD)': 'execução de contrato (art. 7º, V)', Compartilhamento: compart, 'Proteção': 'senha com hash, duas etapas, acesso por ambiente', 'Retenção': 'enquanto tiver acesso ao ambiente' },
+    { Categoria: 'Colaboradores', 'Dados pessoais': 'código, nome, função, endereço e coordenadas da base de saída (pode ser residencial)', Quantidade: nCol, Finalidade: 'planejar setores e rotas, calcular KM, tempo e verba', 'Base legal (LGPD)': 'execução do contrato de trabalho (art. 7º, V) e legítimo interesse (art. 7º, IX)', Compartilhamento: compart + '; serviços de mapa recebem só endereço ou coordenadas, sem nome', 'Proteção': 'endereço e coordenadas ' + prot, 'Retenção': 'enquanto durar o vínculo e os prazos legais' },
+    { Categoria: 'Clientes', 'Dados pessoais': 'código, nome, endereço e coordenadas (pessoas físicas, quando houver)', Quantidade: nCli, Finalidade: 'roteirização das visitas', 'Base legal (LGPD)': 'legítimo interesse (art. 7º, IX) e execução de contrato (art. 7º, V)', Compartilhamento: compart + '; serviços de mapa recebem só endereço ou coordenadas', 'Proteção': 'acesso separado por ambiente', 'Retenção': 'enquanto houver relação comercial' },
+    { Categoria: 'Verba indenizatória', 'Dados pessoais': 'valores por vendedor, reembolsos, descontos, motivos e comprovantes', Quantidade: nVerba, Finalidade: 'cálculo e pagamento da verba', 'Base legal (LGPD)': 'execução do contrato de trabalho (art. 7º, V) e obrigação legal (art. 7º, II)', Compartilhamento: compart, 'Proteção': 'lançamentos ' + prot + '; só o administrador altera', 'Retenção': 'prazos trabalhista e fiscal' },
+    { Categoria: 'Registro de atividades', 'Dados pessoais': 'quem fez o quê, quando, endereço IP e navegador', Quantidade: ativ.length, Finalidade: 'segurança e prestação de contas (art. 6º, X e art. 37)', 'Base legal (LGPD)': 'legítimo interesse (art. 7º, IX) e exercício regular de direitos (art. 7º, VI)', Compartilhamento: compart, 'Proteção': 'só inclusão; cadeia de hashes SHA-256', 'Retenção': 'até 5 anos' },
+    { Categoria: 'Aceites e pedidos de titulares', 'Dados pessoais': 'versão aceita, data, navegador; pedidos e respostas', Quantidade: pedidos ? pedidos.length : '', Finalidade: 'comprovar o aceite e atender os direitos do titular (art. 18)', 'Base legal (LGPD)': 'cumprimento de obrigação legal (art. 7º, II)', Compartilhamento: compart, 'Proteção': 'datas do servidor; só o administrador responde', 'Retenção': 'até 5 anos' }
+  ];
+  const sheets = [['Resumo', resumo], ['Inventário de dados', inventario]];
+  if (membros) sheets.push(['Pessoas', membros.map(x => ({ Nome: x.nome, Email: x.email || '', Perfil: x.papel === 'admin' ? 'Administrador' : 'Usuário', 'Duas etapas': x.duas_etapas ? 'Ativa' : 'Desligada', 'Aceite (versão)': x.aceite_versao || '', 'Aceite (data)': x.aceite_em ? fdh(x.aceite_em) : '', Revogado: x.aceite_revogado ? 'Sim' : 'Não', 'Último acesso': x.ultimo_acesso ? fdh(x.ultimo_acesso) : '' }))]);
+  if (pedidos) sheets.push(['Pedidos de titulares', pedidos.map(x => ({ 'Nº': x.id, Titular: x.nome || '', Email: x.email || '', Tipo: PED_TIPOS[x.tipo] || x.tipo, Pedido: x.descricao, 'Situação': (PED_STATUS[x.status] || [x.status])[0], Aberto: fdh(x.criado_em), Prazo: fdate(x.prazo), Resposta: x.resposta || '', 'Respondido em': x.respondido_em ? fdh(x.respondido_em) : '', 'Respondido por': x.respondido_por || '' }))]);
+  sheets.push(['Atividades', ativ.map(r => ({ Quando: fdh(r.em), Usuario: r.usuario || '', Email: r.email || '', Acao: AUD_ACAO[r.acao] || r.acao, Detalhe: r.detalhe || '', IP: r.ip || '', Hash: r.hash || r.h || '' }))]);
+  saveFile(`conformidade_lgpd_${slug(e.nome)}_${dstamp()}.xlsx`, xlsxBlob(sheets));
+  audita('exportacao', 'Relatório de conformidade LGPD');
+  segurancaForm('conformidade');
+}
+
 // Cadastro das duas etapas, usado em Segurança e no login quando o ambiente exige
 async function montaCadastroMfa(box, fim, msg) {
   box.innerHTML = '<p class="muted">Preparando…</p>';
@@ -4352,7 +4937,8 @@ async function baixarMeusDados() {
     if (st.sb) { const { data } = await st.sb.from('consentimentos').select('versao,aceito_em').eq('empresa_id', st.empresa.id).eq('user_id', u.id); out.aceitesPrivacidade = data || []; }
     else if (u.privacidade) out.aceitesPrivacidade = [{ versao: u.privacidade.versao, aceito_em: new Date(u.privacidade.em).toISOString() }];
   } catch (e) { /* segue sem */ }
-  try { out.atividades = (await audLista(true)).map(r => ({ em: new Date(r.em).toISOString(), acao: AUD_ACAO[r.acao] || r.acao, detalhe: r.detalhe || '' })); } catch (e) { /* segue sem */ }
+  try { out.atividades = (await audLista(true)).map(r => ({ em: new Date(r.em).toISOString(), acao: AUD_ACAO[r.acao] || r.acao, detalhe: r.detalhe || '', ip: r.ip || undefined })); } catch (e) { /* segue sem */ }
+  try { const ps = await pedLista(false); if (ps) out.pedidos = ps.map(x => ({ numero: x.id, tipo: PED_TIPOS[x.tipo] || x.tipo, pedido: x.descricao, situacao: (PED_STATUS[x.status] || [x.status])[0], aberto: new Date(x.criado_em).toISOString(), resposta: x.resposta || undefined })); } catch (e) { /* segue sem */ }
   const col = [...(st.col ? st.col.values() : [])].find(c => normLogin(c.email || '') === normLogin(u.login));
   if (col) out.cadastroDeColaborador = col;
   saveFile(`meus_dados_${slug(u.nome || 'usuario')}_${dstamp()}.json`, new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
@@ -4369,35 +4955,64 @@ function mostraSegredo(titulo, texto, valor) {
   openModal(`<div class="dh"><h2>${esc(titulo)}</h2></div><div class="db"><p class="muted" style="margin:0">${esc(texto)}</p><div class="lg-code">${esc(valor)}</div></div>
     <div class="df"><button class="btn" type="button" id="sgCopia">Copiar</button><button class="btn primary" type="button" id="sgFim">Continuar</button></div>`, 'sm');
   $('#sgCopia').onclick = e => copiarTexto(valor, e.target);
-  $('#sgFim').onclick = contaForm;
+  $('#sgFim').onclick = () => { closeModal(); if (st.view !== 'conta') contaForm(); };
 }
 /* ----- Minha conta com Supabase: as contas ficam no Supabase Auth, o sistema só vincula ao ambiente ----- */
-function contaFormSb() {
+function renderContaPage() {
+  if (st.sb) renderContaPageSb(); else renderContaPageLocal();
+}
+function voltarConta() {
+  const origem = st.accountReturn;
+  st.accountReturn = null;
+  if (origem && origem.screen === 'home') { setScreen('home', origem.homeSec); return; }
+  setView(origem && origem.view && origem.view !== 'conta' ? origem.view : 'mapa');
+}
+function contaForm() {
+  if (st.view === 'conta' && st.screen === 'planner') return;
+  st.accountReturn = { screen: st.screen, view: st.view, homeSec: st.homeSec };
+  setView('conta');
+}
+function renderContaPageSb() {
   const e = st.empresa, u = st.usuario, admin = u.papel === 'admin', mfa = !!st.mfaAtivo;
-  openModal(`<div class="dh"><h2>Minha conta</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
-  <div class="db">
-    <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(u.nome)}</b> <span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span><div class="muted">${esc(u.login)} · Ambiente ${esc(e.nome)}</div></div></div>
-    <section class="acct-sec"><h3>Alterar senha</h3><form id="ctSenha"><div class="fgrid">${mfa ? `<label class="field"><span class="lbl">Código do aplicativo (2 etapas)</span><input type="text" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label>` : senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div><div class="row"><button class="btn sm primary" type="submit">Salvar senha</button></div></form></section>
-    ${admin ? `<section class="acct-sec"><h3>Usuários do ambiente</h3><div id="ctUsuarios" class="muted">Carregando…</div>
-      <form id="ctNovo"><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off"></label><label class="field"><span class="lbl">E-mail</span><input type="text" name="email" required autocomplete="off"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"><span class="hint">Usada só se a pessoa ainda não tiver conta</span></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div><div class="row"><button class="btn sm primary" type="submit">Incluir usuário</button></div></form></section>` : ''}
+  const nome = esc(u.nome), iniciais = (u.nome.trim().split(/\s+/).slice(0, 2).map(x => x.charAt(0)).join('') || 'U').toUpperCase();
+  $('#pageView').innerHTML = `<div class="page account-page">
+    <div class="ph account-heading"><div><h1>Minha conta</h1><p>Informações pessoais e segurança do seu perfil.</p></div><button class="btn" type="button" data-act="contaVoltar">Voltar</button></div>
+    <section class="account-profile card"><div class="account-avatar" aria-hidden="true">${esc(iniciais)}</div><div class="account-profile-info"><div class="row"><h2>${nome}</h2><span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span></div><p>${esc(u.login)}</p><div class="account-meta"><span>Ambiente: <b>${esc(e.nome)}</b></span><span>Verificação em duas etapas: <b>${mfa ? 'Ativada' : 'Desativada'}</b></span></div></div></section>
     <div id="ctMsg" role="alert"></div>
-  </div>
-  <div class="df"><button class="btn" type="button" data-act="seguranca">Segurança e privacidade</button><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
+    <div class="account-grid">
+      <section class="card account-card"><div class="ch"><div><h2>Alterar senha</h2><p>Atualize sua senha de acesso.</p></div></div><div class="cb">
+        <form id="ctSenha"><div class="fgrid">${mfa ? `<label class="field"><span class="lbl">Código do aplicativo (2 etapas)</span><input type="text" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label>` : senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div>${senhaMedidorHtml()}${mfa ? '' : captchaHtml('ctCaptcha')}<div class="row"><button class="btn primary" type="submit">Salvar senha</button></div></form>
+      </div></section>
+      <section class="card account-card"><div class="ch"><div><h2>Segurança e privacidade</h2><p>Gerencie a proteção da conta e seus dados.</p></div></div><div class="cb account-security"><p>Verificação em duas etapas: <span class="pill ${mfa ? 'ok' : 'warn'}">${mfa ? 'Ativada' : 'Desativada'}</span></p><button class="btn" type="button" data-act="seguranca">Abrir segurança e privacidade</button></div></section>
+      ${admin ? `<section class="card account-card account-admin"><div class="ch"><div><h2>Usuários do ambiente</h2><p>Gerencie os acessos vinculados a este ambiente.</p></div></div><div class="cb">
+        <div id="ctUsuarios" class="muted">Carregando…</div>
+        <form id="ctNovo"><h3>Incluir usuário</h3><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off" maxlength="120"></label><label class="field"><span class="lbl">E-mail</span><input type="email" name="email" required autocomplete="off" maxlength="320"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"><span class="hint">Usada só se a pessoa ainda não tiver conta</span></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div>${senhaMedidorHtml()}${captchaHtml('ctNovoCaptcha')}<div class="row"><button class="btn primary" type="submit">Incluir usuário</button></div></form>
+      </div></section>` : ''}
+    </div>
+    <div class="account-actions"><button class="btn danger" type="button" id="ctSair">Sair e trocar de ambiente</button></div>
+  </div>`;
   const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
-  $$('#modal [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  $$('#pageView [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  bindSenhaMedidor($('#ctSenha')); bindSenhaMedidor($('#ctNovo'));
   $('#ctSair').onclick = sair;
+  montaCaptcha($('#ctCaptcha'), t => msg(t)); montaCaptcha($('#ctNovoCaptcha'), t => msg(t));
   $('#ctSenha').onsubmit = async ev => {
     ev.preventDefault(); const f = new FormData(ev.target);
-    const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { msg(erro); return; }
+    const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { msg(erro); return; }
     // Com as duas etapas, a confirmação é o código do aplicativo: entrar de novo com a senha rebaixaria a sessão para uma etapa só
-    if (mfa) { if (!(await mfaConferirLogin(f.get('codigo')))) { msg('Código incorreto ou vencido. Digite o código que aparece agora no aplicativo.'); return; } }
+    const kf = 'reaut:' + (st.usuario.login || st.usuario.id), at = bloqueado(e, kf); if (at) { msg(msgBloqueio(at)); return; }
+    if (mfa) { if (!(await mfaConferirLogin(f.get('codigo')))) { registraFalha(e, kf); msg('Código incorreto ou vencido. Digite o código que aparece agora no aplicativo.'); return; } }
     else {
-      const ent = await st.sb.auth.signInWithPassword({ email: st.usuario.login, password: f.get('atual') });
-      if (ent.error) { msg(/invalid login/i.test(ent.error.message) ? 'A senha atual está incorreta.' : sbMensagem(ent.error)); return; }
+      const cap = $('#ctCaptcha'), tok = Seg.captcha.token(cap); if (tok === '') { msg('Conclua a verificação de segurança.'); return; }
+      const ent = await st.sb.auth.signInWithPassword({ email: st.usuario.login, password: f.get('atual'), options: tok ? { captchaToken: tok } : undefined });
+      Seg.captcha.reiniciar(cap);
+      if (ent.error) { const inv = /invalid login/i.test(ent.error.message); if (inv) registraFalha(e, kf); msg(inv ? 'A senha atual está incorreta.' : sbMensagem(ent.error)); return; }
     }
+    limpaFalhas(e, kf);
     const { error } = await st.sb.auth.updateUser({ password: f.get('senha') });
     if (error) { msg(sbMensagem(error)); return; }
-    ev.target.reset(); msg('Senha alterada.', 'info'); audita('senha');
+    await st.sb.auth.signOut({ scope: 'others' }).catch(() => {}); // senha nova: quem estava com a antiga em outro aparelho sai
+    ev.target.reset(); msg('Senha alterada. As sessões abertas em outros dispositivos foram encerradas.', 'info'); audita('senha');
   };
   if (admin) {
     listaMembros(msg);
@@ -4406,14 +5021,16 @@ function contaFormSb() {
       if (String(f.get('senha')).length < SENHA_MIN) { msg(`A senha provisória precisa ter ao menos ${SENHA_MIN} caracteres.`); return; }
       b.disabled = true;
       try {
-        const vincula = async () => { const { data, error } = await st.sb.rpc('adicionar_membro', { e: e.id, mail: email, nome_membro: String(f.get('nome')).trim(), papel_membro: f.get('papel') }); if (error) throw error; return data; };
-        if ((await vincula()) === 'ok') { contaFormSb(); toast('Essa pessoa já tinha conta: foi incluída neste ambiente com a senha atual dela.', 6000); return; }
+        const vincula = async () => { const { data, error } = await st.sb.rpc('adicionar_membro', { e: e.id, mail: email, nome_membro: Seg.texto(String(f.get('nome')).trim(), 120), papel_membro: f.get('papel') === 'admin' ? 'admin' : 'usuario' }); if (error) throw error; return data; };
+        if ((await vincula()) === 'ok') { renderPage(); toast('Essa pessoa já tinha conta: foi incluída neste ambiente com a senha atual dela.', 6000); return; }
         // Cliente separado: criar a conta não pode trocar a sessão de quem está logado
         const temp = supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'rt1-temp' } });
-        const { error } = await temp.auth.signUp({ email, password: f.get('senha'), options: { data: { trocar_senha: true } } });
+        const capN = $('#ctNovoCaptcha'), tokN = Seg.captcha.token(capN); if (tokN === '') throw new Error('Conclua a verificação de segurança para criar a conta.');
+        const { error } = await temp.auth.signUp({ email, password: f.get('senha'), options: { data: { trocar_senha: true }, ...(tokN ? { captchaToken: tokN } : {}) } });
+        Seg.captcha.reiniciar(capN);
         if (error) throw error;
         if ((await vincula()) !== 'ok') throw new Error('A conta foi criada, mas não pôde ser incluída no ambiente. Tente de novo.');
-        contaFormSb(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 6000); audita('usuario_incluido', email);
+        renderPage(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 6000); audita('usuario_incluido', email);
       } catch (err) { msg(sbMensagem(err)); }
       finally { b.disabled = false; }
     };
@@ -4429,37 +5046,51 @@ async function listaMembros(msg) {
     const b = ev.target.closest('button'); if (!b) return;
     const u = data.find(x => x.user_id === (b.dataset.ureset || b.dataset.udel)); if (!u) return;
     if (b.dataset.ureset) armButton(b, async () => {
-      const { error: er } = await st.sb.auth.resetPasswordForEmail(u.email, { redirectTo: urlRetorno() });
+      const cap = $('#ctNovoCaptcha'), tok = Seg.captcha.token(cap);
+      if (tok === '') { msg('Para enviar o link, conclua antes a verificação de segurança (no fim da tela) e clique de novo.'); return; }
+      const { error: er } = await st.sb.auth.resetPasswordForEmail(u.email, { redirectTo: urlRetorno(), ...(tok ? { captchaToken: tok } : {}) });
+      Seg.captcha.reiniciar(cap);
       msg(er ? sbMensagem(er) : `Link de nova senha enviado para ${u.email}.`, er ? 'bad' : 'info');
     }, 'Confirmar');
     else armButton(b, async () => {
+      if (!(await confirmarIdentidade(`Tirar ${u.nome} do ambiente`))) { contaForm(); return; }
       const { error: er } = await st.sb.from('membros_empresa').delete().eq('empresa_id', e.id).eq('user_id', u.user_id);
-      if (er) { msg(sbMensagem(er)); return; }
-      listaMembros(msg); msg(`${u.nome} saiu do ambiente. A conta continua existindo no Supabase.`, 'info'); audita('usuario_removido', u.email || u.nome);
+      renderPage();
+      if (er) { toast(sbMensagem(er), 7000); return; }
+      toast(`${u.nome} saiu do ambiente. A conta continua existindo no Supabase.`, 6000); audita('usuario_removido', u.email || u.nome);
     }, 'Confirmar');
   };
 }
-function contaForm() {
-  if (st.sb) { contaFormSb(); return; }
+function renderContaPageLocal() {
   const e = st.empresa, u = st.usuario, admin = u.papel === 'admin';
-  openModal(`<div class="dh"><h2>Minha conta</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
-  <div class="db">
-    <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(u.nome)}</b> <span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span><div class="muted">${esc(u.login)} · Ambiente ${esc(e.nome)}</div></div></div>
-    <section class="acct-sec"><h3>Alterar senha</h3><form id="ctSenha"><div class="fgrid">${senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div><div class="row"><button class="btn sm primary" type="submit">Salvar senha</button></div></form></section>
-    <section class="acct-sec"><h3>Código de recuperação</h3><p class="muted" style="margin:0">Permite redefinir a senha em “Esqueci minha senha”. Gerar um novo invalida o anterior.</p><div class="row"><button class="btn sm" type="button" id="ctCodigo">Gerar novo código</button></div></section>
-    ${admin ? `<section class="acct-sec"><h3>Usuários do ambiente</h3><div id="ctUsuarios" class="muted">Carregando…</div>
-      <form id="ctNovo"><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off"></label><label class="field"><span class="lbl">Usuário ou e-mail</span><input type="text" name="login" required autocomplete="off"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div><div class="row"><button class="btn sm primary" type="submit">Criar usuário</button><span class="muted" style="font-size:12px">A pessoa troca a senha no primeiro login.</span></div></form></section>` : ''}
+  const iniciais = (u.nome.trim().split(/\s+/).slice(0, 2).map(x => x.charAt(0)).join('') || 'U').toUpperCase();
+  $('#pageView').innerHTML = `<div class="page account-page">
+    <div class="ph account-heading"><div><h1>Minha conta</h1><p>Informações pessoais e segurança do seu perfil.</p></div><button class="btn" type="button" data-act="contaVoltar">Voltar</button></div>
+    <section class="account-profile card"><div class="account-avatar" aria-hidden="true">${esc(iniciais)}</div><div class="account-profile-info"><div class="row"><h2>${esc(u.nome)}</h2><span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span></div><p>${esc(u.login)}</p><div class="account-meta"><span>Ambiente: <b>${esc(e.nome)}</b></span><span>Verificação em duas etapas: <b>Disponível nas configurações de segurança</b></span></div></div></section>
     <div id="ctMsg" role="alert"></div>
-  </div>
-  <div class="df"><button class="btn" type="button" data-act="seguranca">Segurança e privacidade</button><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
+    <div class="account-grid">
+      <section class="card account-card"><div class="ch"><div><h2>Alterar senha</h2><p>Atualize sua senha de acesso.</p></div></div><div class="cb">
+        <form id="ctSenha"><div class="fgrid">${senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div>${senhaMedidorHtml()}<div class="row"><button class="btn primary" type="submit">Salvar senha</button></div></form>
+      </div></section>
+      <section class="card account-card"><div class="ch"><div><h2>Código de recuperação</h2><p>Redefina sua senha caso não consiga entrar.</p></div></div><div class="cb account-security"><p>Gerar um novo código invalida o anterior. O código completo será exibido apenas uma vez.</p><button class="btn" type="button" id="ctCodigo">Gerar novo código</button><hr><h3>Segurança e privacidade</h3><button class="btn" type="button" data-act="seguranca">Abrir segurança e privacidade</button></div></section>
+      ${admin ? `<section class="card account-card account-admin"><div class="ch"><div><h2>Usuários do ambiente</h2><p>Gerencie os acessos vinculados a este ambiente.</p></div></div><div class="cb">
+        <div id="ctUsuarios" class="muted">Carregando…</div>
+        <form id="ctNovo"><h3>Incluir usuário</h3><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off" maxlength="120"></label><label class="field"><span class="lbl">Usuário ou e-mail</span><input type="text" name="login" required autocomplete="off" maxlength="320"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div>${senhaMedidorHtml()}<div class="row"><button class="btn primary" type="submit">Criar usuário</button><span class="muted" style="font-size:12px">A pessoa troca a senha no primeiro login.</span></div></form>
+      </div></section>` : ''}
+    </div>
+    <div class="account-actions"><button class="btn danger" type="button" id="ctSair">Sair e trocar de ambiente</button></div>
+  </div>`;
   const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
-  $$('#modal [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  $$('#pageView [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  bindSenhaMedidor($('#ctSenha')); bindSenhaMedidor($('#ctNovo'));
   $('#ctSair').onclick = sair;
   $('#ctSenha').onsubmit = async ev => {
     ev.preventDefault(); const f = new FormData(ev.target);
-    const erro = validaSenha(f.get('senha'), f.get('senha2')); if (erro) { msg(erro); return; }
-    if (!(await confere(f.get('atual'), st.usuario.senha))) { msg('A senha atual está incorreta.'); return; }
-    st.usuario = { ...st.usuario, senha: await segredo(f.get('senha')) };
+    const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { msg(erro); return; }
+    const kf = 'reaut:' + st.usuario.login, at = bloqueado(e, kf); if (at) { msg(msgBloqueio(at)); return; }
+    if (!(await confere(f.get('atual'), st.usuario.senha))) { registraFalha(e, kf); msg('A senha atual está incorreta.'); return; }
+    limpaFalhas(e, kf);
+    st.usuario = { ...st.usuario, senha: await segredo(f.get('senha'), ITER_SENHA) };
     await salvarUsuario(e, st.usuario); ev.target.reset(); msg('Senha alterada.', 'info'); audita('senha');
   };
   $('#ctCodigo').onclick = async () => {
@@ -4473,8 +5104,8 @@ function contaForm() {
       ev.preventDefault(); const f = new FormData(ev.target), login = normLogin(f.get('login'));
       if (String(f.get('senha')).length < SENHA_MIN) { msg(`A senha provisória precisa ter ao menos ${SENHA_MIN} caracteres.`); return; }
       if ((await usuariosDe(e)).some(x => x.login === login)) { msg('Já existe um usuário com esse login neste ambiente.'); return; }
-      await salvarUsuario(e, { id: uid('u'), nome: f.get('nome').trim(), login, papel: f.get('papel'), senha: await segredo(f.get('senha')), trocarSenha: true, criado: Date.now() });
-      contaForm(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 5000); audita('usuario_incluido', login);
+      await salvarUsuario(e, { id: uid('u'), nome: Seg.texto(f.get('nome').trim(), 120), login, papel: f.get('papel'), senha: await segredo(f.get('senha'), ITER_SENHA), trocarSenha: true, criado: Date.now() });
+      renderPage(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 5000); audita('usuario_incluido', login);
     };
   }
 }
@@ -4487,11 +5118,15 @@ async function listaUsuarios(msg) {
     const b = ev.target.closest('button'); if (!b) return;
     const u = us.find(x => x.id === (b.dataset.ureset || b.dataset.udel)); if (!u) return;
     if (b.dataset.ureset) armButton(b, async () => {
-      const prov = novoCodigo(), novo = { ...u, senha: await segredo(prov), trocarSenha: true }; delete novo.rec;
+      if (!(await confirmarIdentidade(`Redefinir a senha de ${u.nome}`))) { contaForm(); return; }
+      const prov = novoCodigo(), novo = { ...u, senha: await segredo(prov, ITER_SENHA), trocarSenha: true }; delete novo.rec;
       await salvarUsuario(e, novo);
       mostraSegredo(`Senha provisória de ${u.nome}`, 'Passe esta senha para a pessoa. Ela escolhe a própria senha no próximo login.', prov);
     }, 'Confirmar');
-    else armButton(b, async () => { await st.base.del(colUsuarios(e), u.id); listaUsuarios(msg); msg(`Usuário ${u.nome} excluído.`, 'info'); audita('usuario_removido', u.login); }, 'Confirmar exclusão');
+    else armButton(b, async () => {
+      if (!(await confirmarIdentidade(`Excluir o usuário ${u.nome}`))) { contaForm(); return; }
+      await st.base.del(colUsuarios(e), u.id); renderPage(); toast(`Usuário ${u.nome} excluído.`, 5000); audita('usuario_removido', u.login);
+    }, 'Confirmar exclusão');
   };
 }
 async function sair(porInatividade) {
@@ -4520,6 +5155,7 @@ async function init() {
   if (sbConfigurado()) {
     if (st.sb) {
       const { data: { session } } = await st.sb.auth.getSession();
+      st.srv = await sbVersaoSeguranca();
       if (location.hash) history.replaceState(null, '', location.pathname + location.search);
       if (recuperacao && session) { lg.step = 'novaSenha'; renderLogin(); return; }
       const ses = lerSessao(), emp = ses && EMPRESAS.find(x => x.id === ses.emp);
@@ -4559,6 +5195,7 @@ async function boot() {
   initMap();
   probeRoads();
   applyPanels();
+  if (st.sb) await carregaChaveDados(); // antes de carregar os dados: colaboradores e verba podem estar cifrados
   st.cli = new BucketStore('clientes'); st.col = new BucketStore('colaboradores'); st.amb = new BucketStore('ambientes'); st.imp = new BucketStore('importacoes');
   try { await Promise.all([st.cli.load(), st.col.load(), st.amb.load()]); }
   catch (e2) { toast('Não foi possível carregar os dados salvos: ' + (e2.message || e2.code || e2)); }
@@ -4572,6 +5209,7 @@ async function boot() {
   setScreen('home', 'hub');
   $('#loading').hidden = true;
   iniciaInatividade();
+  avisoTentativas();
   // Os módulos carregam os próprios dados em segundo plano; o início se atualiza quando chegam
   for (const M of [window.RotasMod, window.CalMod, window.VerbaMod, window.PedMod]) if (M) M.iniciar().then(() => { if (st.screen === 'home') renderHome(); }).catch(() => {});
   addEventListener('beforeunload', ev => {

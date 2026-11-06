@@ -1,0 +1,36 @@
+directories:
+  output: dist
+  buildResources: build
+appId: tech.rrmind.roteirizador
+productName: Roteirizador RRM
+copyright: RRM
+files:
+  - filter:
+      - main.js
+      - preload.js
+      - web/**/*
+      - package.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.png
+  artifactName: Roteirizador-RRM-Setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Route VORTEX
+  uninstallDisplayName: Route VORTEX
+  language: '1046'
+  deleteAppDataOnUninstall: false
+publish:
+  - provider: github
+    owner: Ramon-chok
+    repo: roteirizador
+    releaseType: release
+electronVersion: 45.2.3

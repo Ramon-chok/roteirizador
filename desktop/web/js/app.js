@@ -1,0 +1,5230 @@
+(function () {
+'use strict';
+const E = window.Engine;
+const Seg = window.RVXSeg; // js/seguranca.js: criptografia, higienização, freio contra tentativas, CAPTCHA
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isNum = v => typeof v === 'number' && isFinite(v);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const uid = p => (p || 'a') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const clone = o => (typeof structuredClone === 'function' ? structuredClone(o) : JSON.parse(JSON.stringify(o)));
+
+const DIA_C = ['', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const DIA_L = ['', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+const COR_DIA = ['', '#2F6FB3', '#C2512B', '#3E8E5C', '#8A4FB0', '#B0892F', '#1F8A8A', '#C23C6E'];
+const COR_SEM = ['', '#2F6FB3', '#C2512B', '#3E8E5C', '#8A4FB0'];
+const DEF_P = { semanas: 4, dias: [1, 2, 3, 4, 5], vel: 25, fator: 1.35, jornada: 480, tPadrao: 20, criterio: 'tempo' };
+const NB = 32;
+
+const nf1 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const nf0 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+const fkm = v => nf1.format(v || 0);
+const fhm = min => { const m = Math.round(min || 0); return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
+const fpct = v => nf0.format((v || 0) * 100) + '%';
+function ocPill(o) {
+  if (o > 1) return `<span class="pill bad" title="Excede a jornada">${fpct(o)}</span>`;
+  if (o >= 0.9) return `<span class="pill warn" title="Próximo do limite da jornada">${fpct(o)}</span>`;
+  if (o < 0.5) return `<span class="pill idle" title="Rota com folga">${fpct(o)}</span>`;
+  return `<span class="pill ok">${fpct(o)}</span>`;
+}
+function freqTxt(f) { return ({ 1: 'Mensal', 2: 'Quinzenal', 4: 'Semanal', 8: '2x semana', 12: '3x semana' })[f] || (f ? f + 'x/mês' : '—'); }
+
+const ICON = {
+  pan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10m0-4.5v-1a1.5 1.5 0 0 1 3 0V10m0-3.5a1.5 1.5 0 0 1 3 0V11m0-2.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L5 15.5a1.6 1.6 0 0 1 2.4-2.1L8 14"/></svg>',
+  select: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 3l14 7-6 1.8L10.5 18z"/></svg>',
+  rect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 2.5"><rect x="4" y="5" width="16" height="14" rx="1"/></svg>',
+  lasso: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 16.5C3.8 15 3 12.6 3.6 10.5 4.7 6.6 9.5 4 14 4.6c4.7.6 7.2 3.6 6.2 6.9-.9 3-5 5-9.2 4.9" stroke-dasharray="3 2.5"/><circle cx="8.5" cy="17.5" r="2"/><path d="M8 19.5c-.2 1.3-1 2-2 2.3"/></svg>',
+  ruler: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 16.5 16.5 3 21 7.5 7.5 21z"/><path d="M7 12.5l2 2M10 9.5l1.5 1.5M13 6.5l2 2M5.5 14l1 1M8.5 11l1 1"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+  fit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.5"/></svg>',
+  full: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>',
+  unfull: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"/></svg>',
+  redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>',
+  hist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+  solo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 11h3v9h5v-6h4v6h5v-9h3z"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  filePlus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11.5v6M9 14.5h6"/></svg>',
+  upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01" stroke-width="2.6"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M18 7h2M4 17h2M11 17h9"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="8.5" cy="17" r="2.5"/></svg>'
+};
+
+/* ================= Persistência ================= */
+const LocalBackend = {
+  kind: 'local',
+  async list(coll) {
+    const out = [], pre = 'rt1:' + coll + '/';
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(pre) && !k.slice(pre.length).includes('/')) out.push({ id: k.slice(pre.length), data: JSON.parse(localStorage.getItem(k)) });
+      }
+    } catch (e) { MemOnly = true; }
+    return out;
+  },
+  async set(coll, id, data) {
+    try { localStorage.setItem('rt1:' + coll + '/' + id, JSON.stringify(data)); }
+    catch (e) { MemOnly = true; throw { code: 'quota_exceeded', message: 'O armazenamento deste navegador está cheio ou bloqueado.' }; }
+  },
+  async del(coll, id) { try { localStorage.removeItem('rt1:' + coll + '/' + id); } catch (e) { /* ignora */ } }
+};
+let MemOnly = false;
+function CloudBackend(db) {
+  return {
+    kind: 'cloud',
+    async list(coll) { const s = await db.collection(coll).get(); return s.docs.map(d => ({ id: d.id, data: d.data() })); },
+    async set(coll, id, data) { await db.collection(coll).doc(id).set(data); },
+    async del(coll, id) { await db.collection(coll).doc(id).delete(); }
+  };
+}
+/* ================= Supabase: dados =================
+   O sistema trabalha com coleções em baldes (BucketStore); aqui cada item vira uma linha das tabelas de supabase/schema.sql.
+   Só o que mudou é enviado, comparando com a última versão recebida ou gravada. */
+const SB_PAGINA = 1000, SB_LOTE = 500, SB_LOTE_APAGAR = 200;
+const nulo = v => (v === undefined || v === '' ? null : v);
+const coordOk = (v, lim) => (isNum(v) && Math.abs(v) <= lim ? v : null);
+const numOk = v => (isNum(v) ? v : null);
+const emISO = ms => (ms ? new Date(ms).toISOString() : new Date().toISOString());
+const deISO = t => (t ? Date.parse(t) : Date.now());
+const semVazios = o => { for (const k in o) if (o[k] === null || o[k] === undefined) delete o[k]; return o; };
+const SB_MAPA = {
+  clientes: {
+    tab: 'clientes', pk: ['sold'],
+    linha: (k, c) => ({ sold: k, nome: nulo(c.nome), endereco: nulo(c.endereco), bairro: nulo(c.bairro), cidade: nulo(c.cidade), uf: nulo(c.uf), cep: nulo(c.cep), lat: coordOk(c.lat, 90), lng: coordOk(c.lng, 180), visitas_mes: numOk(c.f) ?? 4, atendimento_min: numOk(c.t), geo_origem: nulo(c.geo), geo_nivel: nulo(c.geoNivel), geo_pendencia: c.geoPend || null, exemplo: !!c.exemplo }),
+    item: r => [r.sold, { ...semVazios({ sold: r.sold, nome: r.nome, endereco: r.endereco, bairro: r.bairro, cidade: r.cidade, uf: r.uf, cep: r.cep, f: r.visitas_mes, t: r.atendimento_min, geo: r.geo_origem, geoNivel: r.geo_nivel, geoPend: r.geo_pendencia, exemplo: r.exemplo || null }), lat: r.lat, lng: r.lng }]
+  },
+  importacoes: {
+    tab: 'importacoes', pk: ['id'],
+    linha: (k, x) => ({ id: k, tipo: x.tipo || 'roteiro', arquivo: nulo(x.arquivo), estudo_id: nulo(x.estudo), estudo_nome: nulo(x.estudoNome), usuario: nulo(x.usuario), usuario_login: nulo(x.login), importado_em: emISO(x.em), linhas: x.linhas || 0, alteracoes: x.alteracoes || 0, novos: x.novos || 0, atualizados: x.atualizados || 0, ignorados: x.ignorados || 0, pendencias: x.pend || 0, resumo: x.resumo || [], mensagem: nulo(x.msg) }),
+    item: r => [r.id, semVazios({ id: r.id, tipo: r.tipo, arquivo: r.arquivo, estudo: r.estudo_id, estudoNome: r.estudo_nome, usuario: r.usuario, login: r.usuario_login, em: deISO(r.importado_em), linhas: r.linhas, alteracoes: r.alteracoes, novos: r.novos, atualizados: r.atualizados, ignorados: r.ignorados, pend: r.pendencias, resumo: r.resumo || [], msg: r.mensagem })]
+  },
+  // Calendário: eventos, categorias e a semana de referência do ciclo
+  calendario: {
+    tab: 'calendario', pk: ['id'],
+    linha: (k, x) => ({ id: k, data: /^\d{4}-\d{2}-\d{2}$/.test(x.data || '') ? x.data : null, dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
+  // Verba Indenizatória: racionais, reembolsos e descontos (com as imagens) e apurações salvas
+  verba: {
+    tab: 'verba', pk: ['id'],
+    linha: (k, x) => ({ id: k, tipo: x.tipo || 'outro', mes: nulo(x.mes), vendedor: nulo(x.vend), dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
+  // Pedágios: cada praça (local, rodovia e tarifas) é uma linha; '__cfg' guarda a categoria do veículo e o raio de detecção
+  pedagios: {
+    tab: 'pedagios', pk: ['id'],
+    linha: (k, x) => ({ id: k, tipo: x.tipo === 'cfg' ? 'cfg' : 'praca', nome: nulo(x.nome), lat: coordOk(x.lat, 90), lng: coordOk(x.lng, 180), dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
+  // Rotas: cada base de roteiros (um período) é uma linha; o resumo calculado fica em "dados"
+  rotasbase: {
+    tab: 'rotas_bases', pk: ['id'],
+    linha: (k, x) => ({ id: k, nome: x.nome || k, periodo: nulo(x.periodo), dados: x }),
+    item: r => [r.id, r.dados || {}]
+  },
+  colaboradores: {
+    tab: 'colaboradores', pk: ['codigo'],
+    linha: (k, c) => ({ codigo: k, nome: c.nome || k, funcao: nulo(c.funcao), endereco: nulo(c.endereco), bairro: nulo(c.bairro), cidade: nulo(c.cidade), uf: nulo(c.uf), cep: nulo(c.cep), lat: coordOk(c.lat, 90), lng: coordOk(c.lng, 180), jornada_min: numOk(c.jornada), cor: nulo(c.cor), geo_origem: nulo(c.geo), geo_nivel: nulo(c.geoNivel), geo_pendencia: c.geoPend || null, exemplo: !!c.exemplo }),
+    item: r => [r.codigo, { ...semVazios({ codigo: r.codigo, nome: r.nome, funcao: r.funcao, endereco: r.endereco, bairro: r.bairro, cidade: r.cidade, uf: r.uf, cep: r.cep, jornada: r.jornada_min, cor: r.cor, geo: r.geo_origem, geoNivel: r.geo_nivel, geoPend: r.geo_pendencia, exemplo: r.exemplo || null }), lat: r.lat, lng: r.lng }]
+  }
+};
+/* Campos sensíveis cifrados no navegador com AES-256-GCM e a chave do ambiente (migração 08, função chave_dados).
+   No banco ficam ilegíveis; quem é do ambiente vê normalmente. O "aad" amarra cada valor ao ambiente, tabela, registro e campo.
+   Colaboradores: endereço, bairro, CEP e coordenadas da base de saída (que pode ser a casa da pessoa).
+   Verba Indenizatória: o lançamento inteiro (valores, motivo, comprovantes); ficam abertos só o tipo, o mês e o código do vendedor. */
+const CIFRA = { colaboradores: { pk: 'codigo', campos: ['endereco', 'bairro', 'cep'], geo: true }, verba: { pk: 'id', dados: true } };
+const aadDe = (emp, coll, k, campo) => `${emp}|${coll}|${k}|${campo}`;
+async function cifraLinha(emp, coll, l) {
+  const c = CIFRA[coll], ch = st.cifra; if (!c) return l;
+  if (!ch) { if (c.geo && st.srv >= 8) l.geo_cifrado = null; return l; } // sem a chave: grava aberto e invalida a coordenada cifrada antiga
+  const k = l[c.pk];
+  for (const f of c.campos || []) if (l[f] !== null && l[f] !== undefined) l[f] = await Seg.cifrar(ch, l[f], aadDe(emp, coll, k, f));
+  if (c.geo) { l.geo_cifrado = isNum(l.lat) && isNum(l.lng) ? await Seg.cifrar(ch, JSON.stringify([l.lat, l.lng]), aadDe(emp, coll, k, 'geo')) : null; l.lat = null; l.lng = null; }
+  if (c.dados) l.dados = { _c: await Seg.cifrar(ch, JSON.stringify(l.dados), aadDe(emp, coll, k, 'dados')) };
+  return l;
+}
+// Abre os campos cifrados da linha (no lugar). Devolve true se a linha ainda tinha dado sensível em texto puro
+async function decifraLinha(emp, coll, r) {
+  const c = CIFRA[coll], ch = st.cifra, k = r[c.pk]; let aberto = false;
+  const abre = async (v, campo) => {
+    if (!Seg.cifrado(v)) return v;
+    if (!ch) throw { code: 'cifra', message: 'há dados cifrados e a chave de criptografia do ambiente não está disponível. Recarregue a página' };
+    try { return await Seg.decifrar(ch, v, aadDe(emp, coll, k, campo)); }
+    catch (e) { throw { code: 'cifra', message: `um dado cifrado de ${coll} (${k}) não abriu: a chave não confere ou o valor foi alterado no banco` }; }
+  };
+  for (const f of c.campos || []) { if (r[f] !== null && r[f] !== undefined && !Seg.cifrado(r[f])) aberto = true; r[f] = await abre(r[f], f); }
+  if (c.geo) {
+    if (isNum(r.lat) && isNum(r.lng)) aberto = true; // coordenada aberta (gravada sem a chave ou por versão antiga) vale mais que a cifrada
+    else if (r.geo_cifrado) { const g = Seg.json(await abre(r.geo_cifrado, 'geo')); if (Array.isArray(g)) { r.lat = coordOk(+g[0], 90); r.lng = coordOk(+g[1], 180); } }
+  }
+  if (c.dados) {
+    if (r.dados && r.dados._c) r.dados = Seg.json(await abre(r.dados._c, 'dados'));
+    else if (r.dados && Object.keys(r.dados).length) aberto = true;
+  }
+  return aberto;
+}
+function SupabaseBackend(sb, emp, antesDosFilhos) {
+  const enviados = new Map(), setores = new Map(), pendCifra = new Map();
+  const cache = c => { if (!enviados.has(c)) enviados.set(c, new Map()); return enviados.get(c); };
+  const erro = e => {
+    const msg = (e && e.message) || 'erro no banco de dados';
+    if (/fetch|network|timeout/i.test(msg) || (e && +e.status >= 500)) return { code: 'unavailable', message: 'sem conexão com o banco de dados' };
+    if (e && e.code === '42501') return { code: 'sem_permissao', message: 'sem permissão neste ambiente' };
+    return { code: (e && e.code) || 'erro', message: msg };
+  };
+  const pede = async p => { const { data, error } = await p; if (error) throw erro(error); return data; };
+  const tudo = async (tab, ordem, filtro) => {
+    const out = [];
+    for (let de = 0; ; de += SB_PAGINA) {
+      let q = sb.from(tab).select('*').eq('empresa_id', emp); if (filtro) q = filtro(q);
+      for (const o of ordem) q = q.order(o);
+      const lote = await pede(q.range(de, de + SB_PAGINA - 1));
+      out.push(...lote); if (lote.length < SB_PAGINA) return out;
+    }
+  };
+  const emLotes = async (linhas, tam, fn) => { for (let i = 0; i < linhas.length; i += tam) await fn(linhas.slice(i, i + tam)); };
+  const grava = (tab, linhas, conflito) => emLotes(linhas, SB_LOTE, l => pede(sb.from(tab).upsert(l, { onConflict: conflito })));
+
+  const metaDe = (r, sets) => {
+    const setoresObj = {}; for (const x of sets) setoresObj[x.id] = { nome: x.nome, cor: x.cor, colab: x.colaborador_codigo || '' };
+    return semVazios({ id: r.id, nome: r.nome, desc: r.descricao ?? '', criado: deISO(r.criado_em), alterado: deISO(r.atualizado_em), setores: setoresObj, pend: r.pendencias || { cli: [], col: [] }, exemplo: r.exemplo || null,
+      params: { semanas: r.semanas, dias: r.dias, vel: +r.velocidade_kmh, fator: +r.fator_rota, jornada: +r.jornada_min, tPadrao: +r.atendimento_min, criterio: r.criterio, motor: r.motor, evitaPedagio: r.evita_pedagio, evitaTerra: r.evita_terra } });
+  };
+  const estudoLinha = m => { const p = m.params || {}; return { empresa_id: emp, id: m.id, nome: m.nome || 'Estudo', descricao: nulo(m.desc), semanas: p.semanas || 4, dias: (p.dias || [1, 2, 3, 4, 5]).filter(d => d >= 1 && d <= 7), velocidade_kmh: p.vel || 25, fator_rota: p.fator || 1.35, jornada_min: p.jornada || 480, atendimento_min: p.tPadrao ?? 20, criterio: p.criterio === 'distancia' ? 'distancia' : 'tempo', evita_pedagio: !!p.evitaPedagio, evita_terra: !!p.evitaTerra, motor: p.motor === 'google' ? 'google' : 'osrm', pendencias: m.pend || { cli: [], col: [] }, exemplo: !!m.exemplo, criado_em: emISO(m.criado), atualizado_em: emISO(m.alterado) }; };
+
+  const COLECOES = {
+    async lerAmb() {
+      const [es, ss] = [await tudo('estudos', ['id']), await tudo('setores', ['estudo_id', 'id'])];
+      const items = {}; setores.clear();
+      for (const r of es) { const sets = ss.filter(x => x.estudo_id === r.id); items[r.id] = metaDe(r, sets); setores.set(r.id, new Set(sets.map(x => x.id))); }
+      return items;
+    },
+    async gravaAmb(novos, sumidos, antes) {
+      if (novos.length) await grava('estudos', novos.map(([, m]) => estudoLinha(m)), 'empresa_id,id');
+      for (const [id, m] of novos) {
+        const sets = m.setores || {}, ids = Object.keys(sets);
+        if (ids.length) await grava('setores', ids.map(x => ({ empresa_id: emp, estudo_id: id, id: x, nome: sets[x].nome || 'Setor', cor: sets[x].cor || '#7d8a84', colaborador_codigo: nulo(sets[x].colab) })), 'empresa_id,estudo_id,id');
+        const velho = antes.get(id); const fora = velho ? Object.keys(JSON.parse(velho).setores || {}).filter(x => !sets[x]) : [];
+        if (fora.length) await pede(sb.from('setores').delete().eq('empresa_id', emp).eq('estudo_id', id).in('id', fora));
+        setores.set(id, new Set(ids));
+      }
+      if (sumidos.length) await pede(sb.from('estudos').delete().eq('empresa_id', emp).in('id', sumidos));
+    }
+  };
+  const semTabela = e => !!e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist/i.test(e.message || ''));
+  // Tabelas criadas por migrações: sem elas, o sistema segue funcionando e avisa (o que for gravado fica só nesta sessão)
+  const opcional = c => (c === 'importacoes' ? 'impSemTabela' : c === 'rotasbase' || c.startsWith('rotasl/') ? 'rotasSemTabela' : c === 'calendario' || c === 'verba' ? 'verbaSemTabela' : c === 'pedagios' ? 'pedSemTabela' : '');
+  const ler = async coll => { try { return await ler0(coll); } catch (e) { const f = opcional(coll); if (f && semTabela(e)) { st[f] = true; return {}; } throw e; } };
+  const escreve = async (...a) => { try { return await escreve0(...a); } catch (e) { const f = opcional(a[0]); if (f && semTabela(e)) { st[f] = true; return; } throw e; } };
+  const ler0 = async coll => {
+    if (coll === 'ambientes') return COLECOES.lerAmb();
+    const items = {}; const m = SB_MAPA[coll];
+    if (m) {
+      const rows = await tudo(m.tab, m.pk), abertos = [];
+      if (CIFRA[coll]) for (const r of rows) if (await decifraLinha(emp, coll, r)) abertos.push(r[CIFRA[coll].pk]);
+      for (const r of rows) { const [k, v] = m.item(r); items[k] = v; }
+      if (abertos.length && st.cifra) pendCifra.set(coll, abertos);
+      return items;
+    }
+    const [, estudo] = coll.split('/');
+    if (coll.startsWith('rotasl/')) { for (const r of await tudo('rotas_linhas', ['chave'], q => q.eq('base_id', estudo))) items[r.chave] = r.dados || {}; return items; }
+    if (coll.startsWith('itens/')) { for (const r of await tudo('estudo_clientes', ['sold'], q => q.eq('estudo_id', estudo))) items[r.sold] = { s: r.setor_id || '', d: r.dias || [], w: r.semanas || [], q: r.sequencia || {} }; return items; }
+    for (const r of await tudo('rotas_calculadas', ['setor_id', 'semana', 'dia'], q => q.eq('estudo_id', estudo))) items[`${r.setor_id}|${r.semana}|${r.dia}`] = semVazios({ sig: r.assinatura, km: +r.km, kmIda: +r.km_ida, kmEntre: +r.km_entre, kmVolta: +r.km_volta, min: +r.minutos, p: r.polilinha, src: r.fonte, o: r.formato, toll: r.tem_pedagio || null, terra: r.km_terra === null ? null : +r.km_terra, em: deISO(r.calculado_em) });
+    return items;
+  };
+  const escreve0 = async (coll, novos, sumidos, antes) => {
+    if (coll === 'ambientes') return COLECOES.gravaAmb(novos, sumidos, antes);
+    const m = SB_MAPA[coll];
+    if (m) {
+      if (novos.length) {
+        let linhas = novos.map(([k, v]) => ({ empresa_id: emp, ...m.linha(k, v) }));
+        if (CIFRA[coll]) linhas = await Promise.all(linhas.map(l => cifraLinha(emp, coll, l)));
+        await grava(m.tab, linhas, `empresa_id,${m.pk[0]}`);
+      }
+      await emLotes(sumidos, SB_LOTE_APAGAR, l => pede(sb.from(m.tab).delete().eq('empresa_id', emp).in(m.pk[0], l)));
+      return;
+    }
+    const [, estudo] = coll.split('/');
+    if (coll.startsWith('rotasl/')) {
+      if (novos.length) await grava('rotas_linhas', novos.map(([k, x]) => ({ empresa_id: emp, base_id: estudo, chave: k, sold: String(x.s ?? ''), vendedor: nulo(x.v), dados: x })), 'empresa_id,base_id,chave');
+      await emLotes(sumidos, SB_LOTE_APAGAR, l => pede(sb.from('rotas_linhas').delete().eq('empresa_id', emp).eq('base_id', estudo).in('chave', l)));
+      return;
+    }
+    // Estudo e setores precisam estar no banco antes dos itens que apontam para eles
+    if (antesDosFilhos) await antesDosFilhos();
+    const conhecidos = setores.get(estudo) || new Set();
+    if (coll.startsWith('itens/')) {
+      if (novos.length) await grava('estudo_clientes', novos.map(([k, it]) => ({ empresa_id: emp, estudo_id: estudo, sold: k, setor_id: conhecidos.has(it.s) ? it.s : null, dias: (it.d || []).filter(d => d >= 1 && d <= 7), semanas: it.w || [], sequencia: it.q || {} })), 'empresa_id,estudo_id,sold');
+      await emLotes(sumidos, SB_LOTE_APAGAR, l => pede(sb.from('estudo_clientes').delete().eq('empresa_id', emp).eq('estudo_id', estudo).in('sold', l)));
+      return;
+    }
+    const linhas = [];
+    for (const [k, g] of novos) { const [sid, w, d] = k.split('|'); if (conhecidos.has(sid)) linhas.push({ empresa_id: emp, estudo_id: estudo, setor_id: sid, semana: +w, dia: +d, assinatura: g.sig, km: g.km, km_ida: g.kmIda || 0, km_entre: g.kmEntre || 0, km_volta: g.kmVolta || 0, minutos: g.min || 0, polilinha: nulo(g.p), fonte: g.src || 'osrm', formato: g.o || 'rapida', tem_pedagio: !!g.toll, km_terra: numOk(g.terra), calculado_em: emISO(g.em) }); }
+    if (linhas.length) await grava('rotas_calculadas', linhas, 'empresa_id,estudo_id,setor_id,semana,dia');
+    for (const k of sumidos) { const [sid, w, d] = k.split('|'); await pede(sb.from('rotas_calculadas').delete().eq('empresa_id', emp).eq('estudo_id', estudo).eq('setor_id', sid).eq('semana', +w).eq('dia', +d)); }
+  };
+  return {
+    kind: 'cloud',
+    async list(coll) {
+      const items = await ler(coll), c = cache(coll); c.clear();
+      for (const k in items) c.set(k, JSON.stringify(items[k]));
+      // Dados sensíveis gravados antes da criptografia: regrava cifrado, em segundo plano (a Verba só o administrador grava)
+      const ks = pendCifra.get(coll);
+      if (ks) {
+        pendCifra.delete(coll);
+        if (coll !== 'verba' || (st.usuario && st.usuario.papel === 'admin')) setTimeout(async () => {
+          try { await escreve0(coll, ks.filter(k => k in items).map(k => [k, items[k]]), [], c); audita('cifra_migrada', `${ks.length} registro(s) de ${coll}`); }
+          catch (e) { /* tenta de novo na próxima vez que os dados forem abertos */ }
+        }, 1500);
+      }
+      return Object.keys(items).length ? [{ id: 'todos', data: { items } }] : [];
+    },
+    async set(coll, balde, data) {
+      const c = cache(coll), items = (data && data.items) || {}, novos = [], sumidos = [];
+      for (const k in items) { if (c.get(k) !== JSON.stringify(items[k])) novos.push([k, items[k]]); }
+      for (const k of c.keys()) if (bucketOf(k) === balde && !(k in items)) sumidos.push(k);
+      if (!novos.length && !sumidos.length) return;
+      await escreve(coll, novos, sumidos, c);
+      for (const [k, v] of novos) c.set(k, JSON.stringify(v));
+      for (const k of sumidos) c.delete(k);
+    },
+    async del(coll, balde) { await this.set(coll, balde, { items: {} }); }
+  };
+}
+async function withRetry(fn) {
+  for (let a = 0; ; a++) {
+    try { return await fn(); } catch (e) {
+      const c = e && e.code;
+      if ((c === 'unavailable' || c === 'resource_exhausted') && a < 5) { await sleep(400 * 2 ** a + Math.random() * 300); continue; }
+      throw e;
+    }
+  }
+}
+function bucketOf(key) { let h = 2166136261; for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); } return 'b' + String((h >>> 0) % NB).padStart(2, '0'); }
+
+const Save = {
+  stores: new Set(), err: null,
+  update() {
+    const el = $('#save'); if (!el) return;
+    let pending = false; for (const s of this.stores) if (s.dirty.size || s.busy || s.t) pending = true;
+    el.classList.toggle('pending', pending && !this.err); el.classList.toggle('err', !!this.err);
+    const where = st.backend && st.backend.kind === 'cloud' ? 'na nuvem' : MemOnly ? 'só nesta sessão' : 'neste navegador';
+    if (this.err) el.innerHTML = `<span class="dot"></span><span class="txt">Falha ao salvar: ${esc(this.err.message || this.err.code || 'erro')}</span> <button type="button" id="retrySave">Tentar de novo</button>`;
+    else el.innerHTML = `<span class="dot"></span><span class="txt">${pending ? 'Salvando…' : (st.ro ? 'Somente leitura' : 'Salvo ' + where)}</span>`;
+    el.title = el.textContent.trim();
+    const b = $('#retrySave'); if (b) b.onclick = () => { this.err = null; for (const s of this.stores) { s.markAll(); s.flush(); } };
+  }
+};
+
+class BucketStore {
+  constructor(coll) { this.coll = coll; this.map = new Map(); this.dirty = new Set(); this.t = null; this.busy = false; this.again = false; Save.stores.add(this); }
+  // O que vem do banco é limpo antes de chegar à tela (cores, imagens, caracteres de controle), mesmo que alguém tenha gravado pela API
+  async load() { this.map.clear(); const docs = await withRetry(() => st.backend.list(this.coll)); for (const d of docs) { const it = (d.data && d.data.items) || {}; for (const k in it) { if (Seg.cifrado(k)) continue; this.map.set(k, Seg.higienizar(it[k])); } } }
+  get(k) { return this.map.get(k); }
+  has(k) { return this.map.has(k); }
+  values() { return this.map.values(); }
+  get size() { return this.map.size; }
+  put(k, v) { if (st.ro) return; this.map.set(k, Seg.higienizar(v)); this.dirty.add(bucketOf(k)); this.sched(); }
+  del(k) { if (st.ro) return; if (this.map.delete(k)) { this.dirty.add(bucketOf(k)); this.sched(); } }
+  replaceAll(m) { for (const k of this.map.keys()) this.dirty.add(bucketOf(k)); this.map = m; for (const k of m.keys()) this.dirty.add(bucketOf(k)); this.sched(); }
+  markAll() { for (let i = 0; i < NB; i++) this.dirty.add('b' + String(i).padStart(2, '0')); }
+  sched() { clearTimeout(this.t); this.t = setTimeout(() => { this.t = null; this.flush(); }, 650); Save.update(); }
+  async flush() {
+    if (st.ro) return;
+    if (this.busy) { this.again = true; return; }
+    this.busy = true; Save.update();
+    let bs = [];
+    try {
+      while (this.dirty.size) {
+        bs = [...this.dirty]; this.dirty.clear();
+        const groups = new Map(bs.map(b => [b, {}]));
+        for (const [k, v] of this.map) { const b = bucketOf(k); const g = groups.get(b); if (g) g[k] = v; }
+        for (const [b, items] of groups) {
+          if (Object.keys(items).length) await withRetry(() => st.backend.set(this.coll, b, { items }));
+          else await withRetry(() => st.backend.del(this.coll, b));
+          bs = bs.filter(x => x !== b);
+        }
+      }
+      Save.err = null;
+    } catch (e) {
+      bs.forEach(b => this.dirty.add(b));
+      Save.err = e || { message: 'erro' };
+      if (e && e.code === 'invalid_argument') { st.ro = true; Save.err = { message: 'sem permissão de edição' }; }
+    } finally {
+      this.busy = false;
+      if (this.again) { this.again = false; if (this.dirty.size && !Save.err) this.flush(); }
+      Save.update();
+    }
+  }
+  async destroy() { this.map.clear(); this.dirty.clear(); for (let i = 0; i < NB; i++) { try { await withRetry(() => st.backend.del(this.coll, 'b' + String(i).padStart(2, '0'))); } catch (e) { /* ignora */ } } Save.stores.delete(this); }
+  detach() { Save.stores.delete(this); }
+}
+
+/* ================= Estado ================= */
+const st = {
+  backend: null, base: null, empresa: null, usuario: null, ro: false,
+  cli: null, col: null, amb: null, itens: null, cur: null,
+  screen: 'home', homeSec: 'hub', homeFocus: null,
+  view: 'mapa', colorBy: 'setor',
+  hidden: new Set(), hiddenSet: new Set(), qf: { w: [], d: [] }, rzSec: { setores: true, exib: false }, visao: 'base', corAtual: null, arv: new Map(), baseF: { cidades: new Set(), soldes: new Set(), q: '', cq: '' }, baseCor: 'cidade', bzRes: [], rotaAntes: null,
+  showLines: true, showBases: true, showSeq: true, pinos: true, showOut: true, showUnassigned: true, verSemSetor: true, colorAntes: null, selForm: {}, showSea: true, showPed: true, placing: null,
+  sel: new Set(), tool: 'select', routes: new Map(), visRoutes: [],
+  panelL: true, panelR: false, mk: new Map(), ruler: { pts: [], active: false },
+  undo: [], redo: [], baseKind: 'auto', tileOk: 0, tileErr: 0, autoResequence: true,
+  pg: { clientes: { q: '', page: 0, cidade: '', semCoord: false, noEstudo: '', chk: new Set() }, colaboradores: { q: '', chk: new Set() }, roteiros: { mode: 'grade', setor: '', chk: new Set() }, imp: { tipo: '', n: 15 } },
+  cmp: null, g: 'idle', gMsg: '', geo: null, pathCache: new Map(), road: 'idle', vh: 'idle', roadMsg: '', autoRoad: true, bgBusy: false, roadFail: new Set(),
+  accountReturn: null
+};
+const uiKey = () => 'rt1:' + st.empresa.id + '_ui';
+function loadUI() { try { const v = JSON.parse(localStorage.getItem(uiKey()) || '{}'); Object.assign(st, { colorBy: v.colorBy || 'setor', baseKind: v.baseKind || 'auto', pinos: v.pinos !== false }); if (v.view) st.view = v.view; st.lastAmb = v.amb; } catch (e) { /* ignora */ } }
+function saveUI() { try { localStorage.setItem(uiKey(), JSON.stringify({ colorBy: st.colorAntes || st.colorBy, baseKind: st.baseKind, view: st.view, amb: st.cur, pinos: st.pinos })); } catch (e) { /* ignora */ } }
+
+const amb = () => (st.cur ? st.amb.get(st.cur) : null);
+const P = (a = amb()) => ({ ...DEF_P, ...((a && a.params) || {}) });
+const setorOf = (id, a = amb()) => (a && a.setores ? a.setores[id] : null);
+function colabOfSetor(id, a = amb()) { const s = setorOf(id, a); return s && s.colab ? st.col.get(s.colab) : null; }
+function baseOf(id, a = amb()) { const c = colabOfSetor(id, a); return c && isNum(c.lat) && isNum(c.lng) ? { lat: c.lat, lng: c.lng } : null; }
+function cliPt(sold) { const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) return null; return { sold, lat: c.lat, lng: c.lng, t: isNum(c.t) ? c.t : P().tPadrao, f: c.f || 4 }; }
+function sortedSetores(a = amb()) { if (!a) return []; return Object.entries(a.setores || {}).sort((x, y) => String(x[1].nome).localeCompare(String(y[1].nome), 'pt-BR', { numeric: true })); }
+function itemKeys(it, a = amb()) { if (!it || !it.s || !setorOf(it.s, a)) return []; const W = P(a).semanas, out = []; for (const w of it.w || []) if (w <= W) for (const d of it.d || []) out.push(`${it.s}|${w}|${d}`); return out; }
+
+/* Rotas derivadas (setor × semana × dia) */
+function buildRoutes(a, items, geo) {
+  const routes = new Map(); if (!a || !items) return routes;
+  const p = P(a);
+  for (const [sold, it] of items) {
+    for (const k of itemKeys(it, a)) {
+      let r = routes.get(k);
+      if (!r) { const [s, w, d] = k.split('|'); r = { k, s, w: +w, d: +d, stops: [] }; routes.set(k, r); }
+      r.stops.push(sold);
+    }
+  }
+  for (const r of routes.values()) {
+    const qv = s => { const q = items.get(s).q; const v = q && q[r.d]; return isNum(v) ? v : 9999; };
+    r.stops.sort((x, y) => qv(x) - qv(y));
+    const pts = r.stops.map(cliPt).filter(Boolean);
+    const col = colabOfSetor(r.s, a);
+    r.m = E.routeMetrics(baseOf(r.s, a), pts, { ...p, jornada: (col && col.jornada) || p.jornada });
+    r.missing = r.stops.length - pts.length;
+    r.sig = routeSig(r.stops, baseOf(r.s, a));
+    const real = geo && geo.get(r.k);
+    r.stale = !!(real && real.sig !== r.sig);
+    if (real && real.sig === r.sig) {
+      const tDesl = real.min, total = tDesl + r.m.tAtend;
+      r.m = { ...r.m, kmIda: real.kmIda, kmEntre: real.kmEntre, kmVolta: real.kmVolta, km: real.km, tDesl, total, ocup: r.m.jornada ? total / r.m.jornada : 0, real: true, src: real.src || 'osrm', o: real.o || 'rapida', toll: real.toll, terra: real.terra };
+    }
+  }
+  return routes;
+}
+function rebuild() { st.routes = buildRoutes(amb(), st.itens && st.itens.map, st.geo && st.geo.map); }
+function routeLabel(r) { const s = setorOf(r.s); return `${s ? s.nome : '?'} · S${r.w} · ${DIA_L[r.d]}`; }
+function sortedRoutes(list) {
+  const so = new Map(sortedSetores().map(([id], i) => [id, i]));
+  return list.sort((a, b) => (so.get(a.s) ?? 999) - (so.get(b.s) ?? 999) || a.w - b.w || a.d - b.d);
+}
+function routeVisible(k) { const s = k.split('|')[0]; return !st.hiddenSet.has(s) && !st.hidden.has(k); }
+function itemVisible(it) {
+  if (!it.s || !setorOf(it.s)) return false; // clientes sem setor só aparecem na visão Base
+  if (st.hiddenSet.has(it.s)) return false;
+  const ks = itemKeys(it);
+  if (!ks.length) return st.showUnassigned;
+  return ks.some(k => !st.hidden.has(k));
+}
+
+/* Desfazer, refazer e histórico: cada passo guarda o estudo como estava antes (setores, clientes, dias, semanas,
+   sequências e o traçado pelas ruas). Vale enquanto a janela estiver aberta, separado por estudo. */
+const HIST_MAX = 30; let histSeq = 0;
+function fotoEstudo() { return { amb: st.cur, itens: new Map(st.itens.map), geo: st.geo ? new Map(st.geo.map) : null, meta: clone(amb()) }; }
+function pushUndo(label) {
+  if (!st.itens) return;
+  st.undo.push({ label, em: Date.now(), id: ++histSeq, ...fotoEstudo() });
+  const doEstudo = st.undo.filter(u => u.amb === st.cur);
+  if (doEstudo.length > HIST_MAX) st.undo.splice(st.undo.indexOf(doEstudo[0]), 1);
+  st.redo = st.redo.filter(u => u.amb !== st.cur); // nova alteração descarta o que havia para refazer
+}
+function histDoEstudo(pilha) { return pilha.filter(u => u.amb === st.cur); }
+function ultimoDoEstudo(pilha) { for (let i = pilha.length - 1; i >= 0; i--) if (pilha[i].amb === st.cur) return i; return -1; }
+function restauraFoto(u) { st.itens.replaceAll(new Map(u.itens)); if (st.geo && u.geo) st.geo.replaceAll(new Map(u.geo)); st.amb.put(u.meta.id, clone(u.meta)); }
+function podeVoltar() {
+  if (!st.itens) { toast('Abra um estudo para desfazer'); return false; }
+  if (st.ro) { toast('Estudo em modo somente leitura'); return false; }
+  if (job) { toast('Aguarde o cálculo pelas ruas terminar, ou cancele, antes de desfazer'); return false; }
+  return true;
+}
+function doUndo(silencioso) {
+  if (!podeVoltar()) return null;
+  const i = ultimoDoEstudo(st.undo); if (i < 0) { if (!silencioso) toast('Nada para desfazer neste estudo'); return null; }
+  const u = st.undo.splice(i, 1)[0];
+  st.redo.push({ label: u.label, em: u.em, id: u.id, ...fotoEstudo() });
+  restauraFoto(u);
+  if (!silencioso) { rebuild(); renderAll(); toast('Desfeito: ' + u.label, 6000, 'redo', 'Refazer'); }
+  return u;
+}
+function doRedo() {
+  if (!podeVoltar()) return;
+  const i = ultimoDoEstudo(st.redo); if (i < 0) { toast('Nada para refazer'); return; }
+  const r = st.redo.splice(i, 1)[0];
+  st.undo.push({ label: r.label, em: r.em, id: r.id, ...fotoEstudo() });
+  restauraFoto(r); rebuild(); renderAll(); toast('Refeito: ' + r.label, 6000, 'undo', 'Desfazer');
+}
+// Volta o estudo para como estava antes do passo escolhido, desfazendo também os que vieram depois
+function voltarPara(id) {
+  const lista = histDoEstudo(st.undo), alvo = lista.find(u => u.id === id); if (!alvo || !podeVoltar()) return;
+  let n = 0; for (;;) { const u = doUndo(true); if (!u) break; n++; if (u === alvo) break; }
+  rebuild(); renderAll(); closeModal();
+  toast(`Estudo voltou para antes de “${alvo.label}”${n > 1 ? ` (${n} alterações desfeitas)` : ''}`, 7000, 'redo', 'Refazer');
+}
+function historicoForm() {
+  const lista = histDoEstudo(st.undo), refaz = histDoEstudo(st.redo);
+  const hora = t => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const linhas = [...lista].reverse().map((u, i) => `<div class="hist-row"><div><b>${esc(u.label)}</b><div class="muted">${hora(u.em)}${i === 0 ? ' · última alteração' : ''}</div></div><button class="btn sm" type="button" data-act="histvolta" data-hid="${u.id}"${st.ro ? ' disabled' : ''}>Voltar para antes disto</button></div>`).join('');
+  const linhasRefaz = [...refaz].reverse().map(u => `<div class="hist-row desfeito"><div><b>${esc(u.label)}</b><div class="muted">${hora(u.em)} · desfeita</div></div></div>`).join('');
+  openModal(`<div class="dh"><h2>Histórico de alterações</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db stack">
+    <p class="muted" style="margin:0;font-size:12.5px">Escolha um passo para deixar o estudo como estava antes dele. Os passos posteriores também são desfeitos, e tudo pode ser refeito. O histórico vale enquanto esta janela estiver aberta.</p>
+    ${linhas ? `<div class="hist">${linhas}</div>` : '<p class="muted" style="margin:0">Nenhuma alteração para desfazer neste estudo.</p>'}
+    ${linhasRefaz ? `<div class="lbl">Para refazer</div><div class="hist">${linhasRefaz}</div>` : ''}
+  </div>
+  <div class="df"><button class="btn" type="button" data-act="undo"${lista.length && !st.ro ? '' : ' disabled'}>Desfazer a última</button><button class="btn" type="button" data-act="redo"${refaz.length && !st.ro ? '' : ' disabled'}>Refazer${refaz.length ? ` (${refaz.length})` : ''}</button><button class="btn primary" type="button" data-close>Fechar</button></div>`);
+}
+// Botões para as páginas: desfazer o último passo e abrir o histórico
+function histBtns() {
+  const lista = histDoEstudo(st.undo), u = lista[lista.length - 1], ro = st.ro ? ' disabled' : '';
+  return `${u ? `<button class="btn sm" type="button" data-act="undo" title="Desfazer: ${esc(u.label)}"${ro}>Desfazer “${esc(u.label)}”</button>` : ''}<button class="btn sm" type="button" data-act="hist">Histórico${lista.length ? ` (${lista.length})` : ''}</button>`;
+}
+
+/* ================= UI geral ================= */
+let toastT;
+function toast(msg, ms = 2600, act, lbl) {
+  const t = $('#toast'); t.textContent = msg; t.classList.toggle('acao', !!act);
+  if (act) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.dataset.act = act; b.textContent = lbl; t.append(b); }
+  t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms);
+}
+const toastU = (msg, ms = 7000) => toast(msg, ms, 'undo', 'Desfazer');
+let tokCache = null;
+function tokens() { if (tokCache) return tokCache; const cs = getComputedStyle(document.documentElement); const g = n => cs.getPropertyValue(n).trim(); tokCache = { surface: g('--surface'), muted: g('--muted'), sel: g('--sel'), ink: g('--ink'), line: g('--line'), bg: g('--map-bg') }; return tokCache; }
+function isDark() { const t = document.documentElement.getAttribute('data-theme'); if (t) return t !== 'light'; return matchMedia('(prefers-color-scheme: dark)').matches; }
+function onTheme() { tokCache = null; setBase(); renderMap(); }
+
+function armButton(btn, fn, txt = 'Confirmar') {
+  if (btn.classList.contains('armed')) { btn.classList.remove('armed'); fn(); return; }
+  const old = btn.innerHTML; btn.classList.add('armed'); btn.textContent = txt;
+  setTimeout(() => { if (btn.isConnected && btn.classList.contains('armed')) { btn.classList.remove('armed'); btn.innerHTML = old; } }, 4000);
+}
+
+function setScreen(s, sec) {
+  if (sec) st.homeSec = sec;
+  if (s === 'home' && st.view === 'conta') st.accountReturn = null;
+  if (s !== 'home' || st.homeSec !== 'rotas') { const R = window.RotasMod; if (R) R.limpar(); }
+  if ((s !== 'home' || st.homeSec !== 'ped') && window.PedMod) window.PedMod.limpar();
+  st.screen = s;
+  document.body.classList.toggle('screen-home', s === 'home');
+  $('#homeView').hidden = s !== 'home';
+  if (s === 'home') { $('#mapView').hidden = true; $('#pageView').hidden = true; renderHome(); }
+}
+function renderView() { if (st.screen === 'home') renderHome(); else if (st.view === 'mapa') renderMap(); else renderPage(); }
+function enterPlanner(v = 'mapa') { setView(v); if (v === 'mapa') setTimeout(fitVisible, 140); }
+async function enterStudy(id) { if (id === '__cur') id = st.cur; if (id && id !== st.cur) await openAmb(id, false); enterPlanner('mapa'); }
+function setView(v) {
+  if (st.screen !== 'planner') setScreen('planner');
+  if (st.view === 'conta' && v !== 'conta') st.accountReturn = null;
+  st.view = v; saveUI(); document.body.classList.toggle('view-map', v === 'mapa');
+  $$('#tabs .tab').forEach(b => { const on = b.dataset.view === v; b.setAttribute('aria-selected', String(on)); if (on) b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); });
+  $('#mapView').hidden = v !== 'mapa';
+  $('#pageView').hidden = v === 'mapa';
+  if (v === 'mapa') { setTimeout(() => { map.invalidateSize(); renderMap(); }, 0); }
+  else renderPage();
+}
+function renderAmbSel() {
+  const s = $('#ambSel');
+  const list = [...st.amb.values()].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+  s.innerHTML = list.length ? list.map(a => `<option value="${esc(a.id)}"${a.id === st.cur ? ' selected' : ''}>${esc(a.nome)}</option>`).join('') : '<option value="">Nenhum estudo</option>';
+}
+function renderAll() { renderAmbSel(); if (map) renderToolbar(); renderView(); Save.update(); autoRoadSync(); }
+
+async function openAmb(id, fit = true) {
+  if (st.cur) homeCache.delete(st.cur);
+  if (st.itens) { await st.itens.flush(); st.itens.detach(); }
+  if (st.geo) { await st.geo.flush(); st.geo.detach(); }
+  st.pathCache.clear(); st.roadFail.clear();
+  st.cur = id || null; saveUI();
+  st.sel.clear(); st.hidden.clear(); st.hiddenSet.clear(); st.qf = { w: [], d: [] }; st.verSemSetor = true; st.visao = st.cur ? 'setores' : 'base'; st.showLines = false; st.rotaAntes = null; st.arv.clear(); if (st.colorAntes) { st.colorBy = st.colorAntes; st.colorAntes = null; }
+  if (st.cur) { st.itens = new BucketStore('itens/' + st.cur + '/b'); st.geo = new BucketStore('geo/' + st.cur + '/b'); await Promise.all([st.itens.load(), st.geo.load()]); }
+  else { st.itens = null; st.geo = null; }
+  rebuild(); renderAll();
+  if (fit && map) fitVisible();
+}
+
+/* ================= Google Maps ================= */
+const CFG = window.RT_CONFIG || {};
+const GMAPS_KEY = CFG.googleMapsKey || 'AIzaSyBdSARhzRlQNoO47wgN7izPQQLgy_5ZaUM';
+const G_LIGHT = [{ featureType: 'poi', stylers: [{ visibility: 'off' }] }, { featureType: 'transit.station', stylers: [{ visibility: 'off' }] }];
+const G_DARK = [
+  { elementType: 'geometry', stylers: [{ color: '#1d2421' }] }, { elementType: 'labels.text.fill', stylers: [{ color: '#8e9c95' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#121715' }] }, { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2f3a36' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#4a5650' }] }, { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1a1f' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] }, { featureType: 'transit', stylers: [{ visibility: 'off' }] }
+];
+const gReady = () => st.g === 'ready' && !!(window.google && google.maps && L.gridLayer && L.gridLayer.googleMutant);
+const inClaude = () => !!(window.claude && typeof window.claude.use === 'function');
+function loadGoogle() {
+  return new Promise((res, rej) => {
+    if (window.google && google.maps && google.maps.Map) { res(); return; }
+    let done = false; const fin = (fn, v) => { if (!done) { done = true; fn(v); } };
+    window.__rtGmapsReady = () => fin(res);
+    window.gm_authFailure = () => { st.g = 'fail'; st.gMsg = 'a chave foi recusada pelo Google (confira se a Maps JavaScript API está ativa no projeto e se a chave permite este endereço)'; onGoogleFail(); };
+    const sc = document.createElement('script');
+    sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GMAPS_KEY) + '&callback=__rtGmapsReady&language=pt-BR&region=BR';
+    sc.async = true;
+    sc.onerror = () => fin(rej, new Error(inClaude() ? 'a janela do Claude só permite scripts de alguns CDNs, e o Google Maps não está entre eles' : 'o script do Google não carregou (sem internet ou bloqueado)'));
+    document.head.append(sc);
+    setTimeout(() => fin(rej, new Error('o Google Maps demorou demais para responder')), 15000);
+  });
+}
+function onGoogleFail() {
+  if (st.baseKind.startsWith('g_')) { st.baseKind = 'auto'; $('#baseSel').value = 'auto'; saveUI(); }
+  setBase();
+  showNote(`Google Maps indisponível: ${esc(st.gMsg || 'erro desconhecido')}. Usando o mapa alternativo; ferramentas e cálculos continuam funcionando.`, 'warn');
+}
+function gErr(e) {
+  const c = (e && (e.code || e.status || e.message)) || 'erro';
+  if (/REQUEST_DENIED/i.test(c)) return 'pedido negado pelo Google — ative a API correspondente (Directions ou Geocoding) no Google Cloud para esta chave';
+  if (/OVER_QUERY_LIMIT|OVER_DAILY_LIMIT/i.test(c)) return 'limite de consultas do Google atingido; aguarde e tente de novo';
+  if (/ZERO_RESULTS|NOT_FOUND/i.test(c)) return 'o Google não encontrou caminho entre os pontos';
+  return String(c);
+}
+function routeSig(stops, b) { const s = stops.join(',') + '|' + (b ? b.lat.toFixed(5) + ',' + b.lng.toFixed(5) : '-'); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + ':' + stops.length; }
+async function googleLegs(nodes, optimize, semPedagio) {
+  const ds = new google.maps.DirectionsService(); const legs = [], path = []; let order = null;
+  for (let i = 0; i < nodes.length - 1; i += 26) {
+    const seg = nodes.slice(i, i + 27); if (seg.length < 2) break;
+    const res = await ds.route({ origin: seg[0], destination: seg[seg.length - 1], waypoints: seg.slice(1, -1).map(p => ({ location: { lat: p.lat, lng: p.lng }, stopover: true })), travelMode: google.maps.TravelMode.DRIVING, optimizeWaypoints: !!optimize, avoidTolls: !!semPedagio, region: 'br' });
+    const rt = res.routes[0]; legs.push(...rt.legs); rt.overview_path.forEach(pt => path.push([pt.lat(), pt.lng()]));
+    if (optimize) order = rt.waypoint_order;
+  }
+  return { legs, path, order };
+}
+function startGoogle() {
+  if (st.g !== 'idle') return; st.g = 'loading';
+  loadGoogle().then(() => {
+    if (st.g === 'fail') return;
+    const wait = (n = 0) => { if (L.gridLayer && L.gridLayer.googleMutant) { st.g = 'ready'; setBase(); renderAll(); toast('Google Maps conectado'); } else if (n < 40) setTimeout(() => wait(n + 1), 100); else { st.g = 'fail'; st.gMsg = 'o componente de integração não carregou'; onGoogleFail(); } };
+    wait();
+  }).catch(e => { st.g = 'fail'; st.gMsg = e.message; onGoogleFail(); });
+}
+
+/* ================= Percurso pelas ruas (OSRM / OpenStreetMap, gratuito) ================= */
+/* Formato da rota, guardado nos parâmetros do estudo. O OSRM público só calcula a mais rápida sem restrições (recusa "exclude=toll");
+   o resto vai para o Valhalla, que também é gratuito e usa o mesmo mapa. O Google evita pedágio, mas não calcula a mais curta nem evita terra. */
+function rotaOpt(a = amb()) { const p = P(a); return { curta: p.criterio !== 'tempo', pedagio: !!p.evitaPedagio, terra: !!p.evitaTerra }; }
+const rotaKey = o => [o.curta ? 'curta' : 'rapida', o.pedagio && 'pedagio', o.terra && 'terra'].filter(Boolean).join('+');
+function rotaTxt(key) { const k = key.split('+'); return [k[0] === 'curta' ? 'Mais curta' : 'Mais rápida', k.includes('pedagio') && 'sem pedágio', k.includes('terra') && 'sem terra'].filter(Boolean).join(' · '); }
+function motorRota(o = rotaOpt()) {
+  if (P().motor === 'google' && gReady() && !o.curta && !o.terra) return 'google';
+  return o.curta || o.pedagio || o.terra ? 'valhalla' : 'osrm';
+}
+function rotaAviso(m) { // o que o percurso calculado não conseguiu evitar
+  const k = (m.o || '').split('+'), out = [];
+  if (k.includes('pedagio') && m.toll) out.push('passa por pedágio');
+  if (k.includes('terra') && m.terra >= 0.1) out.push(`${fkm(m.terra)} km de terra`);
+  return out.join(' e ');
+}
+const VH_DEF = (CFG.valhallaUrl || 'https://valhalla1.openstreetmap.de').replace(/\/+$/, '');
+const VH_PUBLICO = VH_DEF.includes('openstreetmap.de');
+const VH_ROTA = 10, VH_BLOCO = 10, VH_MATRIZ_MAX = 60; // o servidor público aceita 10 pontos por rota e 100 pares (10 × 10) por matriz
+const VH_TERRA = new Set(['compacted', 'dirt', 'gravel', 'path', 'impassable']);
+const vhLoc = p => ({ lat: +p.lat, lon: +p.lng });
+const vhCusto = o => ({ costing: 'auto', units: 'kilometers', costing_options: { auto: { ...(o.curta ? { shortest: true } : {}), ...(o.pedagio ? { exclude_tolls: true } : {}), ...(o.terra ? { exclude_unpaved: true, use_tracks: 0 } : {}) } } });
+async function vhPost(path, body) {
+  await throttle(VH_PUBLICO);
+  let r;
+  try { r = await fetch(VH_DEF + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+  catch (e) { throw { code: 'net', message: inClaude() ? 'a janela do Claude bloqueia serviços externos' : 'sem conexão com o servidor de rotas' }; }
+  if (r.status === 429) throw { code: 'rate', message: 'muitas consultas seguidas ao servidor de rotas; aguarde um minuto' };
+  let j; try { j = await r.json(); } catch (e) { throw { code: 'bad', message: 'resposta inválida do servidor de rotas (' + r.status + ')' }; }
+  if (!r.ok) throw { code: j.error_code === 442 ? 'nopath' : 'vh', message: j.error_code === 442 ? 'não há caminho de carro entre dois pontos da rota' : (j.error || 'erro ' + r.status) };
+  return j;
+}
+/* Trecho de até VH_ROTA pontos. Sem caminho com as restrições, divide até achar o par sem saída e só nele abre mão delas */
+async function vhTrecho(nodes, o) {
+  try { return (await vhPost('/route', { locations: nodes.map(vhLoc), directions_type: 'none', ...vhCusto(o) })).trip.legs; }
+  catch (e) {
+    if (e.code !== 'nopath') throw e;
+    if (nodes.length > 2) { const mid = nodes.length >> 1; return [...await vhTrecho(nodes.slice(0, mid + 1), o), ...await vhTrecho(nodes.slice(mid), o)]; }
+    if (o.terra) return vhTrecho(nodes, { ...o, terra: false });
+    if (o.pedagio) return vhTrecho(nodes, { ...o, pedagio: false });
+    throw e;
+  }
+}
+/* Km de terra no percurso: o Valhalla passa por terra quando não há alternativa, sem avisar. null = não foi possível medir */
+async function vhKmTerra(path, o) {
+  try {
+    const j = await vhPost('/trace_attributes', { encoded_polyline: encodePoly(path, 1e6), shape_match: 'walk_or_snap', filters: { attributes: ['edge.surface', 'edge.length'], action: 'include' }, ...vhCusto(o) });
+    return j.edges.reduce((s, e) => s + (VH_TERRA.has(e.surface) ? e.length || 0 : 0), 0);
+  } catch (e) { if (['net', 'rate'].includes(e.code)) throw e; return null; }
+}
+async function vhRoute(nodes, o) {
+  const legs = [], path = []; let terra = o.terra ? 0 : undefined;
+  const n = Math.ceil((nodes.length - 1) / (VH_ROTA - 1));
+  if (job) { job.total += n - 1 + (o.terra ? n : 0); updJob(); }
+  for (let i = 0, parte = 0; i < nodes.length - 1; i += VH_ROTA - 1, parte++) {
+    if (job && job.cancel) throw { code: 'cancel', message: 'cancelado' };
+    const seg = await vhTrecho(nodes.slice(i, i + VH_ROTA), o);
+    const p = seg.flatMap(l => decodePoly(l.shape, 1e6));
+    legs.push(...seg); path.push(...p);
+    if (job && parte < n - 1) { job.done++; updJob(); }
+    if (o.terra) { const t = await vhKmTerra(p, o); terra = t === null || terra === null ? null : terra + t; if (job) { job.done++; updJob(); } }
+  }
+  return { legs: legs.map(l => ({ km: l.summary.length, min: l.summary.time / 60 })), poly: encodePoly(path), src: 'valhalla', toll: legs.some(l => l.summary.has_toll), terra: terra === null ? undefined : terra };
+}
+async function vhMatriz(nodes, o) {
+  const n = nodes.length, D = nodes.map(() => new Array(n).fill(1e9)), T = nodes.map(() => new Array(n).fill(1e9)), blocos = [];
+  for (let i = 0; i < n; i += VH_BLOCO) for (let j = 0; j < n; j += VH_BLOCO) blocos.push([i, j]);
+  if (job) { job.total += blocos.length - 1; updJob(); }
+  for (const [i, j] of blocos) {
+    if (job && job.cancel) return null;
+    const r = await vhPost('/sources_to_targets', { sources: nodes.slice(i, i + VH_BLOCO).map(vhLoc), targets: nodes.slice(j, j + VH_BLOCO).map(vhLoc), ...vhCusto(o) });
+    r.sources_to_targets.forEach((row, a) => row.forEach((c, b) => { if (c.distance !== null) D[i + a][j + b] = c.distance; if (c.time !== null) T[i + a][j + b] = c.time; }));
+    if (job && blocos.length > 1) { job.done++; updJob(); }
+  }
+  if (job && blocos.length > 1) job.done--; // a última consulta conta como o dia, no laço de roadJob
+  return { D, T };
+}
+const OSRM_DEF = (CFG.osrmUrl || 'https://router.project-osrm.org').replace(/\/+$/, '');
+function osrmUrl() { try { return (localStorage.getItem('rt1:osrm') || OSRM_DEF).replace(/\/+$/, ''); } catch (e) { return OSRM_DEF; } }
+let lastReq = 0;
+async function throttle(publico = osrmUrl() === OSRM_DEF) { const w = (publico ? 1050 : 120) - (Date.now() - lastReq); if (w > 0) await sleep(w); lastReq = Date.now(); }
+const coordStr = nodes => nodes.map(p => (+p.lng).toFixed(6) + ',' + (+p.lat).toFixed(6)).join(';');
+async function osrmGet(path) {
+  let r;
+  try { r = await fetch(osrmUrl() + path); }
+  catch (e) { throw { code: 'net', message: inClaude() ? 'a janela do Claude bloqueia serviços externos' : 'sem conexão com o servidor de rotas' }; }
+  if (r.status === 429) throw { code: 'rate', message: 'muitas consultas seguidas ao servidor de rotas; aguarde um minuto' };
+  let j; try { j = await r.json(); } catch (e) { throw { code: 'bad', message: 'resposta inválida do servidor de rotas (' + r.status + ')' }; }
+  if (j.code !== 'Ok') throw { code: j.code || 'erro', message: j.message || j.code || 'erro' };
+  return j;
+}
+async function probeRoads() {
+  st.road = 'testing'; st.vh = 'testing';
+  const vh = fetch(VH_DEF + '/status').then(r => { st.vh = r.ok ? 'ok' : 'fail'; }).catch(() => { st.vh = 'fail'; });
+  try { await throttle(); await osrmGet('/route/v1/driving/-46.6349,-23.5891;-46.6627,-23.6009?overview=false'); st.road = 'ok'; }
+  catch (e) { st.road = 'fail'; st.roadMsg = e.message; if (inClaude()) claudeNote(); }
+  await vh;
+  if (st.cli) renderAll();
+}
+const roadOk = () => { const m = motorRota(); return m === 'google' || (m === 'valhalla' ? st.vh === 'ok' : st.road === 'ok'); };
+function roadUnavailable() {
+  if (inClaude()) claudeNote();
+  toast(inClaude() ? 'Dentro do Claude o servidor de rotas é bloqueado. Abra o arquivo roteirizador-local.html no navegador.' : `Servidor de rotas indisponível: ${st.roadMsg || 'sem conexão'}`, 6000);
+}
+function claudeNote() {
+  showNote('Dentro da janela do Claude, mapas e serviços de rota externos são bloqueados por segurança — por isso aparece só a grade. Abra o arquivo <b>roteirizador-local.html</b> (enviado na conversa) com dois cliques no navegador: mapa gratuito do OpenStreetMap e rotas pelas ruas, sem chave. Use Exportar/Restaurar backup para levar os dados.', 'warn');
+}
+async function roadRoute(nodes) {
+  const o = rotaOpt(), m = motorRota(o);
+  if (m === 'valhalla') return vhRoute(nodes, o);
+  if (m === 'google') { const g = await googleLegs(nodes, false, o.pedagio); return { legs: g.legs.map(l => ({ km: l.distance.value / 1000, min: l.duration.value / 60 })), poly: encodePoly(g.path), src: 'google' }; }
+  await throttle();
+  const j = await osrmGet(`/route/v1/driving/${coordStr(nodes)}?overview=full&geometries=polyline&steps=false`);
+  const rt = j.routes[0];
+  return { legs: rt.legs.map(l => ({ km: l.distance / 1000, min: l.duration / 60 })), poly: rt.geometry, src: 'osrm' };
+}
+async function roadMatrix(nodes) {
+  await throttle();
+  const j = await osrmGet(`/table/v1/driving/${coordStr(nodes)}?annotations=distance,duration`);
+  const fix = M => M.map(row => row.map(v => (v === null || !isFinite(v) ? 1e9 : v)));
+  return { D: fix(j.distances || j.durations), T: fix(j.durations) };
+}
+function realFromLegs(legs, hasBase) {
+  const km = legs.map(l => l.km), mn = legs.map(l => l.min);
+  const tot = km.reduce((a, b) => a + b, 0);
+  const kmIda = hasBase ? km[0] : 0, kmVolta = hasBase && km.length > 1 ? km[km.length - 1] : 0;
+  return { km: tot, kmIda, kmVolta, kmEntre: tot - kmIda - kmVolta, min: mn.reduce((a, b) => a + b, 0), em: Date.now() };
+}
+function decodePoly(str, prec = 1e5) {
+  let i = 0, lat = 0, lng = 0; const out = [];
+  while (i < str.length) {
+    let b, sh = 0, r = 0; do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32); lat += (r & 1) ? ~(r >> 1) : (r >> 1);
+    sh = 0; r = 0; do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32); lng += (r & 1) ? ~(r >> 1) : (r >> 1);
+    out.push([lat / prec, lng / prec]);
+  }
+  return out;
+}
+function encodePoly(path, prec = 1e5) {
+  let pa = 0, pb = 0, s = '';
+  const enc = v => { v = v < 0 ? ~(v << 1) : (v << 1); let o = ''; while (v >= 32) { o += String.fromCharCode((32 | (v & 31)) + 63); v >>= 5; } return o + String.fromCharCode(v + 63); };
+  for (const [la, ln] of path) { const a = Math.round(la * prec), b = Math.round(ln * prec); s += enc(a - pa) + enc(b - pb); pa = a; pb = b; }
+  return s;
+}
+const pedChave = r => `e:${st.cur}|${r.k}|${r.sig}`; // mesma chave do módulo Pedágios, que guarda o resultado de cada percurso
+function pathOf(k, sig) {
+  const g = st.geo && st.geo.get(k); if (!g || g.sig !== sig || !g.p) return null;
+  let c = st.pathCache.get(k); if (!c || c.sig !== sig) { c = { sig, path: decodePoly(g.p) }; st.pathCache.set(k, c); }
+  return c.path;
+}
+async function traceRoute(k) {
+  const r = st.routes.get(k); if (!r) return false;
+  const pts = r.stops.map(cliPt).filter(Boolean); const b = baseOf(r.s);
+  const nodes = b ? [b, ...pts, b] : pts; if (nodes.length < 2) return false;
+  // Semanas com a mesma lista de visitas têm o mesmo percurso: no cálculo em lote, consulta o servidor uma vez só
+  const memo = job && job.memo, feito = memo && memo.get(r.sig);
+  if (feito) { st.geo.put(k, feito); return true; }
+  const g = await roadRoute(nodes);
+  const rec = { sig: r.sig, ...realFromLegs(g.legs, !!b), p: g.poly, src: g.src, o: rotaKey(rotaOpt()), ...(g.toll ? { toll: true } : {}), ...(g.terra !== undefined ? { terra: g.terra } : {}) };
+  st.geo.put(k, rec); if (memo) memo.set(r.sig, rec);
+  return true;
+}
+async function optimizeDayByRoad(s, d) {
+  const union = dayUnion(s, d).filter(x => cliPt(x)); if (union.length < 2) return false;
+  const b = baseOf(s); const pts = union.map(cliPt);
+  const nodes = b ? [b, ...pts] : pts;
+  const o = rotaOpt();
+  let order = null, M = null;
+  if (motorRota(o) === 'valhalla' && nodes.length <= VH_MATRIZ_MAX) { M = await vhMatriz(nodes, o); if (!M) return false; }
+  else if (st.road === 'ok' && nodes.length <= 100) M = await roadMatrix(nodes);
+  if (M) {
+    const t = E.sequenceMatrix(o.curta ? M.D : M.T, !!b);
+    order = b ? t.slice(1).map(i => i - 1) : t;
+  } else if (gReady() && b && pts.length <= 25) {
+    order = (await googleLegs([b, ...pts, b], true, o.pedagio)).order;
+  }
+  if (!order) { resequence(new Set([s + '|' + d])); return false; }
+  order.forEach((idx, pos) => { const it = clone(st.itens.get(union[idx])); it.q = { ...(it.q || {}), [d]: pos + 1 }; st.itens.put(union[idx], it); });
+  return true;
+}
+let job = null;
+async function roadJob(keys, optimize, label) {
+  if (!roadOk()) { roadUnavailable(); return; }
+  if (job) { toast('Já existe um cálculo em andamento'); return; }
+  keys = keys.filter(k => st.routes.has(k)); if (!keys.length) { toast('Nenhuma rota para calcular'); return; }
+  if (optimize) pushUndo(label);
+  job = { cancel: false, done: 0, total: 0, err: null, memo: new Map() }; st.showLines = true;
+  const days = optimize ? [...new Set(keys.map(k => { const r = st.routes.get(k); return r.s + '|' + r.d; }))] : [];
+  const trace = new Set(keys);
+  if (optimize) for (const r of st.routes.values()) if (days.includes(r.s + '|' + r.d)) trace.add(r.k);
+  job.total = days.length + trace.size;
+  showJob(label);
+  const kmAntes = sumRoutes([...trace].map(k => st.routes.get(k)).filter(Boolean)).km;
+  try {
+    for (const sd of days) { if (job.cancel) break; const [sid, d] = sd.split('|'); await optimizeDayByRoad(sid, +d); job.done++; updJob(); }
+    rebuild();
+    for (const k of trace) {
+      if (job.cancel) break;
+      try { await traceRoute(k); } catch (e) { if (e.code === 'cancel') break; job.err = e; if (['net', 'rate', 'bad'].includes(e.code)) break; }
+      job.done++; updJob();
+    }
+  } catch (e) { job.err = e; }
+  const j = job; job = null; closeModal();
+  rebuild(); renderAll();
+  const kmDepois = sumRoutes([...trace].map(k => st.routes.get(k)).filter(Boolean)).km;
+  const semAlt = [...trace].filter(k => { const r = st.routes.get(k); return r && rotaAviso(r.m); }).length;
+  (optimize ? toastU : toast)(j.err ? `Cálculo interrompido: ${j.err.message || j.err.code}` : j.cancel ? 'Cálculo cancelado — o que já foi calculado ficou salvo' : `${label}: ${trace.size} rota(s) · ${fkm(kmAntes)} km estimados → ${fkm(kmDepois)} km pelas ruas${semAlt ? ` · ${semAlt} sem alternativa ao pedágio ou à terra` : ''}`, 7000);
+}
+function showJob(label) {
+  openModal(`<div class="dh"><h2>${esc(label)}</h2></div><div class="db">
+    <p class="muted" style="margin:0">Consultando o servidor de rotas sobre o mapa do OpenStreetMap: ruas, avenidas, rodovias e mão de direção. O serviço gratuito atende cerca de uma consulta por segundo.</p>
+    <div style="height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden"><i id="jobBar" style="display:block;height:100%;width:0;background:var(--accent);transition:width .3s"></i></div>
+    <div id="jobTxt" class="num muted">0 / ${job.total}</div></div>
+    <div class="df"><button class="btn" id="jobCancel">Cancelar</button></div>`, 'sm');
+  $('#jobCancel').onclick = () => { if (job) { job.cancel = true; $('#jobCancel').disabled = true; $('#jobCancel').textContent = 'Cancelando…'; } };
+}
+function updJob() { if (!job) return; const b = $('#jobBar'), t = $('#jobTxt'); if (b) b.style.width = (100 * job.done / Math.max(1, job.total)) + '%'; if (t) t.textContent = `${job.done} / ${job.total} consultas · cerca de ${Math.ceil((job.total - job.done) * (osrmUrl() === OSRM_DEF || motorRota() === 'valhalla' ? 1.1 : 0.3))} s restantes`; }
+let autoT;
+function autoRoadSync() {
+  clearTimeout(autoT);
+  autoT = setTimeout(async () => {
+    if (!st.autoRoad || !roadOk() || job || st.bgBusy || !st.geo) return;
+    const stale = [...st.routes.values()].filter(r => r.stale && !st.roadFail.has(r.k + r.sig)).map(r => r.k).slice(0, 12);
+    if (!stale.length) return;
+    st.bgBusy = true;
+    try { for (const k of stale) { const r = st.routes.get(k); try { await traceRoute(k); } catch (e) { st.roadFail.add(k + (r && r.sig)); if (['net', 'rate'].includes(e.code)) break; } } }
+    finally { st.bgBusy = false; rebuild(); renderView(); }
+  }, 900);
+}
+
+/* ================= Mapa ================= */
+let map, rPts, rLines, rSel, ptsLayer, linesLayer, seqLayer, basesLayer, toolLayer, baseLayer, seaLayer, pedLayer;
+// A CARTO passou a exigir chave de API (devolve uma imagem de aviso no lugar do mapa); por isso o padrão é Esri, gratuito e sem chave.
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+const BASES = {
+  claro: { url: ESRI + 'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', att: 'Mapa © Esri · OpenStreetMap contributors', nz: 16 },
+  escuro: { url: ESRI + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', att: 'Mapa © Esri · OpenStreetMap contributors', nz: 16 },
+  ruasesri: { url: ESRI + 'World_Street_Map/MapServer/tile/{z}/{y}/{x}', att: 'Mapa © Esri · OpenStreetMap contributors' },
+  ruas: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', att: '© OpenStreetMap' },
+  satelite: { url: ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', att: 'Imagens © Esri' }
+};
+const GridLayer = L.GridLayer.extend({
+  createTile(coords) {
+    const c = document.createElement('canvas'), s = this.getTileSize(); c.width = s.x; c.height = s.y;
+    const g = c.getContext('2d'), t = tokens();
+    g.strokeStyle = t.line; g.lineWidth = 1; g.strokeRect(0.5, 0.5, s.x, s.y);
+    g.setLineDash([2, 4]); g.beginPath(); g.moveTo(s.x / 2, 0); g.lineTo(s.x / 2, s.y); g.moveTo(0, s.y / 2); g.lineTo(s.x, s.y / 2); g.stroke();
+    return c;
+  }
+});
+/* Pino de GPS desenhado no canvas: uma gota da cor do setor/dia com o número da visita no miolo, ou um visto quando
+   o cliente está selecionado. Fica leve com milhares de clientes porque não cria um elemento HTML por pino.
+   A ponta da gota é o local exato do cliente; o tamanho acompanha o zoom. */
+const pinEscala = z => (z >= 15 ? 1.1 : z >= 13 ? 0.95 : z >= 11 ? 0.75 : z >= 9 ? 0.55 : 0.42);
+const PinMarker = L.CircleMarker.extend({
+  options: { label: '', check: false, big: false },
+  _pinDims() { const s = pinEscala(this._map ? this._map.getZoom() : 14) * (this.options.big ? 1.22 : 1); const R = 8.5 * s; return { R, h: R * 2.25 }; },
+  _updateBounds() { const { R, h } = this._pinDims(), w = this._clickTolerance() + 4; this._pxBounds = new L.Bounds(this._point.subtract([R + w, h + R + w]), this._point.add([R + w, w + 2])); },
+  _updatePath() { this._renderer._updatePin(this); },
+  _containsPoint(p) {
+    const { R, h } = this._pinDims(), c = this._point.subtract([0, h]);
+    return p.distanceTo(c) <= R + this._clickTolerance() || (Math.abs(p.x - this._point.x) <= R * 0.55 && p.y <= this._point.y + 1 && p.y >= c.y);
+  }
+});
+L.Canvas.include({
+  _updatePin(layer) {
+    if (!this._drawing || layer._empty()) return;
+    const ctx = this._ctx, p = layer._point, o = layer.options, { R, h } = layer._pinDims();
+    const cx = p.x, cy = p.y - h, phi = Math.acos(Math.min(1, R / h));
+    ctx.beginPath(); ctx.moveTo(cx, p.y); ctx.arc(cx, cy, R, Math.PI / 2 + phi, Math.PI / 2 - phi + 2 * Math.PI); ctx.closePath();
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1.2;
+    ctx.globalAlpha = o.fillOpacity ?? 1; ctx.fillStyle = o.fillColor || o.color; ctx.fill(); ctx.restore();
+    ctx.globalAlpha = 1; ctx.setLineDash([]); ctx.lineJoin = 'round'; ctx.lineWidth = o.weight; ctx.strokeStyle = o.color; ctx.stroke();
+    if (R < 4.2) return; // de longe, só a gota colorida
+    const ri = R * (o.check || o.label ? 0.6 : 0.36); // sem número, um miolo menor deixa a cor do pino aparecer
+    ctx.beginPath(); ctx.arc(cx, cy, ri, 0, 2 * Math.PI); ctx.fillStyle = '#FFFFFF'; ctx.fill();
+    if (o.check) {
+      ctx.beginPath(); ctx.moveTo(cx - ri * 0.52, cy + ri * 0.02); ctx.lineTo(cx - ri * 0.12, cy + ri * 0.42); ctx.lineTo(cx + ri * 0.56, cy - ri * 0.4);
+      ctx.lineWidth = Math.max(1.6, ri * 0.32); ctx.lineCap = 'round'; ctx.strokeStyle = o.fillColor || '#18211D'; ctx.stroke();
+    } else if (o.label && R >= 6) {
+      const t = String(o.label), fs = Math.round(ri * (t.length >= 3 ? 0.95 : 1.25));
+      ctx.fillStyle = '#18211D'; ctx.font = `600 ${fs}px "IBM Plex Mono", ui-monospace, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(t, cx, cy + 0.5);
+    }
+  }
+});
+function setBase() {
+  if (!map) return;
+  if (baseLayer) map.removeLayer(baseLayer);
+  let kind = st.baseKind;
+  if (kind === 'auto') kind = isDark() ? 'escuro' : 'claro';
+  if (kind.startsWith('g_') && !gReady()) { startGoogle(); kind = isDark() ? 'escuro' : 'claro'; }
+  st.tileOk = 0; st.tileErr = 0;
+  if (kind === 'grade') { baseLayer = new GridLayer({ attribution: '' }); }
+  else if (kind.startsWith('g_')) {
+    const type = { g_mapa: 'roadmap', g_sat: 'hybrid', g_ter: 'terrain' }[kind] || 'roadmap';
+    baseLayer = L.gridLayer.googleMutant({ type, styles: type === 'roadmap' ? (isDark() ? G_DARK : G_LIGHT) : undefined, maxZoom: 21 });
+  }
+  else {
+    const b = BASES[kind];
+    baseLayer = L.tileLayer(b.url, { attribution: b.att, maxZoom: 19, maxNativeZoom: b.nz || 19, crossOrigin: false });
+    baseLayer.on('tileload', () => { st.tileOk++; });
+    baseLayer.on('tileerror', () => {
+      st.tileErr++;
+      if (st.tileErr >= 4 && st.tileOk === 0) {
+        st.baseKind = 'grade'; $('#baseSel').value = 'grade'; setBase();
+        if (inClaude()) { claudeNote(); return; }
+        showNote(st.g === 'fail' ? `O Google Maps não carregou (${esc(st.gMsg)}) e o mapa alternativo também está bloqueado aqui. Usando a grade; distâncias, régua e ferramentas continuam corretas. Abra o arquivo HTML no navegador para ver o Google Maps.` : 'O mapa de ruas não carregou nesta janela (a rede está bloqueada aqui). Usando a grade; distâncias, régua e ferramentas continuam corretas. Abra o arquivo HTML no seu navegador para ver ruas e satélite.', 'warn');
+      }
+    });
+  }
+  baseLayer.addTo(map); baseLayer.bringToBack && baseLayer.bringToBack();
+}
+function showNote(html, cls = '') { const n = $('#mapNote'); n.className = 'float ' + cls; n.innerHTML = `<span>${html}</span><button class="iconbtn" aria-label="Fechar aviso">${ICON.close}</button>`; n.hidden = false; n.querySelector('button').onclick = () => { n.hidden = true; }; }
+
+function initMap() {
+  map = L.map('map', { zoomControl: false, preferCanvas: true, boxZoom: false, attributionControl: true, worldCopyJump: false }).setView([-23.62, -46.65], 12);
+  map.attributionControl.setPrefix('');
+  map.createPane('routes'); map.getPane('routes').style.zIndex = 390;
+  rLines = L.canvas({ pane: 'routes', padding: 0.4 });
+  rPts = L.canvas({ padding: 0.4, tolerance: 5 });
+  // Laço e retângulo ficam numa camada acima dos clientes, que não captura o mouse
+  map.createPane('selecao'); map.getPane('selecao').style.zIndex = 460; map.getPane('selecao').style.pointerEvents = 'none';
+  rSel = L.canvas({ pane: 'selecao', padding: 0.2 });
+  L.control.scale({ metric: true, imperial: false, position: 'bottomright', maxWidth: 170 }).addTo(map);
+  linesLayer = L.layerGroup().addTo(map); ptsLayer = L.layerGroup().addTo(map); seqLayer = L.layerGroup().addTo(map);
+  basesLayer = L.layerGroup().addTo(map); toolLayer = L.layerGroup().addTo(map); seaLayer = L.layerGroup().addTo(map); pedLayer = L.layerGroup().addTo(map);
+  setBase();
+  map.on('click', onMapClick);
+  map.on('contextmenu', e => abrirCtx(e, null));
+  map.on('movestart zoomstart', fecharCtx);
+  map.on('mousemove', onMapMove);
+  map.on('dblclick', e => { if (st.tool === 'ruler' && st.ruler.active) { st.ruler.active = false; drawRuler(); } });
+  map.on('zoomend', () => { if (st.showSeq) renderSeq(); });
+  initLasso();
+  renderToolbar();
+}
+function renderToolbar() {
+  const t = st.tool, full = document.body.classList.contains('immersive');
+  $('#toolbar').innerHTML = `
+    <button class="tb" data-tool="pan" aria-pressed="${t === 'pan'}" title="Mover o mapa (H)" aria-label="Mover">${ICON.pan}</button>
+    <button class="tb" data-tool="select" aria-pressed="${t === 'select'}" title="Selecionar clicando — Shift soma (V)" aria-label="Selecionar">${ICON.select}</button>
+    <button class="tb" data-tool="rect" aria-pressed="${t === 'rect'}" title="Seleção por retângulo — Shift soma, Alt remove (B)" aria-label="Retângulo">${ICON.rect}</button>
+    <button class="tb" data-tool="lasso" aria-pressed="${t === 'lasso'}" title="Laço livre — Shift soma, Alt remove (L)" aria-label="Laço">${ICON.lasso}</button>
+    <button class="tb" data-tool="ruler" aria-pressed="${t === 'ruler'}" title="Régua em km — clique nos pontos, duplo clique encerra (M)" aria-label="Régua">${ICON.ruler}</button>
+    <span class="sep"></span>
+    <button class="tb" data-act="zin" title="Aproximar (+)" aria-label="Aproximar">${ICON.plus}</button>
+    <button class="tb" data-act="zout" title="Afastar (−)" aria-label="Afastar">${ICON.minus}</button>
+    <button class="tb" data-act="fit" title="Enquadrar o que está visível (E)" aria-label="Enquadrar">${ICON.fit}</button>
+    <button class="tb" data-act="undo" title="${(l => l.length ? 'Desfazer: ' + esc(l[l.length - 1].label) : 'Desfazer')(histDoEstudo(st.undo))} (Ctrl+Z)" aria-label="Desfazer"${histDoEstudo(st.undo).length ? '' : ' disabled'}>${ICON.undo}</button>
+    <button class="tb" data-act="redo" title="${(l => l.length ? 'Refazer: ' + esc(l[l.length - 1].label) : 'Refazer')(histDoEstudo(st.redo))} (Ctrl+Y)" aria-label="Refazer"${histDoEstudo(st.redo).length ? '' : ' disabled'}>${ICON.redo}</button>
+    <button class="tb" data-act="hist" title="Histórico de alterações: voltar o estudo para como estava antes" aria-label="Histórico"${st.itens ? '' : ' disabled'}>${ICON.hist}</button>
+    <button class="tb" data-act="full" title="Tela cheia (F)" aria-pressed="${full}" aria-label="Tela cheia">${full ? ICON.unfull : ICON.full}</button>`;
+}
+function setTool(t) {
+  st.tool = t;
+  document.body.classList.remove('tool-lasso', 'tool-rect', 'tool-ruler');
+  if (t === 'lasso' || t === 'rect' || t === 'ruler') document.body.classList.add('tool-' + t);
+  if (t === 'lasso' || t === 'rect') map.dragging.disable(); else map.dragging.enable();
+  if (t === 'ruler') map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
+  if (t !== 'ruler') { st.ruler = { pts: [], active: false }; drawRuler(); }
+  renderToolbar();
+}
+function toggleFull() {
+  const on = !document.body.classList.contains('immersive');
+  document.body.classList.toggle('immersive', on);
+  try { if (on && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) { /* opcional */ }
+  setTimeout(() => map.invalidateSize(), 60); renderToolbar();
+}
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('immersive')) { document.body.classList.remove('immersive'); setTimeout(() => map.invalidateSize(), 60); renderToolbar(); } });
+
+function colorFor(it) {
+  if (!it || !it.s || !setorOf(it.s)) return null;
+  switch (st.corAtual || st.colorBy) {
+    case 'dia': return COR_DIA[(it.d || [])[0]] || '#7d8a84';
+    case 'semana': { const W = P().semanas; const w = it.w || []; return w.length >= W ? '#6E7C76' : (COR_SEM[w[0]] || '#7d8a84'); }
+    case 'colab': { const c = colabOfSetor(it.s); return (c && c.cor) || '#7d8a84'; }
+    default: return setorOf(it.s).cor || '#7d8a84';
+  }
+}
+function routeColor(r) {
+  switch (st.corAtual || st.colorBy) {
+    case 'dia': return COR_DIA[r.d]; case 'semana': return COR_SEM[r.w] || '#6E7C76';
+    case 'colab': { const c = colabOfSetor(r.s); return (c && c.cor) || '#7d8a84'; }
+    default: return (setorOf(r.s) || {}).cor || '#7d8a84';
+  }
+}
+function tipHtml(sold) {
+  const c = st.cli.get(sold); if (!c) return '';
+  const it = st.itens && st.itens.get(sold);
+  let l2 = '<span class="t2">Fora do estudo</span>';
+  if (it) {
+    const s = setorOf(it.s);
+    l2 = s ? `<span class="t2">${esc(s.nome)} · ${(it.d || []).map(d => DIA_C[d]).join('/') || 'sem dia'} · ${(it.w || []).length >= P().semanas ? 'todas as semanas' : 'sem. ' + (it.w || []).join(',')}</span>` : '<span class="t2">Sem setor</span>';
+  }
+  return `<div class="tip"><b>${esc(c.nome || c.sold)}</b><br><span class="t2">SOLD ${esc(c.sold)} · ${freqTxt(c.f)} · ${c.t || P().tPadrao} min${c.cidade ? ' · ' + esc(c.cidade) : ''}</span><br>${l2}</div>`;
+}
+
+function renderMap() {
+  if (!map || !st.cli || st.screen !== 'planner' || st.view !== 'mapa') return;
+  const a = amb(), tok = tokens();
+  const want = new Map(), base = st.visao === 'base';
+  // Com um único colaborador marcado na visão por rota, cada dia ganha uma cor
+  st.corAtual = st.visao === 'rotas' && sortedSetores().filter(([id]) => !st.hiddenSet.has(id)).length === 1 ? 'dia' : st.colorBy;
+  const vis = base ? [] : sortedRoutes([...st.routes.values()].filter(r => routeVisible(r.k)));
+  st.visRoutes = vis;
+  // Com as linhas visíveis, o número da visita vai dentro do pino (o primeiro dia visível, se o cliente tiver mais de um)
+  const seqN = new Map();
+  if (st.pinos && st.showSeq && st.showLines) for (const r of vis) r.stops.forEach((s, i) => { if (!seqN.has(s)) seqN.set(s, String(i + 1)); });
+  const pino = (sel, label) => (st.pinos ? { check: sel, big: sel, label: sel ? '' : label || '' } : {});
+  if (base) {
+    const cores = coresCidades();
+    for (const c of baseFiltrados()) {
+      if (!hasXY(c)) continue;
+      const it = st.itens && st.itens.get(c.sold), sel = st.sel.has(c.sold);
+      const col = st.baseCor === 'cidade' ? cores.get(c.cidade || '') : colorFor(it) || tok.muted;
+      want.set(c.sold, { radius: sel ? 8 : 5.5, color: sel ? tok.sel : tok.surface, weight: sel ? 3 : 1.2, fillColor: col, fillOpacity: 0.95, ...pino(sel) });
+    }
+  }
+  if (!base && a && st.itens) for (const [sold, it] of st.itens.map) {
+    const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) continue;
+    if (!itemVisible(it)) continue;
+    const col = colorFor(it), sel = st.sel.has(sold);
+    want.set(sold, col ? { radius: sel ? 8 : 6, color: sel ? tok.sel : tok.surface, weight: sel ? 3 : 1.5, fillColor: col, fillOpacity: 0.95, ...pino(sel, seqN.get(sold)) }
+      : { radius: sel ? 8 : 5.5, color: sel ? tok.sel : tok.muted, weight: sel ? 3 : 1.8, fillColor: st.pinos ? tok.muted : tok.surface, fillOpacity: 0.9, ...pino(sel) });
+  }
+  for (const [sold, m] of st.mk) if (!want.has(sold) || !!m._pin !== !!st.pinos) { ptsLayer.removeLayer(m); st.mk.delete(sold); }
+  for (const [sold, sty] of want) {
+    let m = st.mk.get(sold); const c = st.cli.get(sold);
+    if (!m) {
+      m = st.pinos ? new PinMarker([c.lat, c.lng], { renderer: rPts, ...sty }) : L.circleMarker([c.lat, c.lng], { renderer: rPts, ...sty });
+      m._sold = sold; m._pin = !!st.pinos;
+      m.on('click', onMarkerClick);
+      m.on('contextmenu', e => { L.DomEvent.stopPropagation(e); abrirCtx(e, e.target._sold); });
+      m.bindTooltip(() => tipHtml(m._sold), { direction: 'top', offset: [0, st.pinos ? -26 : -6] });
+      ptsLayer.addLayer(m); st.mk.set(sold, m);
+    } else { m.setLatLng([c.lat, c.lng]); m.setStyle(sty); m.setRadius(sty.radius); }
+  }
+  // linhas
+  linesLayer.clearLayers(); basesLayer.clearLayers();
+  if (st.showLines) for (const r of vis) {
+    const pts = r.stops.map(cliPt).filter(Boolean).map(p => [p.lat, p.lng]); if (!pts.length) continue;
+    const col = routeColor(r), b = baseOf(r.s);
+    const gp = pathOf(r.k, r.sig);
+    if (gp) { L.polyline(gp, { renderer: rLines, color: col, weight: vis.length > 12 ? 2.5 : 4, opacity: 0.85, interactive: false }).addTo(linesLayer); continue; }
+    L.polyline(pts, { renderer: rLines, color: col, weight: vis.length > 12 ? 2 : 3, opacity: 0.85, interactive: false }).addTo(linesLayer);
+    if (b) {
+      const o = { renderer: rLines, color: col, weight: 2, opacity: 0.6, dashArray: '4 6', interactive: false };
+      L.polyline([[b.lat, b.lng], pts[0]], o).addTo(linesLayer); L.polyline([pts[pts.length - 1], [b.lat, b.lng]], o).addTo(linesLayer);
+    }
+  }
+  // Praças de pedágio: as do percurso das rotas visíveis em destaque, as demais apagadas
+  pedLayer.clearLayers();
+  if (window.PedMod && st.showPed) window.PedMod.desenha(pedLayer, st.showLines ? vis.map(r => ({ chave: pedChave(r), path: pathOf(r.k, r.sig) })) : [], true);
+  if (st.showBases && a && !base) {
+    const seen = new Set();
+    for (const r of vis) { if (seen.has(r.s)) continue; seen.add(r.s); }
+    if (!vis.length) sortedSetores().forEach(([id]) => { if (!st.hiddenSet.has(id)) seen.add(id); });
+    for (const sid of seen) {
+      const b = baseOf(sid); if (!b) continue; const s = setorOf(sid), c = colabOfSetor(sid);
+      const col = st.colorBy === 'colab' ? (c.cor || s.cor) : s.cor;
+      L.marker([b.lat, b.lng], { icon: L.divIcon({ className: '', html: `<div class="basem" style="background:${esc(col)}">${ICON.home}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] }), keyboard: false })
+        .bindTooltip(`<div class="tip"><b>${esc(c.nome)}</b><br><span class="t2">Base · ${esc(c.endereco || '')} · ${esc(s.nome)}</span></div>`, { direction: 'top', offset: [0, -10] }).addTo(basesLayer);
+    }
+  }
+  renderSeq(); renderSea();
+  renderLegend(); renderSummary(); renderLayersPanel(); renderSelPanel(); renderPendNote();
+}
+/* Clientes sem coordenada ficam empilhados num ponto no mar; arrastar um pino até o local grava a coordenada */
+let seaSig = '';
+function renderSea() {
+  const list = st.showSea && st.visao === 'base' ? seaList() : [];
+  const chip = $('#seaChip'), n = seaList().length;
+  chip.hidden = !n;
+  if (n) chip.innerHTML = `<span><b class="num">${n}</b> endereço(s) não encontrados${st.showSea ? '' : ' (camada oculta)'}</span><button class="btn sm" data-sea="go">Ver no mar</button><button class="btn sm" data-sea="list">Ajustar</button>`;
+  const sig = list.map(c => c.sold).join(',') + '|' + st.ro;
+  if (sig === seaSig) return; seaSig = sig; seaLayer.clearLayers();
+  if (!list.length) return;
+  const icon = L.divIcon({ className: '', html: '<div class="seapin"></div>', iconSize: [16, 16], iconAnchor: [8, 16] });
+  for (const c of list.slice(0, 400)) {
+    const sold = c.sold;
+    const m = L.marker([SEA.lat, SEA.lng], { icon, draggable: !st.ro, keyboard: false, autoPan: true });
+    m.bindTooltip(() => seaTip(sold), { direction: 'top', offset: [0, -14] });
+    m.on('dragend', e => { placeClient(sold, e.target.getLatLng(), 'mapa'); afterPlace(sold); });
+    seaLayer.addLayer(m);
+  }
+  L.marker([SEA.lat, SEA.lng], { icon: L.divIcon({ className: '', html: `<div class="seacount">${list.length} endereço(s) a ajustar<br><small>Arraste cada pino até o local certo</small></div>`, iconSize: [0, 0], iconAnchor: [-14, 30] }), interactive: false, keyboard: false }).addTo(seaLayer);
+}
+function seaTip(sold) {
+  const c = st.cli.get(sold); if (!c) return '';
+  const g = c.geoPend;
+  return `<div class="tip"><b>${esc(c.nome || c.sold)}</b><br><span class="t2">SOLD ${esc(c.sold)} · ${esc(addrTxt(c) || 'sem endereço')}</span><br><span class="t2">${esc(g ? g.msg : 'ainda sem coordenada')} · arraste até o local</span></div>`;
+}
+function goSea() { if (st.view !== 'mapa' || st.screen !== 'planner') setView('mapa'); st.showSea = true; if (st.visao !== 'base') setVisao('base'); renderMap(); setTimeout(() => map.setView([SEA.lat, SEA.lng], 11), 60); }
+/* Posicionar clicando no mapa */
+function startPlace(sold) {
+  const c = st.cli.get(sold); if (!c || st.ro) return;
+  closeModal(); if (['lasso', 'rect', 'ruler'].includes(st.tool)) setTool('select');
+  st.placing = sold; document.body.classList.add('tool-place'); setView('mapa');
+  setTimeout(() => {
+    const s = c.geoPend && c.geoPend.sug;
+    if (s) map.setView([s.lat, s.lng], 16);
+    else { const near = [...st.cli.values()].filter(x => hasXY(x) && c.cidade && norm(x.cidade) === norm(c.cidade)); if (near.length) map.fitBounds(L.latLngBounds(near.map(x => [x.lat, x.lng])).pad(0.05)); }
+    showNote(`Clique no mapa no local de <b>${esc(c.nome || c.sold)}</b> · ${esc(addrTxt(c) || 'sem endereço')}${s ? ' · o mapa abriu na sugestão encontrada' : ''} <button class="btn sm" id="plCancel">Cancelar</button>`, 'warn');
+    $('#plCancel').onclick = endPlace;
+  }, 160);
+}
+function endPlace() { st.placing = null; document.body.classList.remove('tool-place'); $('#mapNote').hidden = true; }
+function placeClient(sold, ll, how, nivel) {
+  const c = st.cli.get(sold); if (!c) return;
+  const n = { ...c, lat: +(+ll.lat).toFixed(6), lng: +(+ll.lng).toFixed(6), geo: how || 'manual', geoNivel: nivel || 'exato' }; delete n.geoPend;
+  st.cli.put(sold, n); rebuild(); renderAll();
+}
+function afterPlace(sold) {
+  const c = st.cli.get(sold), next = seaList()[0];
+  showNote(`<b>${esc(c ? c.nome || sold : sold)}</b> posicionado. ${next ? `<button class="btn sm" id="plNext">Próximo: ${esc(next.nome || next.sold)}</button>` : 'Não há outros endereços a ajustar.'} <button class="btn sm" id="plList">Lista</button>`);
+  const b = $('#plNext'); if (b) b.onclick = () => startPlace(next.sold);
+  $('#plList').onclick = () => { $('#mapNote').hidden = true; adjustForm(); };
+}
+function renderSeq() {
+  seqLayer.clearLayers();
+  if (st.pinos) return; // os números já vão dentro dos pinos
+  const vis = st.visRoutes || [];
+  const total = vis.reduce((s, r) => s + r.stops.length, 0);
+  if (!st.showSeq || !st.showLines || !vis.length || vis.length > 10 || total > 320 || map.getZoom() < 12) return;
+  const done = new Set();
+  for (const r of vis) {
+    const col = routeColor(r);
+    r.stops.forEach((sold, i) => {
+      const key = sold + '|' + r.d; if (done.has(key)) return; done.add(key);
+      const p = cliPt(sold); if (!p) return;
+      L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: `<div class="seqm" style="background:${esc(col)}">${i + 1}</div>`, iconSize: [18, 18], iconAnchor: [-3, 20] }), interactive: false, keyboard: false }).addTo(seqLayer);
+    });
+  }
+}
+function renderLegend() {
+  const el = $('#legend'); const a = amb();
+  let rows = [];
+  if (st.visao === 'base' && st.baseCor === 'cidade') {
+    const cores = coresCidades(); rows = [...new Set(baseFiltrados().map(c => c.cidade || ''))].sort((x, y) => x.localeCompare(y, 'pt-BR')).slice(0, 14).map(c => [cores.get(c), c || 'Sem cidade']);
+    el.hidden = !rows.length;
+    el.innerHTML = rows.map(([c, t]) => `<div class="li"><span class="sw" style="background:${esc(c)}"></span>${esc(t)}</div>`).join('');
+    return;
+  }
+  if (!a) { el.hidden = true; return; }
+  if ((st.corAtual || st.colorBy) === 'setor') rows = sortedSetores().map(([id, s]) => [s.cor, s.nome]);
+  else if ((st.corAtual || st.colorBy) === 'dia') rows = P().dias.map(d => [COR_DIA[d], DIA_L[d]]);
+  else if (st.colorBy === 'semana') { const W = P().semanas; rows = [['#6E7C76', 'Todas as semanas']]; for (let w = 1; w <= W; w++) rows.push([COR_SEM[w], 'Semana ' + w]); }
+  else { const seen = new Map(); sortedSetores().forEach(([id]) => { const c = colabOfSetor(id); if (c && !seen.has(c.codigo)) seen.set(c.codigo, [c.cor || '#7d8a84', c.nome]); }); rows = [...seen.values()]; }
+  rows.push(['transparent', 'Sem dia']);
+  el.hidden = false;
+  el.innerHTML = rows.map(([c, t]) => `<div class="li"><span class="sw" style="background:${esc(c)};${c === 'transparent' ? 'border:1.5px solid var(--muted)' : ''}"></span>${esc(t)}</div>`).join('');
+}
+function sumRoutes(list) { const o = { n: 0, km: 0, tDesl: 0, tAtend: 0, total: 0, oc: 0 }; for (const r of list) { o.n += r.m.n; o.km += r.m.km; o.tDesl += r.m.tDesl; o.tAtend += r.m.tAtend; o.total += r.m.total; o.oc += r.m.ocup; } o.ocMed = list.length ? o.oc / list.length : 0; return o; }
+function renderSummary() {
+  const el = $('#mapSummary'); const vis = st.visRoutes || [];
+  if (st.visao === 'base') {
+    const f = baseFiltrados();
+    el.innerHTML = `
+    <div class="kpi"><div class="k">Clientes no mapa</div><div class="v">${nf0.format(st.mk.size)}</div></div>
+    <div class="kpi"><div class="k">Cidades</div><div class="v">${nf0.format(new Set(f.map(c => c.cidade || '')).size)}</div></div>
+    <div class="kpi"><div class="k">Sem coordenada</div><div class="v">${nf0.format(f.filter(c => !hasXY(c)).length)}</div></div>`;
+    return;
+  }
+  if (!amb()) { el.innerHTML = '<div class="kpi"><div class="k">Sem estudo aberto</div><div class="v">—</div></div>'; return; }
+  const s = sumRoutes(vis);
+  const nCli = new Set(vis.flatMap(r => r.stops)).size;
+  el.innerHTML = `
+    <div class="kpi"><div class="k">Rotas visíveis</div><div class="v">${vis.length}</div></div>
+    <div class="kpi"><div class="k">Clientes</div><div class="v">${nCli}</div></div>
+    <div class="kpi"><div class="k">Visitas</div><div class="v">${s.n}</div></div>
+    <div class="kpi"><div class="k">KM ida e volta</div><div class="v">${fkm(s.km)}</div></div>
+    <div class="kpi"><div class="k">Deslocamento</div><div class="v">${fhm(s.tDesl)}</div></div>
+    <div class="kpi"><div class="k">Atendimento</div><div class="v">${fhm(s.tAtend)}</div></div>
+    <div class="kpi"><div class="k">Ocupação média</div><div class="v">${vis.length ? fpct(s.ocMed) : '—'}</div></div>`;
+}
+function renderPendNote() {
+  const a = amb(); if (!a || st.pendNoted === st.cur) return;
+  const pend = cleanPend(a);
+  const n1 = pend.cli.length, n2 = pend.col.length;
+  if ((n1 || n2) && $('#mapNote').hidden) {
+    st.pendNoted = st.cur;
+    showNote(`Este estudo cita ${n1 ? n1 + ' cliente(s)' : ''}${n1 && n2 ? ' e ' : ''}${n2 ? n2 + ' colaborador(es)' : ''} que não existem nas bases. <button class="btn sm" id="goPend">Resolver pendências</button> <button class="btn sm ghost" id="ignPend"${st.ro ? ' disabled' : ''}>Ignorar</button>`, 'warn');
+    const ig = $('#ignPend'); if (ig) ig.onclick = () => { $('#mapNote').hidden = true; ignorarPend('todas'); };
+    const b = $('#goPend'); if (b) b.onclick = () => { $('#mapNote').hidden = true; setView('estudos'); setTimeout(() => { const p = $('#pendCard'); if (p) p.scrollIntoView({ block: 'start' }); }, 50); };
+  }
+}
+
+function fitVisible() {
+  if (!map || st.screen !== 'planner' || st.view !== 'mapa') return;
+  const pts = [];
+  for (const m of st.mk.values()) pts.push(m.getLatLng());
+  basesLayer.eachLayer(l => pts.push(l.getLatLng()));
+  if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.08), { maxZoom: 16, paddingTopLeft: [st.panelL && innerWidth > 640 ? 330 : 10, 60], paddingBottomRight: [st.panelR && innerWidth > 640 ? 330 : 10, 60] });
+}
+
+/* Seleção */
+function onMarkerClick(e) {
+  L.DomEvent.stopPropagation(e);
+  const sold = e.target._sold;
+  if (st.placing) { const s = st.placing; endPlace(); placeClient(s, e.target.getLatLng(), 'mapa'); afterPlace(s); return; }
+  if (st.tool === 'ruler') { rulerAdd(e.target.getLatLng()); return; }
+  const oe = e.originalEvent || {};
+  if (oe.shiftKey || oe.ctrlKey || oe.metaKey) { if (st.sel.has(sold)) st.sel.delete(sold); else st.sel.add(sold); }
+  else if (st.sel.size === 1 && st.sel.has(sold)) st.sel.clear();
+  else { st.sel.clear(); st.sel.add(sold); }
+  afterSel();
+}
+function onMapClick(e) {
+  if (performance.now() - (st.lassoEnd || 0) < 350) return;
+  if (st.placing) { const s = st.placing; endPlace(); placeClient(s, e.latlng, 'mapa'); afterPlace(s); return; }
+  if (st.tool === 'ruler') { rulerAdd(e.latlng); return; }
+  const oe = e.originalEvent || {};
+  if (st.sel.size && !oe.shiftKey) { st.sel.clear(); afterSel(); }
+}
+function afterSel() { if (st.sel.size) { st.panelR = true; applyPanels(); } renderMap(); }
+
+function initLasso() {
+  const el = $('#map'); let drag = null, shape = null;
+  el.addEventListener('pointerdown', e => {
+    if (st.tool !== 'lasso' && st.tool !== 'rect') return;
+    if (e.button !== 0 || e.target.closest('.leaflet-control')) return;
+    const ll = map.mouseEventToLatLng(e);
+    drag = { start: ll, pts: [ll], px: [e.clientX, e.clientY], moved: false, add: e.shiftKey || e.ctrlKey || e.metaKey, sub: e.altKey };
+    try { el.setPointerCapture(e.pointerId); } catch (_) { /* ok */ }
+    e.preventDefault();
+  });
+  // Contorno em duas camadas (halo claro + traço forte) e preenchimento visível, acima dos pinos, e um contador junto ao cursor
+  const bolha = document.createElement('div'); bolha.id = 'selCount'; bolha.hidden = true; bolha.setAttribute('aria-live', 'polite'); document.body.append(bolha);
+  const corSel = () => getComputedStyle(document.documentElement).getPropertyValue('--lasso').trim() || '#0B63CE';
+  const dentro = (d, end) => {
+    if (st.tool === 'rect') { const b = L.latLngBounds(d.start, end); return ll => b.contains(ll); }
+    const poly = d.pts.map(p => [p.lng, p.lat]); return ll => pip(ll.lng, ll.lat, poly);
+  };
+  let contaRaf = 0;
+  const contar = (d, ll, x, y) => {
+    if (contaRaf) return;
+    contaRaf = requestAnimationFrame(() => {
+      contaRaf = 0; if (!drag) return;
+      const f = dentro(d, ll); let n = 0; for (const m of st.mk.values()) if (f(m.getLatLng())) n++;
+      bolha.className = d.sub ? 'sub' : d.add ? 'add' : '';
+      bolha.innerHTML = `<b class="num">${nf0.format(n)}</b> cliente${n === 1 ? '' : 's'}${d.sub ? ' · remover' : d.add ? ' · somar' : ''}`;
+      bolha.style.left = Math.min(x + 16, innerWidth - 150) + 'px'; bolha.style.top = Math.max(8, y - 34) + 'px'; bolha.hidden = false;
+    });
+  };
+  el.addEventListener('pointermove', e => {
+    if (!drag) return;
+    if (Math.hypot(e.clientX - drag.px[0], e.clientY - drag.px[1]) < 4 && !drag.moved) return;
+    drag.moved = true;
+    const ll = map.mouseEventToLatLng(e);
+    // Sem renderer próprio, o Leaflet criaria um canvas sobre o dos clientes, que passaria a capturar o mouse para sempre
+    const cor = corSel(), halo = { renderer: rSel, color: '#FFFFFF', weight: 7, opacity: 0.9, fill: false, interactive: false, lineJoin: 'round' };
+    const traco = { renderer: rSel, color: cor, weight: 3, opacity: 1, dashArray: '10 6', fillColor: cor, fillOpacity: drag.sub ? 0.1 : 0.2, interactive: false, lineJoin: 'round' };
+    if (shape) toolLayer.removeLayer(shape);
+    shape = L.layerGroup();
+    if (st.tool === 'rect') { const b = L.latLngBounds(drag.start, ll); shape.addLayer(L.rectangle(b, halo)).addLayer(L.rectangle(b, traco)); }
+    else {
+      const last = drag.pts[drag.pts.length - 1]; const p1 = map.latLngToContainerPoint(last), p2 = map.latLngToContainerPoint(ll); if (p1.distanceTo(p2) > 3) drag.pts.push(ll);
+      shape.addLayer(L.polygon(drag.pts, halo)).addLayer(L.polygon(drag.pts, traco));
+      shape.addLayer(L.circleMarker(drag.start, { renderer: rSel, radius: 5, color: '#FFFFFF', weight: 2, fillColor: cor, fillOpacity: 1, interactive: false }));
+    }
+    toolLayer.addLayer(shape);
+    contar(drag, ll, e.clientX, e.clientY);
+  });
+  const finish = e => {
+    if (!drag) return;
+    const d = drag; drag = null; bolha.hidden = true;
+    if (shape) { toolLayer.removeLayer(shape); shape = null; }
+    if (!d.moved) return;
+    st.lassoEnd = performance.now();
+    const end = map.mouseEventToLatLng(e);
+    const inside = dentro(d, end);
+    const hit = []; for (const [sold, m] of st.mk) if (inside(m.getLatLng())) hit.push(sold);
+    if (d.sub) hit.forEach(s => st.sel.delete(s));
+    else { if (!d.add) st.sel.clear(); hit.forEach(s => st.sel.add(s)); }
+    afterSel();
+    if (hit.length) toast(`${hit.length} cliente(s) ${d.sub ? 'removidos da' : 'na'} seleção`);
+  };
+  el.addEventListener('pointerup', finish);
+  el.addEventListener('pointercancel', () => { drag = null; bolha.hidden = true; if (shape) { toolLayer.removeLayer(shape); shape = null; } });
+}
+function pip(x, y, poly) { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) ins = !ins; } return ins; }
+
+/* Régua */
+function rulerAdd(ll) {
+  if (!st.ruler.active) st.ruler = { pts: [], active: true };
+  const last = st.ruler.pts[st.ruler.pts.length - 1];
+  if (last && map.latLngToContainerPoint(last).distanceTo(map.latLngToContainerPoint(ll)) < 4) return;
+  st.ruler.pts.push(ll); drawRuler();
+}
+function onMapMove(e) { if (st.tool === 'ruler' && st.ruler.active && st.ruler.pts.length) drawRuler(e.latlng); }
+function drawRuler(cursor) {
+  toolLayer.clearLayers();
+  const pts = st.ruler.pts.slice(); const box = $('#rulerBox');
+  if (!pts.length) { box.hidden = st.tool !== 'ruler'; if (!box.hidden) box.innerHTML = '<span class="muted">Clique no mapa ou nos clientes para medir. Duplo clique encerra · Esc limpa.</span>'; return; }
+  const all = cursor ? pts.concat([cursor]) : pts;
+  const col = tokens().ink;
+  L.polyline(all, { renderer: rLines, color: col, weight: 2.5, dashArray: '6 5', interactive: false }).addTo(toolLayer);
+  let acc = 0;
+  all.forEach((p, i) => {
+    if (i > 0) acc += map.distance(all[i - 1], p) / 1000;
+    L.circleMarker(p, { renderer: rLines, radius: 4, color: col, fillColor: tokens().surface, fillOpacity: 1, weight: 2, interactive: false }).addTo(toolLayer);
+    if (i > 0) L.tooltip({ permanent: true, direction: 'right', className: 'rl', offset: [8, 0] }).setLatLng(p).setContent(fkm(acc) + ' km').addTo(toolLayer);
+  });
+  const f = P().fator;
+  box.hidden = false;
+  box.innerHTML = `<div><div class="lbl">Linha reta</div><div class="big">${fkm(acc)} km</div></div><div><div class="lbl">Estimado por via (×${nf1.format(f)})</div><div class="big">${fkm(acc * f)} km</div></div><div><div class="lbl">Tempo a ${P().vel} km/h</div><div class="big">${fhm((acc * f) / P().vel * 60)}</div></div><button class="btn sm" id="rulerClr">Limpar</button>`;
+  $('#rulerClr').onclick = () => { st.ruler = { pts: [], active: false }; drawRuler(); };
+}
+
+/* Painéis do mapa */
+function applyPanels() {
+  $('#layersPanel').hidden = !st.panelL; $('#btnLayers').hidden = st.panelL;
+  $('#selPanel').hidden = !st.panelR; $('#btnSel').hidden = st.panelR;
+  document.body.classList.toggle('panel-left', st.panelL); document.body.classList.toggle('panel-right', st.panelR);
+  const c = $('#btnSel .count'); if (c) c.textContent = st.sel.size || '';
+}
+function setorGrade(id) {
+  const W = P().semanas, D = P().dias, on = !st.hiddenSet.has(id);
+  let grid = '';
+  for (let w = 1; w <= W; w++) {
+    const chips = D.map(d => {
+      const r = st.routes.get(`${id}|${w}|${d}`);
+      if (!r) return `<span class="rchip" style="opacity:.45" title="Sem visitas">${DIA_C[d]}</span>`;
+      const v = on && !st.hidden.has(r.k);
+      return `<button class="rchip${v ? ' on' : ''}${r.m.ocup > 1 ? ' over' : ''}" style="--rc:${esc(routeColor(r))}" data-rk="${esc(r.k)}" title="Semana ${w} · ${DIA_L[d]}: ${r.m.n} visitas · ${fkm(r.m.km)} km · ${fhm(r.m.total)} (${fpct(r.m.ocup)}). Clique liga/desliga · Shift+clique abre só esta rota">${DIA_C[d]} <b>${r.stops.length}</b></button>`;
+    }).join('');
+    grid += `<div class="wkrow"><span class="wk">S${w}</span><div class="rchips" style="grid-template-columns:repeat(${D.length},minmax(0,1fr))">${chips}</div></div>`;
+  }
+  return grid;
+}
+function modoHtml() {
+  const o = rotaOpt(), ro = st.ro ? ' disabled' : '';
+  const dica = o.terra ? 'Foge das vias sem pavimento registradas no OpenStreetMap, mesmo com uma rota bem mais longa. Não considera acidentes nem segurança, pois o mapa não tem esses dados.' : o.curta ? 'Menos KM, mesmo que leve mais tempo.' : 'Menos tempo de viagem, mesmo que rode mais KM.';
+  return `<div class="seg rzseg"><button type="button" data-rzcrit="tempo" aria-pressed="${!o.curta}"${ro}>Mais rápida</button><button type="button" data-rzcrit="distancia" aria-pressed="${o.curta}"${ro}>Mais curta</button></div>
+        <label class="chk"><input type="checkbox" data-rzopt="evitaPedagio" ${o.pedagio ? 'checked' : ''}${ro}> Evitar pedágios</label>
+        <label class="chk"><input type="checkbox" data-rzopt="evitaTerra" ${o.terra ? 'checked' : ''}${ro}> Evitar estrada de terra e via precária</label>
+        <p class="rzhint">${dica}</p>`;
+}
+/* O que está à vista no mapa, para o seletor de setor: '' todos, __nenhum, __sem, id de um setor ou __parte */
+function setorVisto() {
+  const sets = sortedSetores(), on = sets.filter(([id]) => !st.hiddenSet.has(id));
+  if (on.length === sets.length) return '';
+  if (!on.length) return '__nenhum';
+  return on.length === 1 ? on[0][0] : '__parte';
+}
+function setorBloco(id) {
+  const x = setorOf(id); let n = 0, sem = 0;
+  for (const it of st.itens.values()) if (it.s === id) { n++; if (!itemKeys(it).length) sem++; }
+  const rs = [...st.routes.values()].filter(r => r.s === id), sm = sumRoutes(rs), ro = st.ro ? ' disabled' : '';
+  const cols = [...st.col.values()].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')).map(c => `<option value="${esc(c.codigo)}"${c.codigo === x.colab ? ' selected' : ''}>${esc(c.nome)} (${esc(c.codigo)})</option>`).join('');
+  return `<section class="stack rzsetor">
+    <div class="row" style="justify-content:space-between"><b><span class="sw" style="background:${esc(x.cor)};margin-right:6px;vertical-align:-1px"></span>${esc(x.nome)}</b>${rs.length ? ocPill(sm.ocMed) : ''}</div>
+    <div class="muted" style="font-size:12.5px">${n} clientes · ${rs.length} rotas · ${fkm(sm.km)} km no ciclo</div>
+    <label class="field"><span class="lbl">Colaborador e base de saída</span><select data-rzcol="${esc(id)}"${ro}><option value="">— Sem colaborador —</option>${cols}</select></label>
+    ${sem ? `<div class="banner info" style="font-size:12.5px"><span>${sem} cliente(s) ainda sem dia. Selecione no mapa e escolha o dia, ou deixe o sistema dividir.</span><span class="row"><button class="btn sm" type="button" data-act="selsemdia" data-sid="${esc(id)}">Selecionar</button><button class="btn sm primary" type="button" data-act="distsemdia" data-sid="${esc(id)}"${ro}>Dividir nos dias</button></span></div>` : ''}
+    <div class="row"><button class="btn sm" type="button" data-act="selsetor" data-sid="${esc(id)}">Selecionar todos</button>${n > sem ? `<button class="btn sm" type="button" data-act="redist" data-sid="${esc(id)}"${ro}>Refazer os dias</button>` : ''}<button class="btn sm danger" type="button" data-act="delsetor" data-sid="${esc(id)}"${ro}>Excluir setor</button></div>
+  </section>`;
+}
+function visaoHtml() {
+  const a = amb(), b = (v, t, tip) => `<button type="button" data-visao="${v}" aria-pressed="${st.visao === v}" title="${tip}"${a || v === 'base' ? '' : ' disabled'}>${t}</button>`;
+  return `<div class="seg rzseg rzvisao" role="group" aria-label="Visão do mapa">${b('setores', 'Setores', 'Todos os setores do estudo')}${b('rotas', 'Rotas', 'Os roteiros de quem você marcar')}${b('base', 'Base', 'Todos os clientes da base, com filtros')}</div>`;
+}
+/* ----- Visão Base: todos os clientes, com filtro por cidade e clientes específicos ----- */
+function baseFiltrados() {
+  const { cidades, soldes } = st.baseF, todos = !cidades.size && !soldes.size;
+  return [...st.cli.values()].filter(c => todos || soldes.has(c.sold) || cidades.has(c.cidade || ''));
+}
+function coresCidades() {
+  const cs = [...new Set([...st.cli.values()].map(c => c.cidade || ''))].sort((x, y) => x.localeCompare(y, 'pt-BR'));
+  return new Map(cs.map((c, i) => [c, E.PALETA[i % E.PALETA.length]]));
+}
+function bzResHtml() {
+  const q = st.baseF.q.trim(); st.bzRes = [];
+  if (!q) return '';
+  const toks = q.split(/[\s,;]+/).filter(Boolean);
+  if (/[,;\n]/.test(q) || (toks.length > 1 && toks.every(t => st.cli.has(t)))) st.bzRes = toks.filter(t => st.cli.has(t)); // lista de códigos colada
+  else { const n = norm(q); st.bzRes = [...st.cli.values()].filter(c => norm(c.sold + ' ' + (c.nome || '') + ' ' + (c.endereco || '') + ' ' + (c.bairro || '')).includes(n)).map(c => c.sold); }
+  if (!st.bzRes.length) return '<p class="rzhint">Nenhum cliente encontrado.</p>';
+  return `<div class="bzlist">${st.bzRes.slice(0, 8).map(x => { const c = st.cli.get(x); return `<label class="chk"><input type="checkbox" data-bzsold="${esc(x)}" ${st.baseF.soldes.has(x) ? 'checked' : ''}><span class="bznm">${esc(c.nome || x)}</span><span class="muted num">${esc(x)}</span></label>`; }).join('')}</div>
+    ${st.bzRes.length > 1 ? `<button class="btn sm" type="button" data-act="bzmarca">Marcar ${nf0.format(st.bzRes.length)} encontrados</button>` : ''}`;
+}
+function painelBase() {
+  const a = amb(), F = st.baseF, cores = coresCidades(), por = new Map();
+  for (const c of st.cli.values()) por.set(c.cidade || '', (por.get(c.cidade || '') || 0) + 1);
+  const cids = [...por].sort((x, y) => x[0].localeCompare(y[0], 'pt-BR'));
+  const qc = norm(F.cq);
+  return `${visaoHtml()}<section class="rz">
+    <div class="rzn"><span class="muted"><b class="num">${nf0.format(st.mk.size)}</b> de ${nf0.format(st.cli.size)} clientes no mapa</span><button class="btn sm ghost" type="button" data-act="bzlimpa">Limpar filtros</button></div>
+    <div class="stack"><span class="lbl">Cidades${F.cidades.size ? ` · ${F.cidades.size} marcada${F.cidades.size === 1 ? '' : 's'}` : ''}</span>
+      ${cids.length > 8 ? `<input type="search" id="bzCidQ" placeholder="Buscar cidade" aria-label="Buscar cidade" value="${esc(F.cq)}">` : ''}
+      <div class="bzlist" id="bzCids">${cids.map(([c, n]) => `<label class="chk" data-cid="${esc(norm(c))}"${qc && !norm(c).includes(qc) ? ' hidden' : ''}><input type="checkbox" data-bzcid="${esc(c)}" ${F.cidades.has(c) ? 'checked' : ''}><span class="sw" style="background:${esc(cores.get(c))}"></span><span class="bznm">${esc(c || 'Sem cidade')}</span><span class="muted num">${nf0.format(n)}</span></label>`).join('')}</div>
+    </div>
+    <div class="stack"><span class="lbl">Clientes específicos${F.soldes.size ? ` · ${nf0.format(F.soldes.size)} marcado${F.soldes.size === 1 ? '' : 's'}` : ''}</span>
+      <input type="search" id="bzQ" placeholder="Nome, SOLD, endereço ou lista de códigos" aria-label="Buscar clientes" value="${esc(F.q)}">
+      <div class="stack" id="bzRes" style="gap:6px">${bzResHtml()}</div>
+      ${F.soldes.size ? '<div class="row"><button class="btn sm ghost" type="button" data-act="bzlimpasold">Desmarcar os específicos</button></div>' : ''}
+    </div>
+    <div class="stack"><span class="lbl">Cor dos clientes</span><div class="seg rzseg"><button type="button" data-bzcor="cidade" aria-pressed="${st.baseCor === 'cidade'}">Por cidade</button><button type="button" data-bzcor="setor" aria-pressed="${st.baseCor === 'setor'}">Por setor</button></div>
+      <label class="chk"><input type="checkbox" data-opt="pinos" ${st.pinos ? 'checked' : ''}> Pinos de GPS (desmarque para pontos simples)</label></div>
+  </section>`;
+}
+/* ----- Partes comuns de Setores e Rotas ----- */
+function arvoreHtml(porRota) {
+  const bySet = new Map(); for (const r of st.routes.values()) { if (!bySet.has(r.s)) bySet.set(r.s, []); bySet.get(r.s).push(r); }
+  const cnt = new Map(); for (const it of st.itens.values()) if (it.s) cnt.set(it.s, (cnt.get(it.s) || 0) + 1);
+  const visto = porRota ? '' : setorVisto();
+  return sortedSetores().map(([id, s]) => {
+    const rs = bySet.get(id) || []; const sm = sumRoutes(rs); const c = colabOfSetor(id);
+    const on = !st.hiddenSet.has(id);
+    const aberta = st.arv.has(id) ? st.arv.get(id) : visto === id || (porRota && on);
+    const sub = porRota && c ? `${esc(s.nome)} · ${rs.length} rotas` : `${c ? esc(c.nome) : '<span style="color:var(--warn)">sem colaborador</span>'} · ${cnt.get(id) || 0} clientes`;
+    const titulo = porRota && c ? esc(c.nome) : esc(s.nome);
+    return `<div class="tsec"><div class="th">
+      <input type="checkbox" data-setvis="${esc(id)}" ${on ? 'checked' : ''} aria-label="Mostrar ${esc(s.nome)}">
+      <span class="sw" style="background:${esc(s.cor)}"></span>
+      <div class="nm">${porRota ? titulo : `<button class="nmbtn" type="button" data-solo="${esc(id)}" title="Abrir este setor">${titulo}</button>`}<div class="sub">${sub}</div></div>
+      <div class="meta"><span class="num">${fkm(sm.km)} km</span><br>${rs.length ? ocPill(sm.ocMed) : ''}</div>
+      <button class="iconbtn arvbtn" type="button" data-arv="${esc(id)}" aria-expanded="${aberta}" aria-label="Semanas e dias de ${esc(s.nome)}" title="Semanas e dias"${rs.length ? '' : ' hidden'}>${ICON.chevron}</button>
+    </div>${aberta && rs.length ? `<div class="grid">${setorGrade(id)}</div>` : ''}</div>`;
+  }).join('');
+}
+function filtrosRotaHtml() {
+  const W = P().semanas, D = P().dias;
+  return `<div class="rzl"><span class="muted">Semana</span><div class="daychips"><button data-qw="0" aria-pressed="${!st.qf.w.length}">Todas</button>${[...Array(W)].map((_, i) => `<button data-qw="${i + 1}" aria-pressed="${st.qf.w.includes(i + 1)}">${i + 1}</button>`).join('')}</div></div>
+        <div class="rzl"><span class="muted">Dia</span><div class="daychips"><button data-qd="0" aria-pressed="${!st.qf.d.length}">Todos</button>${D.map(d => `<button data-qd="${d}" aria-pressed="${st.qf.d.includes(d)}">${DIA_C[d]}</button>`).join('')}</div></div>`;
+}
+function roteirizarHtml(vis) {
+  const o = rotaOpt(), key = rotaKey(o), ok = roadOk(), est = estimaRoteirizar(vis, o);
+  const nFmt = vis.filter(r => r.m.real && r.m.o === key).length, nAviso = vis.filter(r => r.m.real && rotaAviso(r.m)).length;
+  return `<div class="stack">
+        <button class="btn primary rzgo" data-act="roadvis"${ok && vis.length && !st.ro ? '' : ' disabled'}>Roteirizar ${vis.length} rota${vis.length === 1 ? '' : 's'}</button>
+        ${vis.length ? `<div class="row" style="justify-content:space-between;font-size:12px"><span class="muted">${nFmt} de ${vis.length} já neste formato</span>${ok ? `<span class="muted">cerca de ${fdur(est.seg)}</span>` : ''}</div>` : ''}
+        ${ok ? '' : `<span class="pill ${st.road === 'testing' || st.vh === 'testing' || st.road === 'idle' ? 'idle">Verificando o servidor de rotas…' : 'bad">Servidor de rotas indisponível'}</span>`}
+        ${est.rotas > vis.length ? `<p class="rzhint">A ordem de visita vale para o dia: as outras semanas dos mesmos dias são recalculadas junto (${est.rotas} rotas no total).</p>` : ''}
+        ${nAviso ? `<div class="banner" style="font-size:12.5px">${nAviso} rota(s) sem alternativa ao pedágio ou à terra. Abra a rota para ver o trecho.</div>` : ''}
+      </div>`;
+}
+function exibicaoHtml() {
+  let nUn = 0, nSemDia = 0; for (const it of st.itens.values()) { if (!it.s || !setorOf(it.s)) nUn++; else if (!itemKeys(it).length) nSemDia++; }
+  const segBtn = (v, l) => `<button type="button" data-colorby="${v}" aria-pressed="${st.colorBy === v}">${l}</button>`;
+  return `<details class="rzsec" data-sec="exib"${st.rzSec.exib ? ' open' : ''}><summary>Exibição do mapa</summary>
+      <div class="stack"><span class="lbl">Colorir por</span><div class="seg">${segBtn('setor', 'Setor')}${segBtn('dia', 'Dia')}${segBtn('semana', 'Semana')}${segBtn('colab', 'Colaborador')}</div>
+        <div class="row"><button class="btn sm" data-act="hideall">Ocultar tudo</button><button class="btn sm" data-act="fit">Enquadrar</button></div></div>
+      <div class="stack"><span class="lbl">Camadas</span>
+        <label class="chk"><input type="checkbox" data-opt="showLines" ${st.showLines ? 'checked' : ''}> Linhas das rotas (ida e volta tracejadas)</label>
+        <label class="chk"><input type="checkbox" data-opt="pinos" ${st.pinos ? 'checked' : ''}> Pinos de GPS (desmarque para pontos simples)</label>
+        <label class="chk"><input type="checkbox" data-opt="showSeq" ${st.showSeq ? 'checked' : ''}> Números da sequência</label>
+        <label class="chk"><input type="checkbox" data-opt="showBases" ${st.showBases ? 'checked' : ''}> Base dos colaboradores</label>
+        <label class="chk"><input type="checkbox" data-opt="showPed" ${st.showPed ? 'checked' : ''}> Praças de pedágio</label>
+        <label class="chk"><input type="checkbox" data-opt="showUnassigned" ${st.showUnassigned ? 'checked' : ''}> Clientes do setor ainda sem dia (${nSemDia})</label>
+      </div>
+    </details>`;
+}
+/* ----- Visão Rotas: os roteiros de quem for marcado ----- */
+function painelRotas() {
+  const vis = st.visRoutes || [], sets = sortedSetores();
+  return `${visaoHtml()}<section class="rz">
+      <div class="stack"><span class="lbl">Quem ver</span>
+        ${filtrosRotaHtml()}
+        <div class="rzn"><span class="muted"><b class="num">${vis.length}</b> de ${st.routes.size} rotas no mapa</span><span class="row"><button class="btn sm ghost" type="button" data-act="rotastodas">Todas</button><button class="btn sm ghost" type="button" data-act="rotasnenhuma">Nenhuma</button></span></div>
+        ${st.routes.size ? (vis.length ? '' : '<p class="rzhint">Marque um colaborador para ver os roteiros dele.</p>') : '<p class="rzhint">Este estudo ainda não tem rotas. Monte-as na visão Setores.</p>'}
+        ${sets.length ? `<div class="tree">${arvoreHtml(true)}</div>` : ''}
+      </div>
+    </section>${exibicaoHtml()}`;
+}
+function renderLayersPanel() {
+  const p = $('#layersPanel'); if (p.hidden) return;
+  const a = amb();
+  const body = p.querySelector('.body');
+  if (!a && !(st.cli && st.cli.size)) { body.innerHTML = `<div class="empty"><h3>Nenhum cliente ainda</h3><p>Importe uma base de clientes para selecioná-los no mapa e criar setores.</p><button class="btn primary" data-go="importar">Importar clientes</button></div>`; return; }
+  if (!a || st.visao === 'base') { const t = $('#bzCids'), y = t ? t.scrollTop : 0; body.innerHTML = painelBase(); const n = $('#bzCids'); if (n) n.scrollTop = y; return; }
+  if (st.visao === 'rotas') { body.innerHTML = painelRotas(); return; }
+  let nUn = 0; for (const it of st.itens.values()) if (!it.s || !setorOf(it.s)) nUn++;
+  let nOut = 0; for (const c of st.cli.values()) if (!st.itens.has(c.sold)) nOut++;
+  const tree = arvoreHtml(false);
+  const vis = st.visRoutes || [], sets = sortedSetores(), onSets = sets.filter(([id]) => !st.hiddenSet.has(id));
+  const setVal = setorVisto(), aberto = sets.some(([id]) => id === setVal);
+  body.innerHTML = `${visaoHtml()}
+    <section class="rz">
+      <div class="stack"><span class="lbl">O que ver no mapa</span>
+        <label class="rzl"><span class="muted">Setor</span><select id="rzSet"><option value=""${setVal === '' ? ' selected' : ''}>Todos</option><option value="__nenhum"${setVal === '__nenhum' ? ' selected' : ''}>Nenhum</option>${setVal === '__parte' ? `<option value="__parte" selected>${onSets.length} setores marcados</option>` : ''}${sets.map(([id, x]) => `<option value="${esc(id)}"${setVal === id ? ' selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+        ${filtrosRotaHtml()}
+        <div class="rzn"><span class="muted"><b class="num">${vis.length}</b> de ${st.routes.size} rotas · <b class="num">${nf0.format(st.mk.size)}</b> clientes</span><button class="btn sm ghost" data-act="showall">Limpar filtros</button></div>
+      </div>
+    </section>
+    <details class="rzsec" data-sec="setores"${st.rzSec.setores ? ' open' : ''}><summary>Setores · ${sets.length}</summary>
+      ${tree ? `<div class="tree">${tree}</div>` : '<p class="muted" style="margin:0">Nenhum setor ainda.</p>'}
+    </details>
+    ${exibicaoHtml()}`;
+}
+/* Muda a visão do mapa: Setores abre tudo sem linhas, Rotas começa sem ninguém marcado, Base mostra todos os clientes */
+function setVisao(v) {
+  if (v === st.visao) return;
+  if (v !== 'base' && !amb()) return;
+  st.rotaAntes = null;
+  if (st.colorAntes) { st.colorBy = st.colorAntes; st.colorAntes = null; }
+  if (v === 'setores') { st.qf = { w: [], d: [] }; verSetor(''); }
+  else if (v === 'rotas') {
+    st.visao = 'rotas'; st.qf = { w: [], d: [] }; st.hidden.clear();
+    sortedSetores().forEach(([id]) => st.hiddenSet.add(id));
+    st.verSemSetor = false; st.showUnassigned = false; st.showLines = true;
+    renderMap();
+  } else { st.visao = 'base'; st.verSemSetor = true; renderMap(); setTimeout(fitVisible, 30); }
+}
+function passaFiltro(r) { const { w, d } = st.qf; return (!w.length || w.includes(r.w)) && (!d.length || d.includes(r.d)); }
+function abrirDetalheRotas() { if (st.visao === 'rotas' && innerWidth > 640) { st.panelR = true; applyPanels(); } }
+function rotasLista(vis) {
+  return `<section class="stack rzb"><span class="lbl">${vis.length} rotas marcadas</span>
+    <div class="rlist">${vis.map(r => { const c = colabOfSetor(r.s); return `<button type="button" class="rit rkrow" data-rkver="${esc(r.k)}" title="Abrir esta rota"><span class="sw" style="background:${esc(routeColor(r))}"></span><span class="nm">${esc(c ? c.nome : (setorOf(r.s) || {}).nome)} · S${r.w} · ${DIA_C[r.d]}<span class="muted" style="display:block;font-size:11.5px">${r.m.n} visitas · ${fkm(r.m.km)} km · ${fhm(r.m.total)}</span>${window.PedMod ? window.PedMod.chip(pedChave(r), pathOf(r.k, r.sig)) : ''}</span>${ocPill(r.m.ocup)}</button>`; }).join('')}</div></section>`;
+}
+/* Consultas que "Roteirizar" fará, para mostrar o tempo antes de começar. Semanas com a mesma lista de visitas contam uma vez, como em traceRoute */
+function estimaRoteirizar(list, o) {
+  const vh = motorRota(o) === 'valhalla', dias = new Set(list.map(r => r.s + '|' + r.d));
+  const rotas = [...st.routes.values()].filter(r => dias.has(r.s + '|' + r.d));
+  let n = 0;
+  for (const sd of dias) { const [s, d] = sd.split('|'), nos = dayUnion(s, +d).length + (baseOf(s) ? 1 : 0); n += vh && nos <= VH_MATRIZ_MAX ? Math.ceil(nos / VH_BLOCO) ** 2 : 1; }
+  const sigs = new Map(); for (const r of rotas) sigs.set(r.sig, r.stops.length + (baseOf(r.s) ? 2 : 0));
+  for (const nos of sigs.values()) n += vh ? Math.ceil((nos - 1) / (VH_ROTA - 1)) * (o.terra ? 2 : 1) : 1;
+  return { seg: n * 1.1, rotas: rotas.length };
+}
+const fdur = seg => (seg < 60 ? `${Math.max(5, Math.round(seg / 5) * 5)} s` : `${Math.round(seg / 60)} min`);
+/* Painel direito sem seleção: o que dá para fazer com o que está no mapa */
+function edicaoHtml(vis) {
+  const a = amb(), ro = st.ro ? ' disabled' : '';
+  if (!st.cli) return '';
+  let nOut = 0; if (a) for (const c of st.cli.values()) if (!st.itens.has(c.sold)) nOut++;
+  const clientes = `<section class="stack rzb"><span class="lbl">Clientes</span><div class="row"><button class="btn sm" type="button" data-act="newcli"${ro}>Novo cliente</button>${a && nOut ? `<button class="btn sm" type="button" data-act="incl"${ro}>Incluir da base (${nf0.format(nOut)})</button>` : ''}</div></section>`;
+  const dica = txt => `<p class="rzhint">${txt}</p>`;
+  if (!a) return st.cli.size ? `<section class="stack">${dica(`${nf0.format(st.cli.size)} clientes na base. Selecione com as ferramentas do topo e clique com o botão direito para criar o primeiro setor. O estudo é criado sozinho.`)}<button class="btn" type="button" data-act="estudoBase"${ro}>Começar estudo com toda a base</button></section>${clientes}` : clientes;
+  if (st.visao === 'base') return `<section class="stack">${dica('Selecione clientes no mapa para definir setor, dias e semanas, ou clique com o botão direito para criar um setor.')}</section>${clientes}`;
+  const sets = sortedSetores(), visto = setorVisto(), aberto = st.visao === 'setores' && sets.some(([id]) => id === visto);
+  let semDia = 0; for (const it of st.itens.values()) if (it.s && setorOf(it.s) && !itemKeys(it).length) semDia++;
+  const partes = [];
+  if (aberto) partes.push(setorBloco(visto));
+  else partes.push(`<section class="stack">${dica(sets.length ? 'Aqui aparecem só os clientes dos setores. Selecione no mapa para mudar dias e semanas; para incluir outros clientes, use a visão Base.' : 'Abra a visão Base, selecione clientes no mapa e clique com o botão direito para criar um setor.')}${!st.routes.size && semDia ? `<div class="banner info" style="font-size:12.5px"><span>Os clientes dos setores ainda não têm dia e semana.</span><button class="btn sm primary" type="button" data-act="distribuir"${ro}>Dividir nos dias</button></div>` : ''}</section>`);
+  partes.push(`<section class="stack rzb"><span class="lbl">Modo de roteirização</span>${modoHtml()}${roteirizarHtml(vis)}<label class="chk"><input type="checkbox" data-opt="autoRoad" ${st.autoRoad ? 'checked' : ''}> Refazer o traçado ao editar uma rota</label></section>`);
+  if (vis.length === 1) partes.push(`<section class="stack rzb">${st.rotaAntes ? '<div class="row"><button class="btn sm" type="button" data-rkvolta>← Todas as rotas marcadas</button></div>' : ''}${routeDetail(vis[0])}</section>`);
+  else if (st.visao === 'rotas' && vis.length > 1) partes.push(rotasLista(vis));
+  partes.push(clientes);
+  return partes.join('');
+}
+function renderSelPanel() {
+  const p = $('#selPanel'); applyPanels(); if (p.hidden) return;
+  const body = p.querySelector('.body');
+  if (!st.sel.size) st.selForm = {};
+  body.innerHTML = st.sel.size ? selSection() : edicaoHtml(st.visRoutes || []);
+  bindRouteList(body);
+}
+function routeDetail(r) {
+  const s = setorOf(r.s), c = colabOfSetor(r.s), m = r.m, b = baseOf(r.s);
+  const col = routeColor(r);
+  const items = r.stops.map((sold, i) => { const cl = st.cli.get(sold); return `<div class="rit" draggable="true" data-sold="${esc(sold)}"><span class="q" style="background:${esc(col)}">${i + 1}</span><span class="nm" title="${esc(cl ? cl.nome : sold)}">${esc(cl ? cl.nome : sold + ' (não cadastrado)')}</span><span class="muted num" style="font-size:11px">${esc(sold)}</span></div>`; }).join('');
+  return `<section class="stack">
+    <div class="row" style="justify-content:space-between"><span class="lbl">Rota</span>${ocPill(m.ocup)}</div>
+    <div><b>${esc(s.nome)}</b> · Semana ${r.w} · ${DIA_L[r.d]}<div class="muted">${c ? esc(c.nome) + ' · jornada ' + fhm(m.jornada) : 'Sem colaborador — sem base de saída'}</div></div>
+    <div class="mgrid">
+      <span>Visitas</span><span class="v">${m.n}${r.missing ? ' +' + r.missing + '?' : ''}</span>
+      <span>KM ida (base → 1º)</span><span class="v">${fkm(m.kmIda)}</span>
+      <span>KM entre visitas</span><span class="v">${fkm(m.kmEntre)}</span>
+      <span>KM volta (último → base)</span><span class="v">${fkm(m.kmVolta)}</span>
+      <span>KM total ${m.real ? `<span class="pill ok" title="Percurso real pelas ruas">${m.src === 'google' ? 'Google' : 'pelas ruas'}</span>` : r.stale ? '<span class="pill warn" title="A rota mudou depois do último cálculo">desatualizado</span>' : '<span class="pill idle" title="Linha reta × fator de rota">estimado</span>'}</span><span class="v">${fkm(m.km)}</span>
+      <span>Deslocamento</span><span class="v">${fhm(m.tDesl)}</span>
+      <span>Atendimento</span><span class="v">${fhm(m.tAtend)}</span>
+      <span>Total do dia</span><span class="v">${fhm(m.total)}</span>
+    </div>
+    ${m.real ? `<div class="muted" style="font-size:12.5px">Calculada como: <b style="color:var(--ink)">${esc(rotaTxt(m.o))}</b>${m.o !== rotaKey(rotaOpt()) ? ' <span class="pill warn" title="O formato escolhido no painel é outro. Roteirize de novo para aplicar">outro formato</span>' : ''}${m.toll && !rotaAviso(m) ? ' <span class="pill idle">com pedágio</span>' : ''}</div>` : ''}
+    ${rotaAviso(m) ? `<div class="banner" style="font-size:12.5px">Sem alternativa no mapa: ${esc(rotaAviso(m))}.</div>` : ''}
+    ${window.PedMod ? window.PedMod.blocoRota(pedChave(r), pathOf(r.k, r.sig), m, 4 / Math.max(1, P().semanas || 4)) : ''}
+    <div class="row"><button class="btn sm" data-rop="rtrace" data-rk="${esc(r.k)}" title="Mantém a ordem e traça o caminho pelas ruas"${roadOk() ? '' : ' disabled'}>Só traçar</button></div>
+    <div class="row"><button class="btn sm" data-rop="opt" data-rk="${esc(r.k)}" title="Sem consultar o servidor: usa linha reta">Otimizar em linha reta</button><button class="btn sm" data-rop="rev" data-rk="${esc(r.k)}">Inverter sentido</button><button class="btn sm" data-rop="selall" data-rk="${esc(r.k)}">Selecionar clientes</button></div>
+    <p class="muted" style="margin:0;font-size:12px">Arraste para mudar a ordem. A sequência vale para o dia nas semanas em que o cliente é visitado.</p>
+    <div class="rlist" data-rk="${esc(r.k)}">
+      ${b ? `<div class="rit base"><span class="q" style="background:var(--ink)">${ICON.home.replace('<svg', '<svg width="11" height="11"')}</span><span class="nm">Saída: ${esc(c.endereco || 'base do colaborador')}</span><span></span></div>` : ''}
+      ${items}
+      ${b ? `<div class="rit base"><span class="q" style="background:var(--ink)">${ICON.home.replace('<svg', '<svg width="11" height="11"')}</span><span class="nm">Retorno à base</span><span></span></div>` : ''}
+    </div></section>`;
+}
+/* Padrões do fluxo da seleção, conforme o que os clientes já têm */
+function selPadrao() {
+  const its = [...st.sel].map(s => st.itens && st.itens.get(s)).filter(Boolean);
+  const comSetor = its.filter(i => setorOf(i.s)), setores = new Set(comSetor.map(i => i.s));
+  const todosMesmo = comSetor.length === st.sel.size && setores.size === 1;
+  const temDia = its.some(i => setorOf(i.s) && (i.d || []).length), temSem = its.some(i => setorOf(i.s) && (i.w || []).length);
+  return { setor: todosMesmo ? [...setores][0] : comSetor.length ? '__manter' : '__novo', dias: temDia ? 'manter' : 'auto', sem: temSem ? 'manter' : 'freq', temDia, temSem, semSetor: st.sel.size - comSetor.length };
+}
+function proximoSetor() {
+  const usados = new Set(sortedSetores().map(([, x]) => x.nome));
+  for (let n = sortedSetores().length + 1; ; n++) { const nome = `Setor ${String(n).padStart(2, '0')}`; if (!usados.has(nome)) return nome; }
+}
+function selSection() {
+  const a = amb(), W = P().semanas, sel = [...st.sel], pad = selPadrao(), f = st.selForm, ro = st.ro ? ' disabled' : '';
+  const setor = f.setor ?? pad.setor, dias = f.dias ?? pad.dias, sem = f.sem ?? pad.sem;
+  const nFora = sel.filter(s => !st.itens || !st.itens.has(s)).length;
+  const colOpts = [...st.col.values()].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).map(c => `<option value="${esc(c.codigo)}"${c.codigo === f.colab ? ' selected' : ''}>${esc(c.nome)} (${esc(c.codigo)})</option>`).join('');
+  const setOpts = sortedSetores().map(([id, s]) => `<option value="${esc(id)}"${setor === id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('');
+  const list = sel.slice(0, 80).map(sold => { const c = st.cli.get(sold); const it = st.itens && st.itens.get(sold); const s = it && setorOf(it.s); return `<div class="rit" style="cursor:default;grid-template-columns:1fr auto"><span class="nm">${esc(c ? c.nome : sold)}</span><span class="muted" style="font-size:11px">${s ? esc(s.nome) + ' · ' + ((it.d || []).map(d => DIA_C[d]).join('/') || 'sem dia') : it ? 'sem setor' : 'fora'}</span></div>`; }).join('');
+  const chip = (attr, v, txt, on) => `<button type="button" data-${attr}="${v}" aria-pressed="${on}">${txt}</button>`;
+  const dicaDia = dias === 'auto' ? 'O sistema divide os clientes nos dias de trabalho, por proximidade e frequência.' : dias === 'manter' ? `Mantém os dias atuais.${pad.temDia && sel.some(x => { const it = st.itens && st.itens.get(x); return !it || !(it.d || []).length; }) ? ' Quem não tem dia fica fora das rotas.' : ''}` : 'Cada cliente é visitado em todos os dias marcados.';
+  const dicaSem = sem === 'freq' ? 'Pela frequência: semanal em todas, quinzenal alternada e mensal na mais leve.' : sem === 'manter' ? '' : 'Visitas somente nas semanas marcadas.';
+  return `<section class="stack">
+    <div class="row" style="justify-content:space-between"><span class="lbl">${sel.length} cliente${sel.length === 1 ? '' : 's'} selecionado${sel.length === 1 ? '' : 's'}</span><button class="btn sm ghost" data-sop="clear">Limpar</button></div>
+    <div class="field"><span class="lbl">1 · Setor</span><select id="sSet"${ro}><option value="__novo"${setor === '__novo' ? ' selected' : ''}>+ Criar novo setor</option>${pad.setor === '__manter' ? `<option value="__manter"${setor === '__manter' ? ' selected' : ''}>Manter o setor de cada cliente</option>` : ''}${setOpts}</select></div>
+    ${setor === '__novo' ? `<div class="stack" style="gap:6px"><input type="text" id="sNome" aria-label="Nome do novo setor" value="${esc(f.nome ?? proximoSetor())}"${ro}>${colOpts ? `<select id="sCol" aria-label="Colaborador do novo setor"${ro}><option value="">Colaborador: definir depois</option>${colOpts}</select>` : ''}</div>` : ''}
+    <div class="field"><span class="lbl">2 · Dias e semanas</span>
+      <div class="daychips" role="group" aria-label="Dias da visita">${pad.temDia ? chip('fd', 'manter', 'Manter', dias === 'manter') : ''}${chip('fd', 'auto', 'Automático', dias === 'auto')}${[1, 2, 3, 4, 5, 6].map(d => chip('fd', d, DIA_C[d], Array.isArray(dias) && dias.includes(d))).join('')}</div>
+      <div class="daychips" role="group" aria-label="Semanas do ciclo" style="margin-top:4px">${pad.temSem ? chip('fw', 'manter', 'Manter', sem === 'manter') : ''}${chip('fw', 'freq', 'Pela frequência', sem === 'freq')}${[...Array(W)].map((_, i) => chip('fw', i + 1, 'S' + (i + 1), Array.isArray(sem) && sem.includes(i + 1))).join('')}</div>
+      <span class="hint">${dicaDia}${dicaSem ? ' ' + dicaSem : ''}</span>
+    </div>
+    <div class="stack"><span class="lbl">3 · Modo de roteirização</span>${modoHtml()}</div>
+    <button class="btn primary rzgo" data-sop="go"${ro}>Roteirizar ${sel.length} cliente${sel.length === 1 ? '' : 's'}</button>
+    <div class="row"><button class="btn sm" data-sop="salvar"${ro} title="Grava o setor, os dias e as semanas sem consultar o servidor de rotas">Só salvar, sem calcular</button>${a && nFora ? `<button class="btn sm" data-sop="include"${ro}>Só incluir no estudo (${nFora})</button>` : ''}</div>
+    ${st.ro ? '' : `<div class="row">${sel.length === 1 ? '<button class="btn sm" data-sop="editar">Editar cadastro</button>' : ''}${a && nFora < sel.length ? '<button class="btn sm" data-sop="unassign">Tirar do roteiro</button><button class="btn sm danger" data-sop="remove">Remover do estudo</button>' : ''}<button class="btn sm danger" data-sop="delbase" title="Apaga o cadastro do cliente">Excluir da base</button></div>`}
+    <div class="rlist">${list}${sel.length > 80 ? `<div class="muted" style="font-size:12px">+ ${sel.length - 80} outros</div>` : ''}</div>
+  </section>`;
+}
+function selChip(campo, v) {
+  const f = st.selForm, pad = selPadrao(), atual = f[campo] ?? pad[campo];
+  if (typeof v === 'string' && isNaN(+v)) { f[campo] = v; }
+  else { const n = +v, base = Array.isArray(atual) ? atual : [], nova = base.includes(n) ? base.filter(x => x !== n) : [...base, n].sort((x, y) => x - y); f[campo] = nova.length ? nova : undefined; }
+  renderSelPanel();
+}
+const ITEM_VAZIO = () => ({ s: '', d: [], w: [], q: {} });
+/* Sem estudo aberto, cria um com toda a base: o que não for selecionado continua no mapa como "sem setor".
+   Com a base filtrada, continua nela para seguir separando as mesmas cidades ou clientes */
+async function garantirEstudo() {
+  if (amb()) return;
+  const id = uid('a'), sel = new Set(st.sel), agora = Date.now(), filtrada = st.baseF.cidades.size || st.baseF.soldes.size;
+  st.amb.put(id, { id, nome: `Estudo ${fdate(agora)}`, desc: 'Criado a partir da base de clientes', criado: agora, alterado: agora, params: { ...DEF_P }, setores: {}, pend: { cli: [], col: [] } });
+  await openAmb(id, false);
+  for (const c of st.cli.values()) st.itens.put(c.sold, ITEM_VAZIO());
+  st.sel = sel;
+  if (filtrada) st.visao = 'base';
+}
+/* O campo de cor devolve minúsculas e a paleta está em maiúsculas: compara sem diferenciar */
+function corLivre() {
+  const usadas = new Set(sortedSetores().map(([, x]) => String(x.cor).toUpperCase()));
+  return E.PALETA.find(x => !usadas.has(x.toUpperCase())) || E.PALETA[sortedSetores().length % E.PALETA.length];
+}
+function novoSetor(nome, cor, colab) {
+  const id = uid('s'), c = cor || corLivre();
+  touchAmb(a => { a.setores[id] = { nome: nome || proximoSetor(), cor: c, colab: colab || '' }; });
+  return id;
+}
+/* Passa a seleção para um setor. Quem já tem dia mantém: assim um setor novo já mostra rotas e KM para comparar */
+function moverSelecao(sid) {
+  const touched = new Set(); st.baseCor = 'setor';
+  for (const s of st.sel) {
+    const it = st.itens.get(s) || ITEM_VAZIO(); sdKeys(it).forEach(k => touched.add(k));
+    const nv = { ...clone(it), s: sid }; st.itens.put(s, nv); sdKeys(nv).forEach(k => touched.add(k));
+  }
+  resequence(touched); st.hiddenSet.delete(sid);
+}
+function avisoSetor(sid, n, verbo) {
+  const x = setorOf(sid);
+  showNote(`<b>${esc(x.nome)}</b> ${verbo} ${n} cliente${n === 1 ? '' : 's'}. <button class="btn sm" id="goSetor">Abrir setor</button>`);
+  $('#goSetor').onclick = () => { $('#mapNote').hidden = true; verSetor(sid); setTimeout(fitVisible, 30); };
+  clearTimeout(st.notaT); st.notaT = setTimeout(() => { const n = $('#mapNote'); if (n.querySelector('#goSetor')) n.hidden = true; }, 12000);
+}
+function setorForm() {
+  const n = st.sel.size, cols = [...st.col.values()].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).map(c => `<option value="${esc(c.codigo)}">${esc(c.nome)} (${esc(c.codigo)})</option>`).join('');
+  const cor = corLivre();
+  openModal(`<div class="dh"><h2>Criar setor com ${n} cliente${n === 1 ? '' : 's'}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fSetor" class="db">
+    <label class="field"><span class="lbl">Nome do setor</span><input type="text" name="nome" required value="${esc(proximoSetor())}"></label>
+    <div class="row"><label class="field"><span class="lbl">Cor</span><input type="color" name="cor" value="${esc(cor)}"></label>
+    <label class="field" style="flex:1;min-width:180px"><span class="lbl">Colaborador e base de saída</span><select name="colab"><option value="">Definir depois</option>${cols}</select></label></div>
+    <p class="muted" style="margin:0;font-size:12.5px">Depois é só abrir o setor e montar as rotas diárias.</p>
+  </form>
+  <div class="df"><button class="btn" data-close>Cancelar</button><button class="btn primary" form="fSetor" type="submit">Criar setor</button></div>`, 'sm');
+  // openModal foca o primeiro botão (o X) depois de 20 ms: o nome precisa ganhar o foco depois disso
+  setTimeout(() => { const nm = $('#fSetor [name=nome]'); if (nm) { nm.focus(); nm.select(); } }, 40);
+  $('#fSetor').onsubmit = async e => {
+    e.preventDefault(); const d = new FormData(e.target), qtd = st.sel.size; closeModal();
+    await garantirEstudo();
+    pushUndo('Criar setor');
+    const sid = novoSetor(String(d.get('nome')).trim(), d.get('cor'), d.get('colab'));
+    moverSelecao(sid); st.sel.clear(); rebuild(); renderAll(); renderToolbar();
+    avisoSetor(sid, qtd, 'criado com');
+  };
+}
+/* Setor → dias e semanas → modo → roteirizar */
+async function aplicarSelecao(calcular) {
+  const pad = selPadrao(), f = st.selForm, sel = [...st.sel];
+  const setorEsc = f.setor ?? pad.setor, diasEsc = f.dias ?? pad.dias, semEsc = f.sem ?? pad.sem;
+  if (setorEsc === '__manter' && pad.semSetor) { toast(`${pad.semSetor} cliente(s) ainda sem setor: escolha um setor para a seleção`); return; }
+  const nome = f.nome, colab = f.colab;
+  await garantirEstudo();
+  pushUndo('Roteirizar seleção');
+  let alvo = setorEsc;
+  if (setorEsc === '__novo') alvo = novoSetor(String(nome ?? proximoSetor()).trim(), '', colab);
+  if (setorEsc !== '__manter' && !setorOf(alvo)) { toast('Escolha um setor'); return; }
+  const touched = new Set(), grupos = new Map();
+  for (const s of sel) {
+    const it = st.itens.get(s) || ITEM_VAZIO(); sdKeys(it).forEach(k => touched.add(k));
+    const nv = clone(it); if (setorEsc !== '__manter') { nv.s = alvo; st.hiddenSet.delete(alvo); }
+    st.itens.put(s, nv);
+    if (!grupos.has(nv.s)) grupos.set(nv.s, []); grupos.get(nv.s).push(s);
+  }
+  if (Array.isArray(diasEsc)) touchAmb(a => { a.params = { ...P(), dias: [...new Set([...P().dias, ...diasEsc])].sort((x, y) => x - y) }; });
+  const W = P().semanas;
+  for (const [gid, solds] of grupos) {
+    const load = {}, auto = diasEsc === 'auto' ? E.autoRoute(solds.map(cliPt).filter(Boolean), baseOf(gid), P(), { seed: 3 }) : null;
+    for (const s of solds) {
+      const it = clone(st.itens.get(s)), c = st.cli.get(s);
+      if (auto) { const v = auto.get(s); if (v) { it.d = v.d; it.w = v.w; it.q = v.q; } }
+      else if (Array.isArray(diasEsc)) it.d = diasEsc;
+      if (Array.isArray(semEsc)) it.w = semEsc;
+      else if (!auto && (it.d || []).length && (semEsc === 'freq' || !(it.w || []).length)) { it.w = weeksByFreq((c && c.f) || 4, W, load); it.w.forEach(w => { load[w] = (load[w] || 0) + 1; }); }
+      st.itens.put(s, it); sdKeys(it).forEach(k => touched.add(k));
+    }
+  }
+  resequence(touched); st.sel.clear(); st.selForm = {}; st.baseCor = 'setor'; rebuild();
+  // Mostra o resultado: da visão geral ou da base, abre o setor trabalhado
+  if (st.visao === 'base' || setorVisto() === '') verSetor(grupos.size === 1 ? [...grupos.keys()][0] : '');
+  renderAll(); renderToolbar();
+  const keys = [...st.routes.values()].filter(r => touched.has(r.s + '|' + r.d)).map(r => r.k);
+  if (!keys.length) { toast('Setor salvo. Os clientes ainda não têm dia, então não há rota para calcular'); return; }
+  if (!calcular) { toast(`Salvo: ${keys.length} rota(s) com KM estimado. Use Roteirizar para calcular pelas ruas`, 5000); return; }
+  if (roadOk()) roadJob(keys, true, `Rotas roteirizadas (${rotaTxt(rotaKey(rotaOpt()))})`);
+  else { roadUnavailable(); toast('Dias salvos, com a ordem em linha reta. O servidor de rotas está indisponível', 6000); }
+}
+async function setRotaParam(k, v) {
+  await garantirEstudo();
+  touchAmb(a => { a.params = { ...P(), [k]: v }; });
+  renderMap();
+}
+/* Menu do botão direito */
+function fecharCtx() { const m = $('#ctx'); if (m && !m.hidden) m.hidden = true; }
+function abrirCtx(e, sold) {
+  if (st.placing || st.tool === 'ruler') return;
+  if (sold && !st.sel.has(sold)) { st.sel = new Set([sold]); afterSel(); }
+  const n = st.sel.size, ro = st.ro, itens = [];
+  const add = (t, fn, cls) => itens.push({ t, fn, cls });
+  if (n) {
+    itens.push({ h: `${n} cliente${n === 1 ? '' : 's'} selecionado${n === 1 ? '' : 's'}` });
+    if (!ro) {
+      add('Criar setor com a seleção…', setorForm, 'forte');
+      add('Escolher dias, semanas e roteirizar…', () => { st.panelR = true; applyPanels(); renderSelPanel(); $('#selPanel .body').scrollTop = 0; });
+      const sets = sortedSetores();
+      if (sets.length) {
+        itens.push({ h: 'Mover para o setor' });
+        itens.push({ lista: sets.map(([id, x]) => ({ t: x.nome, cor: x.cor, fn: () => { pushUndo('Mover para setor'); moverSelecao(id); st.sel.clear(); rebuild(); renderAll(); renderToolbar(); avisoSetor(id, n, 'recebeu'); } })) });
+      }
+      if ([...st.sel].some(s => st.itens && st.itens.has(s))) add('Tirar do roteiro', () => selOp('unassign'));
+    }
+    add('Limpar seleção', () => { st.sel.clear(); afterSel(); });
+    itens.push({ sep: 1 });
+  } else {
+    add('Selecionar com o laço', () => setTool('lasso'));
+    add('Selecionar com o retângulo', () => setTool('rect'));
+  }
+  const it = sold && st.itens && st.itens.get(sold), sx = it && setorOf(it.s);
+  if (sx) add(`Abrir ${sx.nome}`, () => { verSetor(it.s); setTimeout(fitVisible, 30); });
+  add('Selecionar todos os visíveis', () => { st.sel = new Set(st.mk.keys()); afterSel(); });
+  if (amb() && (st.visao !== 'setores' || setorVisto() !== '')) add('Ver todos os setores', () => verSetor(''));
+  const fns = [];
+  const reg = fn => { fns.push(fn); return fns.length - 1; };
+  const m = $('#ctx');
+  m.innerHTML = itens.map(x => {
+    if (x.sep) return '<hr>';
+    if (x.h) return `<div class="ctx-h">${esc(x.h)}</div>`;
+    if (x.lista) return `<div class="ctx-l">${x.lista.map(y => `<button type="button" role="menuitem" data-i="${reg(y.fn)}"><span class="sw" style="background:${esc(y.cor)}"></span>${esc(y.t)}</button>`).join('')}</div>`;
+    return `<button type="button" role="menuitem" class="${x.cls || ''}" data-i="${reg(x.fn)}">${esc(x.t)}</button>`;
+  }).join('');
+  m.onclick = ev => { const b = ev.target.closest('[data-i]'); if (!b) return; fecharCtx(); fns[+b.dataset.i](); };
+  m.hidden = false;
+  const oe = e.originalEvent, x = Math.min(oe.clientX, innerWidth - m.offsetWidth - 8), y = Math.min(oe.clientY, innerHeight - m.offsetHeight - 8);
+  m.style.left = Math.max(8, x) + 'px'; m.style.top = Math.max(8, y) + 'px';
+  const pri = m.querySelector('button'); if (pri) pri.focus();
+}
+function bindRouteList(body) {
+  const list = body.querySelector('.rlist[data-rk]'); if (!list) return;
+  let dragEl = null;
+  list.addEventListener('dragstart', e => { const it = e.target.closest('.rit[data-sold]'); if (!it) return; dragEl = it; it.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', it.dataset.sold); } catch (_) { /* ok */ } });
+  list.addEventListener('dragover', e => { if (!dragEl) return; e.preventDefault(); const over = e.target.closest('.rit[data-sold]'); $$('.rit.over', list).forEach(x => x.classList.remove('over')); if (over && over !== dragEl) over.classList.add('over'); });
+  list.addEventListener('drop', e => {
+    e.preventDefault(); if (!dragEl) return;
+    const over = e.target.closest('.rit[data-sold]');
+    if (over && over !== dragEl) list.insertBefore(dragEl, over);
+    const order = $$('.rit[data-sold]', list).map(x => x.dataset.sold);
+    dragEl.classList.remove('dragging'); dragEl = null;
+    reorderRoute(list.dataset.rk, order);
+  });
+  list.addEventListener('dragend', () => { if (dragEl) { dragEl.classList.remove('dragging'); dragEl = null; } $$('.rit.over', list).forEach(x => x.classList.remove('over')); });
+}
+
+/* ================= Operações de roteiro ================= */
+function dayUnion(s, d) { const out = []; for (const [sold, it] of st.itens.map) if (it.s === s && (it.d || []).includes(d)) out.push(sold); return out; }
+function resequence(sd) { // sd: Set de "s|d"
+  for (const k of sd) {
+    const [s, dd] = k.split('|'); const d = +dd; if (!setorOf(s)) continue;
+    const sold = dayUnion(s, d).filter(x => cliPt(x));
+    const order = E.sequence(baseOf(s), sold.map(cliPt));
+    order.forEach((idx, pos) => { const it = clone(st.itens.get(sold[idx])); it.q = { ...(it.q || {}), [d]: pos + 1 }; st.itens.put(sold[idx], it); });
+  }
+}
+function sdKeys(it) { return it && it.s ? (it.d || []).map(d => it.s + '|' + d) : []; }
+function mutateItems(solds, fn, label) {
+  pushUndo(label);
+  const touched = new Set();
+  for (const sold of solds) {
+    const it = st.itens.get(sold); if (!it) continue;
+    sdKeys(it).forEach(k => touched.add(k));
+    const nv = fn(clone(it), sold); st.itens.put(sold, nv);
+    sdKeys(nv).forEach(k => touched.add(k));
+  }
+  if (st.autoResequence) resequence(touched);
+  rebuild(); renderAll(); renderToolbar(); toast(label);
+}
+function reorderRoute(rk, order) {
+  const [s, , dd] = rk.split('|'); const d = +dd;
+  pushUndo('Ordem da rota');
+  const union = dayUnion(s, d).sort((x, y) => ((st.itens.get(x).q || {})[d] ?? 9999) - ((st.itens.get(y).q || {})[d] ?? 9999));
+  const inRoute = new Set(order); const slots = []; union.forEach((sold, i) => { if (inRoute.has(sold)) slots.push(i); });
+  const res = union.slice(); slots.forEach((slot, i) => { res[slot] = order[i]; });
+  res.forEach((sold, i) => { const it = clone(st.itens.get(sold)); it.q = { ...(it.q || {}), [d]: i + 1 }; st.itens.put(sold, it); });
+  rebuild(); renderMap(); renderToolbar();
+}
+function routeOp(op, rk) {
+  const r = st.routes.get(rk); if (!r) return;
+  if (op === 'rtrace') { roadJob([rk], false, 'Percurso traçado pelas ruas'); return; }
+  if (op === 'selall') { st.sel = new Set(r.stops); afterSel(); return; }
+  pushUndo(op === 'opt' ? 'Otimizar sequência' : 'Inverter sentido');
+  if (op === 'opt') resequence(new Set([r.s + '|' + r.d]));
+  else {
+    const union = dayUnion(r.s, r.d).sort((x, y) => ((st.itens.get(x).q || {})[r.d] ?? 9999) - ((st.itens.get(y).q || {})[r.d] ?? 9999)).reverse();
+    union.forEach((sold, i) => { const it = clone(st.itens.get(sold)); it.q = { ...(it.q || {}), [r.d]: i + 1 }; st.itens.put(sold, it); });
+  }
+  const before = r.m.km; rebuild(); const after = (st.routes.get(rk) || r).m.km;
+  renderMap(); renderToolbar();
+  toastU(op === 'opt' ? `Sequência otimizada: ${fkm(before)} → ${fkm(after)} km` : 'Sentido invertido');
+}
+function weeksByFreq(f, W, load) {
+  if (W === 1 || f >= 4) return [...Array(W)].map((_, i) => i + 1);
+  if (f >= 2) { const pats = W === 4 ? [[1, 3], [2, 4]] : [[1], [2]]; return pats.reduce((b, p) => (p.reduce((s, w) => s + (load[w] || 0), 0) < b.reduce((s, w) => s + (load[w] || 0), 0) ? p : b)); }
+  let bw = 1; for (let w = 2; w <= W; w++) if ((load[w] || 0) < (load[bw] || 0)) bw = w; return [bw];
+}
+function selOp(op) {
+  const sel = [...st.sel];
+  const inS = sel.filter(s => st.itens && st.itens.has(s));
+  if (op === 'clear') { st.sel.clear(); afterSel(); return; }
+  if (op === 'editar') { cliForm(st.cli.get(sel[0]), false); return; }
+  if (op === 'delbase') {
+    const touched = new Set();
+    for (const x of sel) { if (st.itens && st.itens.has(x)) { sdKeys(st.itens.get(x)).forEach(k => touched.add(k)); st.itens.del(x); } st.cli.del(x); }
+    if (st.itens) resequence(touched);
+    st.sel.clear(); rebuild(); renderAll(); renderToolbar(); toast(`${sel.length} cliente(s) excluídos da base`); return;
+  }
+  if (op === 'include') { pushUndo('Incluir no estudo'); let n = 0; for (const s of sel) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); return; }
+  if (!inS.length) return;
+  if (op === 'unassign') {
+    mutateItems(inS, it => ({ s: '', d: [], w: [], q: {} }), `${inS.length} cliente(s) tirados do roteiro`);
+  } else if (op === 'remove') {
+    pushUndo('Remover do estudo'); const touched = new Set();
+    for (const s of inS) { sdKeys(st.itens.get(s)).forEach(k => touched.add(k)); st.itens.del(s); }
+    if (st.autoResequence) resequence(touched);
+    st.sel.clear(); rebuild(); renderAll(); renderToolbar(); toast(`${inS.length} cliente(s) removidos do estudo`);
+  }
+}
+/* Dividir os clientes de um setor nos dias de trabalho, sem mexer nos outros setores */
+function distribuirSetor(sid, todos) {
+  const solds = [...st.itens.map].filter(([, it]) => it.s === sid && (todos || !itemKeys(it).length)).map(([s]) => s);
+  const pts = solds.map(cliPt).filter(Boolean);
+  if (!pts.length) { toast('Nenhum cliente com coordenada para dividir'); return; }
+  pushUndo('Dividir nos dias');
+  const res = E.autoRoute(pts, baseOf(sid), P(), { seed: 3 }), touched = new Set();
+  for (const [sold, v] of res) { const it = clone(st.itens.get(sold)); sdKeys(it).forEach(k => touched.add(k)); it.d = v.d; it.w = v.w; it.q = v.q; st.itens.put(sold, it); sdKeys(it).forEach(k => touched.add(k)); }
+  resequence(touched); rebuild(); renderAll(); renderToolbar();
+  toastU(`${res.size} cliente(s) divididos nos dias. Use Roteirizar para calcular pelas ruas`);
+}
+function excluirSetor(sid) {
+  pushUndo('Excluir setor'); touchAmb(a => { delete a.setores[sid]; });
+  for (const [s, it] of st.itens.map) if (it.s === sid) st.itens.put(s, { s: '', d: [], w: [], q: {} });
+  rebuild(); renderAll(); toastU('Setor excluído — clientes ficaram sem setor');
+}
+function touchAmb(mut) { const a = clone(amb()); a.setores = a.setores || {}; mut(a); a.alterado = Date.now(); st.amb.put(a.id, a); }
+// Pendências ignoradas ficam em pend.ign: deixam de ser cobradas, sem mudar o estudo. Se o registro for cadastrado depois, entra normalmente.
+function pendIgn(a) { const g = (a.pend && a.pend.ign) || {}; return { cli: new Set(g.cli || []), col: new Set(g.col || []) }; }
+function cleanPend(a) {
+  const p = a.pend || { cli: [], col: [] }, ig = pendIgn(a);
+  return { cli: (p.cli || []).filter(x => !st.cli.has(x.sold) && !ig.cli.has(x.sold)), col: (p.col || []).filter(x => !st.col.has(x.codigo) && !ig.col.has(x.codigo)) };
+}
+function pendIgnoradas(a) {
+  const p = a.pend || { cli: [], col: [] }, ig = pendIgn(a);
+  return (p.cli || []).filter(x => !st.cli.has(x.sold) && ig.cli.has(x.sold)).length + (p.col || []).filter(x => !st.col.has(x.codigo) && ig.col.has(x.codigo)).length;
+}
+// tipo: 'cli', 'col' ou 'todas'; id: um registro só (opcional)
+function ignorarPend(tipo, id) {
+  const a = amb(); if (!a || st.ro) return; const pc = cleanPend(a);
+  const cli = tipo === 'cli' || tipo === 'todas' ? (id ? [id] : pc.cli.map(x => x.sold)) : [];
+  const col = tipo === 'col' || tipo === 'todas' ? (id ? [id] : pc.col.map(x => x.codigo)) : [];
+  const n = cli.length + col.length; if (!n) return;
+  pushUndo(n === 1 ? 'Ignorar pendência' : 'Ignorar pendências');
+  touchAmb(x => {
+    const pd = x.pend = { cli: [], col: [], ...(x.pend || {}) }, g = pd.ign || {};
+    pd.ign = { cli: [...new Set([...(g.cli || []), ...cli])], col: [...new Set([...(g.col || []), ...col])] };
+  });
+  if (!$('#mapNote').hidden && $('#goPend')) $('#mapNote').hidden = true;
+  renderAll(); toastU(n === 1 ? `Pendência ${id} ignorada` : `${n} pendências ignoradas`);
+}
+function reconsiderarPend() {
+  const a = amb(); if (!a || st.ro) return; const n = pendIgnoradas(a); if (!n) return;
+  pushUndo('Voltar a mostrar pendências');
+  touchAmb(x => { if (x.pend) x.pend.ign = { cli: [], col: [] }; });
+  st.pendNoted = null; renderAll(); toastU(`${n} pendência(s) voltaram a aparecer`);
+}
+
+/* ================= Páginas ================= */
+function renderPage() {
+  const v = st.view; const el = $('#pageView');
+  const keepScroll = el.scrollTop;
+  if (v === 'roteiros') el.innerHTML = pageRoteiros();
+  else if (v === 'estudos') el.innerHTML = pageEstudos();
+  else if (v === 'clientes') el.innerHTML = pageClientes();
+  else if (v === 'colaboradores') el.innerHTML = pageColabs();
+  else if (v === 'importar') el.innerHTML = pageImportar();
+  else if (v === 'config') el.innerHTML = pageConfig();
+  else if (v === 'conta') renderContaPage();
+  el.scrollTop = keepScroll;
+}
+
+/* ----- Roteiros ----- */
+function pageRoteiros() {
+  const a = amb();
+  if (!a) return `<div class="page"><div class="card"><div class="empty"><h3>Nenhum estudo aberto</h3><p>Os roteiros pertencem a um estudo. Crie um estudo ou importe um roteiro para começar.</p><button class="btn primary" data-go="estudos">Ir para estudos</button></div></div></div>`;
+  const pg = st.pg.roteiros; const W = P().semanas, D = P().dias;
+  const setores = sortedSetores().filter(([id]) => !pg.setor || pg.setor === id);
+  const all = sortedRoutes([...st.routes.values()]).filter(r => !pg.setor || r.s === pg.setor);
+  const tot = sumRoutes(all);
+  let body = '';
+  if (!all.length) body = `<div class="card"><div class="empty"><h3>Sem rotas montadas</h3><p>Atribua setores, dias e semanas aos clientes no mapa ou rode a roteirização automática em “Estudos e setores”.</p><div class="row" style="justify-content:center"><button class="btn primary" data-go="estudos">Roteirizar automaticamente</button><button class="btn" data-go="mapa">Montar no mapa</button></div></div></div>`;
+  else if (pg.mode === 'grade') {
+    body = setores.map(([id, s]) => {
+      const c = colabOfSetor(id); const rs = all.filter(r => r.s === id); if (!rs.length) return '';
+      const sm = sumRoutes(rs);
+      let g = `<div class="wgrid" style="grid-template-columns:34px repeat(${D.length},minmax(84px,1fr))"><span></span>${D.map(d => `<span class="hd">${DIA_L[d]}</span>`).join('')}`;
+      for (let w = 1; w <= W; w++) {
+        g += `<span class="wl">S${w}</span>`;
+        for (const d of D) {
+          const r = st.routes.get(`${id}|${w}|${d}`);
+          if (!r) { g += `<div class="cell empty-c"><span class="c2">—</span></div>`; continue; }
+          const o = r.m.ocup, colr = o > 1 ? 'var(--bad)' : o >= 0.9 ? 'var(--warn)' : o < 0.5 ? 'var(--muted)' : 'var(--ok)';
+          g += `<button class="cell" data-openrk="${esc(r.k)}" title="Abrir esta rota no mapa"><span class="c1">${r.stops.length} <span class="c2">visitas</span></span><span class="c2">${r.missing ? `<span style="color:var(--warn)">${r.missing} sem cadastro</span>` : `${fkm(r.m.km)} km${r.m.real ? ' ruas' : ''} · ${fhm(r.m.total)}`}</span><span class="bar"><i style="width:${Math.min(100, o * 100)}%;background:${colr}"></i></span></button>`;
+        }
+      }
+      g += '</div>';
+      return `<div class="card"><div class="ch"><h2><span class="sw" style="background:${esc(s.cor)};margin-right:7px;vertical-align:-1px"></span>${esc(s.nome)} <span class="muted" style="font-weight:400">· ${c ? esc(c.nome) : 'sem colaborador'}</span></h2>
+        <div class="row muted" style="font-size:12.5px"><span><b class="num">${fkm(sm.km)}</b> km/ciclo</span><span><b class="num">${fhm(sm.total)}</b> no ciclo</span>${ocPill(sm.ocMed)}<button class="btn sm" data-solo-set="${esc(id)}">Ver setor no mapa</button></div></div>
+        <div class="cb" style="overflow-x:auto">${g}</div></div>`;
+    }).join('');
+  } else {
+    let rows = '';
+    for (const [id, s] of setores) {
+      const rs = all.filter(r => r.s === id); if (!rs.length) continue;
+      const c = colabOfSetor(id);
+      for (const r of rs) rows += `<tr class="clk" data-openrk="${esc(r.k)}"><td><input type="checkbox" data-chkrk="${esc(r.k)}" ${pg.chk.has(r.k) ? 'checked' : ''} aria-label="Selecionar rota"></td><td><span class="sw" style="background:${esc(s.cor)}"></span> ${esc(s.nome)}</td><td>${c ? esc(c.nome) : '—'}</td><td class="n">${r.w}</td><td>${DIA_L[r.d]}</td><td class="n">${r.m.n}</td><td class="n">${fkm(r.m.kmIda)}</td><td class="n">${fkm(r.m.kmEntre)}</td><td class="n">${fkm(r.m.kmVolta)}</td><td class="n"><b>${fkm(r.m.km)}</b>${r.m.real ? ' <span class="pill ok" title="Percurso real pelas ruas">ruas</span>' : r.stale ? ' <span class="pill warn" title="Desatualizado">!</span>' : ''}</td><td class="n">${fhm(r.m.tDesl)}</td><td class="n">${fhm(r.m.tAtend)}</td><td class="n">${fhm(r.m.total)}</td><td>${ocPill(r.m.ocup)}</td></tr>`;
+      const sm = sumRoutes(rs);
+      rows += `<tr class="sub"><td></td><td colspan="4">Subtotal ${esc(s.nome)} · ${rs.length} rotas</td><td class="n">${sm.n}</td><td class="n" colspan="3"></td><td class="n">${fkm(sm.km)}</td><td class="n">${fhm(sm.tDesl)}</td><td class="n">${fhm(sm.tAtend)}</td><td class="n">${fhm(sm.total)}</td><td>${ocPill(sm.ocMed)}</td></tr>`;
+    }
+    rows += `<tr class="tot"><td></td><td colspan="4">Total do estudo · ${all.length} rotas</td><td class="n">${tot.n}</td><td colspan="3"></td><td class="n">${fkm(tot.km)}</td><td class="n">${fhm(tot.tDesl)}</td><td class="n">${fhm(tot.tAtend)}</td><td class="n">${fhm(tot.total)}</td><td>${ocPill(tot.ocMed)}</td></tr>`;
+    body = `<div class="tblwrap"><table class="t"><thead><tr><th></th><th>Setor</th><th>Colaborador</th><th class="n">Sem.</th><th>Dia</th><th class="n">Visitas</th><th class="n">KM ida</th><th class="n">KM entre</th><th class="n">KM volta</th><th class="n">KM total</th><th class="n">Desloc.</th><th class="n">Atend.</th><th class="n">Total</th><th>Jornada</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  return `<div class="page">
+    <div class="ph"><div><h1>Roteiros · ${esc(a.nome)}</h1><p>Cada rota é um setor em uma semana do ciclo e um dia. Clique numa rota para abri-la sozinha no mapa.</p></div>
+      <div class="row"><button class="btn" data-exp="roteiro">Exportar Excel</button><button class="btn" data-imp="roteiro">Importar roteiro</button><button class="btn" data-modelo="roteiro">Baixar modelo</button></div></div>
+    <div class="toolbar">
+      <div class="seg"><button data-rmode="grade" aria-pressed="${pg.mode === 'grade'}">Grade semana × dia</button><button data-rmode="tabela" aria-pressed="${pg.mode === 'tabela'}">Tabela de rotas</button></div>
+      <select id="rSet"><option value="">Todos os setores</option>${sortedSetores().map(([id, s]) => `<option value="${esc(id)}"${pg.setor === id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select>
+      ${pg.mode === 'tabela' ? `<button class="btn" data-act="openchk"${pg.chk.size ? '' : ' disabled'}>Abrir ${pg.chk.size || ''} selecionadas no mapa</button><button class="btn" data-act="roadchk"${pg.chk.size && roadOk() ? '' : ' disabled'}>Roteirizar selecionadas pelas ruas</button>` : ''}
+      <button class="btn primary" data-act="roadall"${roadOk() && all.length ? '' : ' disabled'} title="${roadOk() ? 'Ordem e percurso pelas ruas reais' : 'Servidor de rotas indisponível nesta janela'}">Roteirizar todas pelas ruas (${all.length})</button>
+      <span class="muted">Formato: <b style="color:var(--ink)">${esc(rotaTxt(rotaKey(rotaOpt())))}</b></span>
+      <span class="grow"></span>
+      <span class="muted">Ciclo de ${W} semana(s) · <b class="num">${fkm(tot.km)}</b> km · <b class="num">${fhm(tot.total)}</b> · ${all.length} rotas</span>
+    </div>
+    ${body}</div>`;
+}
+
+/* ----- Estudos ----- */
+function ambStats(a, items, routes) {
+  const t = sumRoutes([...routes.values()]);
+  let nSet = 0; for (const it of items.values()) if (it.s && a.setores && a.setores[it.s]) nSet++;
+  const max = Math.max(0, ...[...routes.values()].map(r => r.m.ocup));
+  return { clientes: items.size, setorizados: nSet, setores: Object.keys(a.setores || {}).length, rotas: routes.size, km: t.km, horas: t.total, oc: t.ocMed, ocMax: max };
+}
+function pageEstudos() {
+  const list = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0));
+  const a = amb();
+  const side = `<div class="stack">
+    <div class="row"><button class="btn primary" data-act="newamb">Novo estudo</button><button class="btn" data-imp="roteiro">Importar roteiro</button></div>
+    <div class="amblist">${list.map(x => `<button class="ambi" data-openamb="${esc(x.id)}" aria-current="${x.id === st.cur}"><span class="nm">${esc(x.nome)}</span><span class="mt">${Object.keys(x.setores || {}).length} setores · ${new Date(x.alterado || x.criado || Date.now()).toLocaleDateString('pt-BR')}</span></button>`).join('') || '<p class="muted">Nenhum estudo criado.</p>'}</div>
+    <div class="card"><div class="cb stack"><span class="lbl">Backup completo</span><p class="muted" style="margin:0;font-size:12.5px">Bases, estudos e roteiros num arquivo JSON, para guardar ou levar para outro navegador.</p><div class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button></div></div></div>
+  </div>`;
+  if (!a) return `<div class="page"><div class="ph"><div><h1>Estudos e setores</h1><p>Um estudo é um cenário de setorização e roteiro que usa as bases de clientes e colaboradores sem alterá-las.</p></div></div>
+    <div class="cols2">${side}<div class="card"><div class="empty"><h3>Comece por um estudo</h3><p>Crie um estudo a partir da base de clientes, importe um roteiro em Excel ou gere dados de exemplo para conhecer o sistema.</p><div class="row" style="justify-content:center"><button class="btn primary" data-act="newamb">Novo estudo</button><button class="btn" data-act="sample">Gerar dados de exemplo</button></div></div></div></div></div>`;
+  const p = P(); const routes = st.routes; const s = ambStats(a, st.itens.map, routes);
+  const pend = cleanPend(a), nIgn = pendIgnoradas(a), ro = st.ro ? ' disabled' : '';
+  const cnt = new Map(), hrs = new Map(), kms = new Map();
+  for (const it of st.itens.values()) if (it.s) cnt.set(it.s, (cnt.get(it.s) || 0) + 1);
+  for (const r of routes.values()) { hrs.set(r.s, (hrs.get(r.s) || 0) + r.m.total); kms.set(r.s, (kms.get(r.s) || 0) + r.m.km); }
+  const colOpts = sel => `<option value="">— Sem colaborador —</option>` + [...st.col.values()].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).map(c => `<option value="${esc(c.codigo)}"${c.codigo === sel ? ' selected' : ''}>${esc(c.nome)} (${esc(c.codigo)})</option>`).join('');
+  const setRows = sortedSetores().map(([id, x]) => {
+    const used = sortedSetores().filter(([, y]) => y.colab && y.colab === x.colab).length > 1;
+    return `<tr><td><input type="color" value="${esc(x.cor)}" data-scor="${esc(id)}" aria-label="Cor do setor"></td><td><input type="text" value="${esc(x.nome)}" data-snome="${esc(id)}" aria-label="Nome do setor" style="width:150px"></td><td><select data-scol="${esc(id)}" aria-label="Colaborador">${colOpts(x.colab)}</select>${used ? ' <span class="pill warn" title="Mesmo colaborador em mais de um setor">repetido</span>' : ''}${x.colab && !st.col.has(x.colab) ? ' <span class="pill bad">não cadastrado</span>' : ''}</td><td class="n">${cnt.get(id) || 0}</td><td class="n">${fkm(kms.get(id) || 0)}</td><td class="n">${fhm(hrs.get(id) || 0)}</td><td><button class="btn sm" data-solo-set="${esc(id)}">Mapa</button> <button class="btn sm danger" data-sdel="${esc(id)}">Excluir</button></td></tr>`;
+  }).join('');
+  const colabChecks = [...st.col.values()].sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).map(c => `<label class="chk"><input type="checkbox" data-acol="${esc(c.codigo)}" ${sortedSetores().some(([, x]) => x.colab === c.codigo) || !Object.keys(a.setores || {}).length ? 'checked' : ''}> ${esc(c.nome)} <span class="muted">· ${esc(c.funcao || '')}${isNum(c.lat) ? '' : ' · sem base'}</span></label>`).join('');
+  const cmp = st.cmp;
+  return `<div class="page">
+    <div class="ph"><div><h1>Estudos e setores</h1><p>Um estudo é um cenário de setorização e roteiro que usa as bases de clientes e colaboradores sem alterá-las. Duplique para comparar alternativas.</p></div></div>
+    <div class="cols2">${side}
+    <div class="stack">
+      ${pend.cli.length || pend.col.length ? `<div class="card" id="pendCard"><div class="ch"><h2>Pendências de cadastro <span class="pill warn">${pend.cli.length + pend.col.length}</span></h2><button class="btn sm" data-act="pendign" data-pt="todas"${ro}>Ignorar todas</button></div><div class="cb stack">
+        <p class="muted" style="margin:0">O roteiro importado cita registros que não existem nas bases. Cadastre-os para que apareçam no mapa e entrem nos cálculos, ou ignore os que não forem necessários: o aviso some e o restante do estudo continua igual.</p>
+        ${pend.cli.length ? `<div><div class="row" style="justify-content:space-between"><span class="lbl">Clientes · ${pend.cli.length}</span>${pend.col.length ? `<button class="btn sm ghost" data-act="pendign" data-pt="cli"${ro}>Ignorar os clientes</button>` : ''}</div><div class="row" style="margin-top:6px">${pend.cli.slice(0, 40).map(x => `<span class="pendchip"><button class="btn sm" data-newcli="${esc(x.sold)}" data-nome="${esc(x.nome || '')}">Cadastrar ${esc(x.sold)}${x.nome ? ' · ' + esc(x.nome) : ''}</button><button class="btn sm ghost" data-act="pendign" data-pt="cli" data-pid="${esc(x.sold)}" title="Ignorar esta pendência" aria-label="Ignorar ${esc(x.sold)}"${ro}>Ignorar</button></span>`).join('')}${pend.cli.length > 40 ? `<span class="muted">+${pend.cli.length - 40}</span>` : ''}</div><p class="muted" style="font-size:12px;margin:6px 0 0">Muitos clientes? Importe a planilha deles em Clientes — as pendências somem sozinhas.</p></div>` : ''}
+        ${pend.col.length ? `<div><div class="row" style="justify-content:space-between"><span class="lbl">Colaboradores · ${pend.col.length}</span>${pend.cli.length ? `<button class="btn sm ghost" data-act="pendign" data-pt="col"${ro}>Ignorar os colaboradores</button>` : ''}</div><div class="row" style="margin-top:6px">${pend.col.map(x => `<span class="pendchip"><button class="btn sm" data-newcol="${esc(x.codigo)}" data-nome="${esc(x.nome || '')}">Cadastrar ${esc(x.codigo)}</button><button class="btn sm ghost" data-act="pendign" data-pt="col" data-pid="${esc(x.codigo)}" title="Ignorar esta pendência" aria-label="Ignorar ${esc(x.codigo)}"${ro}>Ignorar</button></span>`).join('')}</div></div>` : ''}
+        ${nIgn ? `<div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12.5px">${nIgn} pendência(s) ignorada(s).</span><button class="btn sm ghost" data-act="pendvolta"${ro}>Voltar a mostrar</button></div>` : ''}
+      </div></div>` : nIgn ? `<div class="card"><div class="cb row" style="justify-content:space-between"><span class="muted">${nIgn} pendência(s) de cadastro ignorada(s) neste estudo.</span><button class="btn sm" data-act="pendvolta"${ro}>Voltar a mostrar</button></div></div>` : ''}
+      <div class="card"><div class="ch"><h2>Identificação</h2><div class="row"><button class="btn sm" data-act="dupamb">Duplicar como cenário</button><button class="btn sm danger" data-act="delamb">Excluir estudo</button></div></div><div class="cb fgrid">
+        <label class="field" style="grid-column:span 2"><span class="lbl">Nome do estudo</span><input type="text" id="aNome" value="${esc(a.nome)}"></label>
+        <label class="field" style="grid-column:span 2"><span class="lbl">Descrição</span><input type="text" id="aDesc" value="${esc(a.desc || '')}" placeholder="Objetivo, premissas, origem do roteiro"></label>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Parâmetros de cálculo</h2></div><div class="cb fgrid">
+        <label class="field"><span class="lbl">Ciclo (semanas)</span><select id="pSem">${[1, 2, 4].map(w => `<option value="${w}"${p.semanas === w ? ' selected' : ''}>${w} semana${w > 1 ? 's' : ''}</option>`).join('')}</select><span class="hint">Período em que o roteiro se repete</span></label>
+        <div class="field"><span class="lbl">Dias trabalhados</span><div class="daychips" id="pDias">${[1, 2, 3, 4, 5, 6].map(d => `<button type="button" data-d="${d}" aria-pressed="${p.dias.includes(d)}">${DIA_C[d]}</button>`).join('')}</div></div>
+        <label class="field"><span class="lbl">Velocidade média (km/h)</span><input type="number" id="pVel" min="5" max="90" step="1" value="${p.vel}"><span class="hint">Trânsito urbano: 18–30</span></label>
+        <label class="field"><span class="lbl">Fator de rota</span><input type="number" id="pFat" min="1" max="2.5" step="0.05" value="${p.fator}"><span class="hint">Linha reta × fator ≈ km por via</span></label>
+        <label class="field"><span class="lbl">Jornada padrão (min)</span><input type="number" id="pJor" min="60" max="900" step="10" value="${p.jornada}"><span class="hint">${fhm(p.jornada)} · o colaborador pode ter a sua</span></label>
+        <label class="field"><span class="lbl">Formato da rota</span><select id="pCrit"><option value="tempo"${p.criterio === 'tempo' ? ' selected' : ''}>Mais rápida</option><option value="distancia"${p.criterio !== 'tempo' ? ' selected' : ''}>Mais curta</option></select><span class="hint">Critério da roteirização pelas ruas</span></label>
+        <div class="field"><span class="lbl">Evitar nas rotas</span><label class="chk"><input type="checkbox" id="pPed" ${p.evitaPedagio ? 'checked' : ''}> Pedágios</label><label class="chk"><input type="checkbox" id="pTer" ${p.evitaTerra ? 'checked' : ''}> Estrada de terra e via precária</label></div>
+        <label class="field"><span class="lbl">Motor de rotas</span><select id="pMotor"><option value="osrm"${p.motor !== 'google' ? ' selected' : ''}>OpenStreetMap (gratuito)</option><option value="google"${p.motor === 'google' ? ' selected' : ''}>Google (usa a chave)</option></select><span class="hint">${st.road === 'ok' ? 'Servidor gratuito conectado' : 'Servidor indisponível nesta janela'}</span></label>
+        <label class="field"><span class="lbl">Atendimento padrão (min)</span><input type="number" id="pTpa" min="1" max="240" step="1" value="${p.tPadrao}"><span class="hint">Usado quando o cliente não tem</span></label>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Clientes no estudo</h2><div class="row"><button class="btn sm" data-act="incl">Incluir clientes da base</button><button class="btn sm" data-go="mapa">Montar no mapa</button></div></div><div class="cb">
+        <div class="row" style="gap:22px"><div><div class="lbl">No estudo</div><div class="num" style="font-size:20px;font-weight:600">${s.clientes}</div></div><div><div class="lbl">Setorizados</div><div class="num" style="font-size:20px;font-weight:600">${s.setorizados}</div></div><div><div class="lbl">Rotas</div><div class="num" style="font-size:20px;font-weight:600">${s.rotas}</div></div><div><div class="lbl">KM no ciclo</div><div class="num" style="font-size:20px;font-weight:600">${fkm(s.km)}</div></div><div><div class="lbl">Horas no ciclo</div><div class="num" style="font-size:20px;font-weight:600">${fhm(s.horas)}</div></div><div><div class="lbl">Ocupação média</div><div style="font-size:15px;margin-top:3px">${s.rotas ? ocPill(s.oc) : '—'}</div></div></div>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Setorização e roteirização automáticas</h2><div class="row">${histBtns()}</div></div><div class="cb stack">
+        <div class="fgrid">
+          <label class="field"><span class="lbl">Nº de setores</span><input type="number" id="aK" min="1" max="200" value="${Math.max(1, Object.keys(a.setores || {}).length || [...st.col.values()].length || 4)}"></label>
+          <label class="field"><span class="lbl">Equilibrar por</span><select id="aBy"><option value="carga">Carga de trabalho (tempo × frequência)</option><option value="qtd">Quantidade de clientes</option></select></label>
+          <label class="field"><span class="lbl">Clientes</span><select id="aEsc"><option value="todos">Todos do estudo (refaz setores)</option><option value="encaixe">Só os sem setor (encaixa no setor mais próximo)</option></select></label>
+        </div>
+        ${colabChecks ? `<div class="field"><span class="lbl">Colaboradores para atribuir aos novos setores (pela proximidade da base)</span><div class="fgrid" style="gap:6px">${colabChecks}</div></div>` : '<p class="muted" style="margin:0">Cadastre colaboradores para que cada setor ganhe um responsável e uma base de saída.</p>'}
+        <label class="chk"><input type="checkbox" id="aRoad" ${roadOk() ? 'checked' : 'disabled'}> Em seguida, ajustar a sequência e o percurso pelas ruas reais${roadOk() ? '' : ' (indisponível nesta janela)'}</label>
+        <div class="row"><button class="btn primary" data-act="autoset" ${st.ro ? 'disabled' : ''}>Setorizar e roteirizar</button><button class="btn" data-act="autoroute" ${st.ro ? 'disabled' : ''}>Só roteirizar (manter setores)</button><button class="btn" data-act="reseqall" ${st.ro ? 'disabled' : ''}>Só otimizar sequências</button><button class="btn" data-act="roadall"${roadOk() && st.routes.size && !st.ro ? '' : ' disabled'}>Roteirizar tudo pelas ruas (${st.routes.size})</button></div>
+        <p class="muted" style="margin:0;font-size:12.5px">A roteirização distribui cada setor nos dias trabalhados, define as semanas pela frequência (semanal em todas, quinzenal em semanas alternadas, mensal na semana mais leve) e sequencia cada dia a partir da base do colaborador. Tudo pode ser desfeito.</p>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Setores · ${sortedSetores().length}</h2><button class="btn sm" data-act="newset">Novo setor</button></div>
+        ${setRows ? `<div style="overflow-x:auto"><table class="t"><thead><tr><th>Cor</th><th>Nome</th><th>Colaborador</th><th class="n">Clientes</th><th class="n">KM/ciclo</th><th class="n">Horas/ciclo</th><th></th></tr></thead><tbody>${setRows}</tbody></table></div>` : '<div class="cb muted">Nenhum setor. Use a setorização automática ou crie setores à mão.</div>'}
+      </div>
+      <div class="card"><div class="ch"><h2>Comparar cenários</h2><button class="btn sm" data-act="cmp">${cmp ? 'Atualizar' : 'Calcular comparativo'}</button></div>
+        ${cmp ? `<div style="overflow-x:auto"><table class="t"><thead><tr><th>Estudo</th><th class="n">Clientes</th><th class="n">Setores</th><th class="n">Rotas</th><th class="n">KM no ciclo</th><th class="n">Horas no ciclo</th><th>Ocup. média</th><th>Maior ocup.</th></tr></thead><tbody>${cmp.map(r => `<tr class="clk" data-openamb="${esc(r.id)}"><td>${esc(r.nome)}${r.id === st.cur ? ' <span class="pill ok">aberto</span>' : ''}</td><td class="n">${r.clientes}</td><td class="n">${r.setores}</td><td class="n">${r.rotas}</td><td class="n">${fkm(r.km)}</td><td class="n">${fhm(r.horas)}</td><td>${r.rotas ? ocPill(r.oc) : '—'}</td><td>${r.rotas ? ocPill(r.ocMax) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="cb muted">Calcula KM, horas e ocupação de todos os estudos lado a lado.</div>'}
+      </div>
+    </div></div></div>`;
+}
+
+/* ----- Clientes ----- */
+function pageClientes() {
+  const pg = st.pg.clientes; const q = pg.q.trim().toLowerCase();
+  const cidades = [...new Set([...st.cli.values()].map(c => c.cidade).filter(Boolean))].sort();
+  let rows = [...st.cli.values()];
+  if (q) rows = rows.filter(c => (c.sold + ' ' + (c.nome || '') + ' ' + (c.endereco || '') + ' ' + (c.bairro || '')).toLowerCase().includes(q));
+  if (pg.cidade) rows = rows.filter(c => c.cidade === pg.cidade);
+  if (pg.semCoord) rows = rows.filter(c => !isNum(c.lat) || !isNum(c.lng));
+  if (pg.noEstudo === 'sim') rows = rows.filter(c => st.itens && st.itens.has(c.sold)); else if (pg.noEstudo === 'nao') rows = rows.filter(c => !st.itens || !st.itens.has(c.sold));
+  rows.sort((a, b) => String(a.nome || a.sold).localeCompare(String(b.nome || b.sold), 'pt-BR'));
+  pg.ultimos = rows.map(c => c.sold);
+  const PER = 100; const pages = Math.max(1, Math.ceil(rows.length / PER)); pg.page = Math.min(pg.page, pages - 1);
+  const slice = rows.slice(pg.page * PER, pg.page * PER + PER);
+  const semCoord = [...st.cli.values()].filter(c => !isNum(c.lat) || !isNum(c.lng)).length;
+  const nSea = seaList().length, nBusca = seaList().filter(c => c.endereco || c.cep).length;
+  const temEx = [...st.cli.values()].some(c => c.exemplo);
+  const latCell = c => isNum(c.lat) ? c.lat.toFixed(5) + (c.geoNivel === 'rua' ? ' <span class="pill idle" title="Coordenada da rua, sem o número exato">rua</span>' : '') : geoQueued(c.sold) ? '<span class="pill idle">na fila</span>' : `<span class="pill warn" title="${esc(c.geoPend ? c.geoPend.msg : 'sem coordenada')}">no mar</span>`;
+  const tb = slice.map(c => { const it = st.itens && st.itens.get(c.sold); const s = it && setorOf(it.s); return `<tr class="clk" data-editcli="${esc(c.sold)}"><td><input type="checkbox" data-chkcli="${esc(c.sold)}" ${pg.chk.has(c.sold) ? 'checked' : ''} aria-label="Selecionar"></td><td class="num">${esc(c.sold)}</td><td class="wrap">${esc(c.nome || '')}</td><td class="wrap">${esc(c.endereco || '')}</td><td>${esc(c.bairro || '')}</td><td>${esc(c.cidade || '')}</td><td class="n">${latCell(c)}</td><td class="n">${isNum(c.lng) ? c.lng.toFixed(5) : ''}</td><td>${freqTxt(c.f)}</td><td class="n">${c.t || '—'}</td><td>${it ? (s ? `<span class="sw" style="background:${esc(s.cor)}"></span> ${esc(s.nome)}` : 'sem setor') : '<span class="muted">fora</span>'}</td></tr>`; }).join('');
+  return `<div class="page">
+    <div class="ph"><div><h1>Base de clientes</h1><p>Cadastro mestre, identificado pelo SOLD. Os estudos apenas referenciam esta base — editar aqui atualiza todos os estudos.</p></div>
+      <div class="row"><button class="btn primary" data-act="newcli">Novo cliente</button><button class="btn" data-act="clibase" title="Abre o mapa com os clientes marcados ou filtrados aqui">Ver no mapa</button><button class="btn" data-imp="clientes">Importar planilha</button><button class="btn" data-modelo="clientes">Baixar modelo</button><button class="btn" data-exp="clientes">Exportar Excel</button></div></div>
+    ${nSea ? `<div class="banner"><span><b>${nSea}</b> cliente(s) sem coordenada estão no mar, fora dos cálculos. Ajuste cada um pelo endereço, clicando no mapa ou arrastando o pino.</span><button class="btn sm primary" data-act="adj">Ajustar endereços</button><button class="btn sm" data-act="gosea">Ver no mar</button>${nBusca && !geoQ.busy ? `<button class="btn sm" data-act="geo">Buscar de novo (${nBusca})</button>` : ''}</div>` : ''}
+    ${!st.cli.size ? `<div class="card"><div class="empty"><h3>Base vazia</h3><p>Importe sua planilha de clientes (SOLD, nome, endereço, latitude, longitude, visitas por mês, tempo de atendimento) ou gere dados de exemplo.</p><div class="row" style="justify-content:center"><button class="btn primary" data-imp="clientes">Importar planilha</button><button class="btn" data-act="sample">Gerar dados de exemplo</button></div></div></div>` : `
+    <div class="toolbar">
+      <div class="grow"><input type="search" id="cQ" placeholder="Buscar por SOLD, nome, endereço ou bairro" value="${esc(pg.q)}"></div>
+      <select id="cCid"><option value="">Todas as cidades</option>${cidades.map(c => `<option${c === pg.cidade ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      <select id="cEst"><option value="">Estudo atual: todos</option><option value="sim"${pg.noEstudo === 'sim' ? ' selected' : ''}>Só no estudo</option><option value="nao"${pg.noEstudo === 'nao' ? ' selected' : ''}>Só fora do estudo</option></select>
+      <label class="chk"><input type="checkbox" id="cSem" ${pg.semCoord ? 'checked' : ''}> Sem coordenadas (${semCoord})</label>
+    </div>
+    <div class="toolbar">
+      <span class="muted">${rows.length} cliente(s)${pg.chk.size ? ` · ${pg.chk.size} marcados` : ''}</span>
+      <button class="btn sm" data-act="chkall">Marcar os filtrados</button>
+      ${pg.chk.size ? `<button class="btn sm" data-act="chknone">Desmarcar</button>${amb() ? `<button class="btn sm" data-act="cliIncl">Incluir marcados no estudo</button>` : ''}<button class="btn sm danger" data-act="cliDel">Excluir marcados</button>` : ''}
+      ${temEx ? `<button class="btn sm danger" data-act="delex">Remover dados de exemplo</button>` : ''}
+    </div>
+    <div class="tblwrap"><table class="t"><thead><tr><th></th><th>SOLD</th><th>Nome</th><th>Endereço</th><th>Bairro</th><th>Cidade</th><th class="n">Lat</th><th class="n">Lng</th><th>Frequência</th><th class="n">Atend. (min)</th><th>Setor no estudo</th></tr></thead><tbody>${tb}</tbody></table>
+    <div class="pager"><span>Página ${pg.page + 1} de ${pages}</span><button class="btn sm" data-cpage="-1" ${pg.page ? '' : 'disabled'}>Anterior</button><button class="btn sm" data-cpage="1" ${pg.page < pages - 1 ? '' : 'disabled'}>Próxima</button></div></div>`}
+  </div>`;
+}
+/* ----- Colaboradores ----- */
+function pageColabs() {
+  const pg = st.pg.colaboradores; const q = pg.q.trim().toLowerCase();
+  let rows = [...st.col.values()]; if (q) rows = rows.filter(c => (c.codigo + ' ' + (c.nome || '') + ' ' + (c.funcao || '')).toLowerCase().includes(q));
+  rows.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+  const setoresDe = cod => sortedSetores().filter(([, s]) => s.colab === cod).map(([, s]) => s.nome).join(', ');
+  const tb = rows.map(c => `<tr class="clk" data-editcol="${esc(c.codigo)}"><td><span class="sw" style="background:${esc(c.cor || '#7d8a84')}"></span></td><td class="num">${esc(c.codigo)}</td><td>${esc(c.nome)}</td><td>${esc(c.funcao || '')}</td><td class="wrap">${esc(addrTxt(c))}</td><td class="n">${isNum(c.lat) ? c.lat.toFixed(5) : geoQ.set.has(qKey('col', c.codigo)) ? '<span class="pill idle">na fila</span>' : `<span class="pill warn" title="${esc(c.geoPend ? c.geoPend.msg : 'sem coordenada')}">falta</span>`}</td><td class="n">${isNum(c.lng) ? c.lng.toFixed(5) : ''}</td><td class="n">${c.jornada ? fhm(c.jornada) : '<span class="muted">padrão</span>'}</td><td>${esc(setoresDe(c.codigo)) || '<span class="muted">—</span>'}</td></tr>`).join('');
+  return `<div class="page">
+    <div class="ph"><div><h1>Base de colaboradores</h1><p>Vendedores, promotores, motoristas e supervisores. A base (residência ou depósito) é o ponto de saída e retorno das rotas.</p></div>
+      <div class="row"><button class="btn primary" data-act="newcol">Novo colaborador</button><button class="btn" data-imp="colaboradores">Importar planilha</button><button class="btn" data-modelo="colaboradores">Baixar modelo</button><button class="btn" data-exp="colaboradores">Exportar Excel</button></div></div>
+    ${!st.col.size ? `<div class="card"><div class="empty"><h3>Nenhum colaborador</h3><p>Cadastre quem executa as rotas com código, nome, função e a localização da base de saída.</p><div class="row" style="justify-content:center"><button class="btn primary" data-act="newcol">Novo colaborador</button><button class="btn" data-imp="colaboradores">Importar planilha</button></div></div></div>` : `
+    <div class="toolbar"><div class="grow"><input type="search" id="kQ" placeholder="Buscar por código, nome ou função" value="${esc(pg.q)}"></div><span class="muted">${rows.length} colaborador(es)</span></div>
+    <div class="tblwrap"><table class="t"><thead><tr><th></th><th>Código</th><th>Nome</th><th>Função</th><th>Base (endereço)</th><th class="n">Lat</th><th class="n">Lng</th><th class="n">Jornada</th><th>Setores no estudo</th></tr></thead><tbody>${tb}</tbody></table></div>`}
+  </div>`;
+}
+
+/* ================= Modais ================= */
+function openModal(html, cls = '') { const m = $('#modal'); m.innerHTML = `<div class="dlg ${cls}" role="dialog" aria-modal="true">${html}</div>`; m.hidden = false; const f = m.querySelector('input,select,textarea,button'); if (f) setTimeout(() => f.focus(), 20); }
+function closeModal() { $('#modal').hidden = true; $('#modal').innerHTML = ''; }
+function numBR(v) { if (v === null || v === undefined || v === '') return NaN; if (typeof v === 'number') return v; let s = String(v).trim().replace(/\s/g, ''); if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(',', '.'); const n = parseFloat(s); return isFinite(n) ? n : NaN; }
+
+function cliForm(c, isNew) {
+  c = c || {};
+  openModal(`<div class="dh"><h2>${isNew ? 'Novo cliente' : 'Cliente ' + esc(c.sold)}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fCli" class="db">${!isNew && !hasXY(c) ? `<div class="banner">No mar: ${esc(c.geoPend ? c.geoPend.msg : 'ainda sem coordenada')}. Busque pelo endereço, cole a coordenada ou marque no mapa.</div>` : ''}<div class="fgrid">
+    <label class="field"><span class="lbl">SOLD *</span><input type="text" name="sold" value="${esc(c.sold || '')}" ${isNew ? '' : 'readonly'} required></label>
+    <label class="field" style="grid-column:span 2"><span class="lbl">Nome</span><input type="text" name="nome" value="${esc(c.nome || '')}"></label>
+    <label class="field" style="grid-column:span 2"><span class="lbl">Endereço</span><input type="text" name="endereco" value="${esc(c.endereco || '')}"></label>
+    <label class="field"><span class="lbl">Bairro</span><input type="text" name="bairro" value="${esc(c.bairro || '')}"></label>
+    <label class="field"><span class="lbl">Cidade</span><input type="text" name="cidade" value="${esc(c.cidade || '')}"></label>
+    <label class="field"><span class="lbl">UF</span><input type="text" name="uf" value="${esc(c.uf || '')}" maxlength="2"></label>
+    <label class="field"><span class="lbl">CEP</span><input type="text" name="cep" value="${esc(c.cep || '')}"></label>
+    <label class="field"><span class="lbl">Latitude</span><input type="text" name="lat" value="${isNum(c.lat) ? c.lat : ''}" placeholder="-23,5891 ou cole “lat, lng”"></label>
+    <label class="field"><span class="lbl">Longitude</span><input type="text" name="lng" value="${isNum(c.lng) ? c.lng : ''}" placeholder="-46,6349"></label>
+    <label class="field"><span class="lbl">Frequência</span><select name="f">${[[1, 'Mensal (1x/mês)'], [2, 'Quinzenal (2x/mês)'], [4, 'Semanal (4x/mês)'], [8, '2x por semana'], [12, '3x por semana']].map(([v, l]) => `<option value="${v}"${(c.f || 4) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">Atendimento (min)</span><input type="number" name="t" min="1" max="600" value="${c.t || ''}" placeholder="${P().tPadrao}"></label>
+  </div><div class="row"><button class="btn sm" type="button" data-fgeo>Buscar pelo endereço</button>${!isNew && !st.ro ? '<button class="btn sm" type="button" id="fPlace">Salvar e marcar no mapa</button>' : ''}<span class="muted fgeo-msg" style="font-size:12.5px"></span></div>
+  <p class="muted" style="margin:0;font-size:12.5px">Dica: no Google Maps, clique com o botão direito no local e copie a coordenada; colada no campo Latitude, ela preenche os dois campos.</p></form>
+  <div class="df">${!isNew ? `<button class="btn danger" data-delcli="${esc(c.sold)}">Excluir da base</button><span style="flex:1"></span>` : ''}<button class="btn" data-close>Cancelar</button><button class="btn primary" form="fCli" type="submit">Salvar</button></div>`);
+  const form = $('#fCli'); bindFormGeo(form); let placeAfter = false;
+  const fp = $('#fPlace'); if (fp) fp.onclick = () => { placeAfter = true; form.requestSubmit(); };
+  form.onsubmit = e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const sold = String(f.get('sold') || '').trim(); if (!sold) { toast('Informe o SOLD'); return; }
+    if (isNew && st.cli.has(sold)) { toast('Já existe um cliente com esse SOLD'); return; }
+    const ex = st.cli.get(sold) || {};
+    const o = { ...ex, sold, nome: f.get('nome').trim(), endereco: f.get('endereco').trim(), bairro: f.get('bairro').trim(), cidade: f.get('cidade').trim(), uf: f.get('uf').trim().toUpperCase(), cep: f.get('cep').trim(), lat: numBR(f.get('lat')), lng: numBR(f.get('lng')), f: +f.get('f'), t: numBR(f.get('t')) };
+    if (!isNum(o.lat)) o.lat = null; if (!isNum(o.lng)) o.lng = null; if (!isNum(o.t)) delete o.t;
+    if (hasXY(o)) { if (o.lat !== ex.lat || o.lng !== ex.lng) { o.geo = form.dataset.gsrc || 'manual'; o.geoNivel = form.dataset.gniv || 'exato'; } delete o.geoPend; }
+    st.cli.put(sold, o);
+    // sem coordenada e com endereço novo: entra na busca automática
+    const busca = !placeAfter && !hasXY(o) && (o.endereco || o.cep) && (isNew || addrTxt(o) !== addrTxt(ex));
+    closeModal(); if (busca) geoEnqueue([['cli', sold]]);
+    rebuild(); renderAll(); toast(isNew ? 'Cliente cadastrado' : 'Cliente atualizado');
+    if (placeAfter) startPlace(sold);
+  };
+}
+function colForm(c, isNew) {
+  c = c || {};
+  openModal(`<div class="dh"><h2>${isNew ? 'Novo colaborador' : esc(c.nome)}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fCol" class="db"><div class="fgrid">
+    <label class="field"><span class="lbl">Código *</span><input type="text" name="codigo" value="${esc(c.codigo || '')}" ${isNew ? '' : 'readonly'} required></label>
+    <label class="field" style="grid-column:span 2"><span class="lbl">Nome</span><input type="text" name="nome" value="${esc(c.nome || '')}"></label>
+    <label class="field"><span class="lbl">Função</span><select name="funcao">${['Vendedor', 'Promotor', 'Supervisor', 'Motorista', 'Técnico', 'Outro'].map(x => `<option${(c.funcao || 'Vendedor') === x ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
+    <label class="field" style="grid-column:span 2"><span class="lbl">Endereço da base</span><input type="text" name="endereco" value="${esc(c.endereco || '')}" placeholder="Residência, depósito ou CD"></label>
+    <label class="field"><span class="lbl">Bairro</span><input type="text" name="bairro" value="${esc(c.bairro || '')}"></label>
+    <label class="field"><span class="lbl">Cidade</span><input type="text" name="cidade" value="${esc(c.cidade || '')}"></label>
+    <label class="field"><span class="lbl">UF</span><input type="text" name="uf" value="${esc(c.uf || '')}" maxlength="2"></label>
+    <label class="field"><span class="lbl">CEP</span><input type="text" name="cep" value="${esc(c.cep || '')}"></label>
+    <label class="field"><span class="lbl">Latitude da base</span><input type="text" name="lat" value="${isNum(c.lat) ? c.lat : ''}" placeholder="ou cole “lat, lng”"></label>
+    <label class="field"><span class="lbl">Longitude da base</span><input type="text" name="lng" value="${isNum(c.lng) ? c.lng : ''}"></label>
+    <label class="field"><span class="lbl">Jornada (min)</span><input type="number" name="jornada" min="60" max="900" value="${c.jornada || ''}" placeholder="padrão do estudo"></label>
+    <label class="field"><span class="lbl">Cor</span><input type="color" name="cor" value="${esc(c.cor || E.PALETA[st.col.size % E.PALETA.length])}"></label>
+  </div><div class="row"><button class="btn sm" type="button" data-fgeo>Buscar pelo endereço</button><span class="muted fgeo-msg" style="font-size:12.5px"></span></div></form>
+  <div class="df">${!isNew ? `<button class="btn danger" data-delcol="${esc(c.codigo)}">Excluir da base</button><span style="flex:1"></span>` : ''}<button class="btn" data-close>Cancelar</button><button class="btn primary" form="fCol" type="submit">Salvar</button></div>`);
+  bindFormGeo($('#fCol'));
+  $('#fCol').onsubmit = e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const codigo = String(f.get('codigo') || '').trim(); if (!codigo) { toast('Informe o código'); return; }
+    if (isNew && st.col.has(codigo)) { toast('Já existe um colaborador com esse código'); return; }
+    const ex = st.col.get(codigo) || {};
+    const o = { ...ex, codigo, nome: f.get('nome').trim() || codigo, funcao: f.get('funcao'), endereco: f.get('endereco').trim(), bairro: f.get('bairro').trim(), cidade: f.get('cidade').trim(), uf: f.get('uf').trim().toUpperCase(), cep: f.get('cep').trim(), lat: numBR(f.get('lat')), lng: numBR(f.get('lng')), jornada: numBR(f.get('jornada')), cor: f.get('cor') };
+    if (!isNum(o.lat)) o.lat = null; if (!isNum(o.lng)) o.lng = null; if (!isNum(o.jornada)) delete o.jornada;
+    if (hasXY(o)) delete o.geoPend;
+    st.col.put(codigo, o); closeModal();
+    if (!hasXY(o) && (o.endereco || o.cep) && (isNew || addrTxt(o) !== addrTxt(ex))) geoEnqueue([['col', codigo]]);
+    rebuild(); renderAll(); toast(isNew ? 'Colaborador cadastrado' : 'Colaborador atualizado');
+  };
+}
+function newAmbForm(opts = {}) {
+  const cid = [...new Set([...st.cli.values()].map(c => c.cidade).filter(Boolean))].sort();
+  openModal(`<div class="dh"><h2>${opts.vazio ? 'Novo planner vazio' : 'Novo estudo'}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fAmb" class="db">
+    <label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required placeholder="Ex.: Zona Sul — redesenho 2027"></label>
+    <label class="field"><span class="lbl">Clientes iniciais</span><select name="ini"><option value="todos"${opts.vazio ? '' : ' selected'}>Todos da base (${st.cli.size})</option>${cid.length ? '<option value="cidade">Só de uma cidade</option>' : ''}<option value="vazio"${opts.vazio ? ' selected' : ''}>Nenhum — vou incluir pelo mapa ou por importação</option></select></label>
+    ${cid.length ? `<label class="field"><span class="lbl">Cidade</span><select name="cidade">${cid.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>` : ''}
+    <label class="field"><span class="lbl">Ciclo</span><select name="sem"><option value="4">4 semanas</option><option value="2">2 semanas</option><option value="1">1 semana</option></select></label>
+  </form>
+  <div class="df"><button class="btn" data-close>Cancelar</button><button class="btn primary" form="fAmb" type="submit">${opts.vazio ? 'Criar e abrir o Planner' : 'Criar estudo'}</button></div>`, 'sm');
+  $('#fAmb').onsubmit = async e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const id = uid('a');
+    const meta = { id, nome: f.get('nome').trim() || 'Novo estudo', desc: '', criado: Date.now(), alterado: Date.now(), params: { ...DEF_P, semanas: +f.get('sem') }, setores: {}, pend: { cli: [], col: [] } };
+    st.amb.put(id, meta); closeModal();
+    await openAmb(id, false);
+    const ini = f.get('ini');
+    if (ini !== 'vazio') { for (const c of st.cli.values()) if (ini === 'todos' || c.cidade === f.get('cidade')) st.itens.put(c.sold, { s: '', d: [], w: [], q: {} }); }
+    rebuild(); renderAll(); toast('Estudo criado');
+    if (opts.go) enterPlanner('mapa'); else fitVisible();
+  };
+}
+function inclForm() {
+  const cid = [...new Set([...st.cli.values()].map(c => c.cidade).filter(Boolean))].sort();
+  const bai = [...new Set([...st.cli.values()].map(c => c.bairro).filter(Boolean))].sort();
+  openModal(`<div class="dh"><h2>Incluir clientes da base no estudo</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <form id="fIncl" class="db">
+    <label class="field"><span class="lbl">Critério</span><select name="cr" id="inclCr"><option value="todos">Todos os clientes da base</option>${cid.length ? '<option value="cidade">Por cidade</option>' : ''}${bai.length ? '<option value="bairro">Por bairro</option>' : ''}<option value="lista">Colar lista de SOLD</option></select></label>
+    ${cid.length ? `<label class="field" data-cr="cidade" hidden><span class="lbl">Cidade</span><select name="cidade">${cid.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>` : ''}
+    ${bai.length ? `<label class="field" data-cr="bairro" hidden><span class="lbl">Bairro</span><select name="bairro">${bai.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>` : ''}
+    <label class="field" data-cr="lista" hidden><span class="lbl">SOLDs (um por linha, ou separados por vírgula)</span><textarea name="lista"></textarea></label>
+    <p class="muted" style="margin:0;font-size:12.5px">No mapa, abra a visão Base, selecione com o laço e use “Incluir no estudo”.</p>
+  </form>
+  <div class="df"><button class="btn" data-close>Cancelar</button><button class="btn primary" form="fIncl" type="submit">Incluir</button></div>`, 'sm');
+  $('#inclCr').onchange = e => $$('[data-cr]').forEach(x => { x.hidden = x.dataset.cr !== e.target.value; });
+  $('#fIncl').onsubmit = e => {
+    e.preventDefault(); const f = new FormData(e.target); const cr = f.get('cr');
+    let alvo = [];
+    if (cr === 'lista') { const ls = String(f.get('lista') || '').split(/[\s,;]+/).map(x => x.trim()).filter(Boolean); const falt = ls.filter(x => !st.cli.has(x)); alvo = ls.filter(x => st.cli.has(x)); if (falt.length) touchAmb(a => { a.pend = a.pend || { cli: [], col: [] }; falt.forEach(s => { if (!a.pend.cli.some(p => p.sold === s)) a.pend.cli.push({ sold: s }); }); }); }
+    else alvo = [...st.cli.values()].filter(c => cr === 'todos' || (cr === 'cidade' && c.cidade === f.get('cidade')) || (cr === 'bairro' && c.bairro === f.get('bairro'))).map(c => c.sold);
+    pushUndo('Incluir clientes'); let n = 0;
+    for (const s of alvo) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; }
+    closeModal(); rebuild(); renderAll(); toast(`${n} cliente(s) incluídos`);
+  };
+}
+
+/* ================= Importação ================= */
+const FIELDS = {
+  clientes: [
+    { k: 'sold', l: 'SOLD / código', req: 1, al: ['sold', 'soldcliente', 'solddocliente', 'codigo', 'cod', 'codcliente', 'codigocliente', 'cliente', 'idcliente', 'id'] },
+    { k: 'nome', l: 'Nome / razão social', al: ['nome', 'razaosocial', 'razao', 'nomefantasia', 'fantasia', 'nomecliente'] },
+    { k: 'endereco', l: 'Endereço', al: ['endereco', 'logradouro', 'rua', 'end'] },
+    { k: 'bairro', l: 'Bairro', al: ['bairro'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'uf', l: 'UF', al: ['uf', 'estado'] },
+    { k: 'cep', l: 'CEP', al: ['cep', 'codigopostal'] },
+    { k: 'lat', l: 'Latitude', al: ['lat', 'latitude'] },
+    { k: 'lng', l: 'Longitude', al: ['lng', 'lon', 'long', 'longitude'] },
+    { k: 'f', l: 'Visitas por mês', al: ['visitaspormes', 'visitasmes', 'frequencia', 'freq', 'visitas'] },
+    { k: 't', l: 'Atendimento (min)', al: ['atendimentomin', 'tempoatendimento', 'atendimento', 'tempo', 'tma', 'duracao'] },
+    { k: 'setor', l: 'Setor', al: ['setor', 'nomesetor', 'territorio'] },
+    { k: 'colab', l: 'SOLD vendedor', al: ['soldvendedor', 'codvendedor', 'codigovendedor', 'vendedor', 'colaborador'] }
+  ],
+  colaboradores: [
+    { k: 'codigo', l: 'SOLD do vendedor / código', req: 1, al: ['soldvendedor', 'solddovendedor', 'soldcolaborador', 'solddocolaborador', 'sold', 'codigo', 'cod', 'codvendedor', 'codigovendedor', 'matricula', 'rca', 'id'] },
+    { k: 'nome', l: 'Nome', al: ['nome', 'vendedor', 'colaborador', 'nomevendedor'] },
+    { k: 'funcao', l: 'Função', al: ['funcao', 'cargo', 'tipo'] },
+    { k: 'endereco', l: 'Endereço da base', al: ['enderecodabase', 'enderecobase', 'endereco', 'base'] },
+    { k: 'bairro', l: 'Bairro', al: ['bairro'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'uf', l: 'UF', al: ['uf', 'estado'] },
+    { k: 'cep', l: 'CEP', al: ['cep', 'codigopostal'] },
+    { k: 'lat', l: 'Latitude', al: ['lat', 'latitude', 'latbase'] },
+    { k: 'lng', l: 'Longitude', al: ['lng', 'lon', 'long', 'longitude', 'lngbase'] },
+    { k: 'jornada', l: 'Jornada (min)', al: ['jornada', 'jornadamin'] }
+  ],
+  roteiro: [
+    { k: 'sold', l: 'SOLD do cliente', req: 1, al: ['soldcliente', 'solddocliente', 'sold', 'codcliente', 'codigocliente', 'cliente', 'codigo'] },
+    { k: 'colab', l: 'SOLD do vendedor (colaborador)', al: ['soldvendedor', 'solddovendedor', 'soldcolaborador', 'solddocolaborador', 'colaborador', 'codvendedor', 'codigovendedor', 'vendedor', 'rca', 'matricula'] },
+    { k: 'dia', l: 'Dia(s) da semana', al: ['dia', 'dias', 'diasemana', 'diadasemana'] },
+    { k: 'semana', l: 'Semana(s)', al: ['semana', 'semanas', 'sem'] },
+    { k: 'endereco', l: 'Endereço do cliente (p/ cadastrar)', al: ['endereco', 'enderecodocliente', 'logradouro', 'rua'] },
+    { k: 'bairro', l: 'Bairro', al: ['bairro'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'uf', l: 'UF', al: ['uf', 'estado'] },
+    { k: 'cep', l: 'CEP', al: ['cep', 'codigopostal'] },
+    { k: 'setor', l: 'Setor (vazio = um por vendedor)', al: ['setor', 'territorio', 'rota', 'area'] },
+    { k: 'seq', l: 'Sequência', al: ['sequencia', 'seq', 'ordem'] },
+    { k: 'nome', l: 'Nome do cliente (p/ cadastrar)', al: ['nomedocliente', 'nome', 'nomecliente', 'razaosocial', 'cliente'] },
+    { k: 'lat', l: 'Latitude do cliente', al: ['lat', 'latitude'] },
+    { k: 'lng', l: 'Longitude do cliente', al: ['lng', 'lon', 'long', 'longitude'] }
+  ],
+  // Base de roteiros (módulo Rotas): o que cada vendedor visita, com período, equipe, região e segmento
+  rotas: [
+    { k: 'sold', l: 'SOLD do cliente', req: 1, al: ['soldcliente', 'solddocliente', 'sold', 'codcliente', 'codigocliente', 'cliente', 'codigo'] },
+    { k: 'colab', l: 'SOLD do vendedor', req: 1, al: ['soldvendedor', 'solddovendedor', 'vendedor', 'codvendedor', 'codigovendedor', 'colaborador', 'rca', 'matricula'] },
+    { k: 'dia', l: 'Dia(s) da semana', al: ['dia', 'dias', 'diasemana', 'diadasemana'] },
+    { k: 'semana', l: 'Semana(s)', al: ['semana', 'semanas', 'sem'] },
+    { k: 'data', l: 'Data da visita', al: ['data', 'datavisita', 'datadavisita', 'dtvisita', 'dia_visita'] },
+    { k: 'periodo', l: 'Período (mês/ano)', al: ['periodo', 'mes', 'mesano', 'competencia', 'referencia', 'anomes'] },
+    { k: 'equipe', l: 'Equipe / supervisor', al: ['equipe', 'time', 'supervisor', 'supervisao', 'gerencia'] },
+    { k: 'regiao', l: 'Região', al: ['regiao', 'regional', 'area', 'zona'] },
+    { k: 'segmento', l: 'Segmento do cliente', al: ['segmento', 'canal', 'ramo', 'categoria', 'tipo'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'nome', l: 'Nome do cliente', al: ['nomedocliente', 'nome', 'nomecliente', 'razaosocial', 'fantasia'] },
+    { k: 't', l: 'Tempo de atendimento (min)', al: ['tempoatendimento', 'atendimentomin', 'atendimento', 'tempo', 'tma', 'duracao'] },
+    { k: 'seq', l: 'Sequência', al: ['sequencia', 'seq', 'ordem'] },
+    { k: 'lat', l: 'Latitude do cliente', al: ['lat', 'latitude'] },
+    { k: 'lng', l: 'Longitude do cliente', al: ['lng', 'lon', 'long', 'longitude'] }
+  ],
+  // Praças do módulo Pedágios
+  pedagios: [
+    { k: 'nome', l: 'Nome da praça', req: 1, al: ['praca', 'nome', 'pracadepedagio', 'nomedapraca', 'pedagio'] },
+    { k: 'lat', l: 'Latitude', req: 1, al: ['lat', 'latitude'] },
+    { k: 'lng', l: 'Longitude', req: 1, al: ['lng', 'lon', 'long', 'longitude'] },
+    { k: 'rodovia', l: 'Rodovia', al: ['rodovia', 'estrada', 'via'] },
+    { k: 'km', l: 'KM', al: ['km', 'kmrodovia', 'marco', 'quilometro'] },
+    { k: 'conc', l: 'Concessionária', al: ['concessionaria', 'operadora', 'empresa', 'administradora'] },
+    { k: 'cidade', l: 'Cidade', al: ['cidade', 'municipio'] },
+    { k: 'uf', l: 'UF', al: ['uf', 'estado'] },
+    { k: 'sentido', l: 'Cobrança (os dois sentidos ou um)', al: ['cobranca', 'sentido', 'sentidodecobranca'] },
+    { k: 'dir', l: 'Sentido cobrado (N, S, L, O… ou graus)', al: ['sentidocobrado', 'direcao', 'rumo', 'sentidodacobranca'] },
+    { k: 't_carro', l: 'Tarifa carro (R$)', al: ['tarifacarro', 'carro', 'automovel', 'categoria1', 'cat1', 'tarifa'] },
+    { k: 't_moto', l: 'Tarifa moto (R$)', al: ['tarifamoto', 'moto', 'motocicleta', 'categoria9', 'cat9'] },
+    { k: 't_util', l: 'Tarifa utilitário 2 eixos (R$)', al: ['tarifautilitario', 'utilitario', 'categoria2', 'cat2', 'caminhao2eixos'] },
+    { k: 'atualizado', l: 'Valores válidos desde', al: ['valoresdesde', 'vigencia', 'validodesde', 'data', 'atualizado', 'reajuste'] },
+    { k: 'obs', l: 'Observação', al: ['observacao', 'obs', 'nota'] }
+  ],
+  // Reembolsos e descontos da Verba Indenizatória
+  lancamentos: [
+    { k: 'vend', l: 'SOLD do vendedor', req: 1, al: ['soldvendedor', 'vendedor', 'codvendedor', 'codigovendedor', 'colaborador', 'rca', 'matricula', 'codigo'] },
+    { k: 'valor', l: 'Valor (R$)', req: 1, al: ['valor', 'valorr', 'total', 'quantia', 'montante'] },
+    { k: 'tipo', l: 'Tipo (reembolso ou desconto)', al: ['tipo', 'natureza', 'lancamento', 'operacao'] },
+    { k: 'mes', l: 'Mês da verba', al: ['mes', 'mesano', 'periodo', 'competencia', 'referencia'] },
+    { k: 'data', l: 'Data', al: ['data', 'dia', 'datadodespesa', 'datadespesa'] },
+    { k: 'motivo', l: 'Motivo', al: ['motivo', 'descricao', 'historico', 'justificativa', 'observacao'] },
+    { k: 'ref', l: 'Referência (rota, dia, documento)', al: ['ref', 'referencia', 'rota', 'documento', 'nf', 'notafiscal'] }
+  ]
+};
+const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+let wz = null;
+function openImport(kind, opts = {}) {
+  if (!window.XLSX) { toast('O leitor de planilhas não carregou. Use “Colar dados”.'); }
+  wz = { natPadrao: opts.natPadrao, kind, step: 1, rows: null, headers: [], map: {}, wb: null, sheet: '', toPlanner: !!opts.toPlanner, target: kind === 'roteiro' ? (amb() && !opts.toPlanner ? 'atual' : 'novo') : '', modo: 'mesclar', novoNome: 'Roteiro importado ' + new Date().toLocaleDateString('pt-BR'), update: true, geo: true };
+  renderWz();
+}
+function renderWz() {
+  const T = { clientes: 'Importar clientes', colaboradores: 'Importar colaboradores', roteiro: 'Importar roteiro', rotas: 'Importar base de roteiros (Rotas)', lancamentos: 'Importar reembolsos e descontos', pedagios: 'Importar praças de pedágio' }[wz.kind];
+  const steps = `<div class="steps"><span class="${wz.step === 1 ? 'on' : ''}">1 · Arquivo</span>›<span class="${wz.step === 2 ? 'on' : ''}">2 · Colunas</span>›<span class="${wz.step === 3 ? 'on' : ''}">3 · Resultado</span></div>`;
+  let body = '', foot = '';
+  if (wz.step === 1) {
+    const help = { clientes: 'Basta o SOLD e o endereço (com bairro, cidade e UF a busca fica mais precisa). As coordenadas são buscadas na importação; os endereços não encontrados ficam no mar, num único ponto, para você ajustar. Latitude e longitude são opcionais.', colaboradores: 'Colunas: SOLD vendedor (código), Nome, Função, Endereço da base, Bairro, Cidade, UF, CEP e Jornada (min). A base de saída é localizada pelo endereço.', roteiro: 'Colunas: SOLD cliente, SOLD vendedor, Dia (2 = segunda, 3 = terça … 6 = sexta; 7 ou vazio = sábado), Semana (mensal: 1, 2, 3 ou 4 · quinzenal: 1,3 ou 2,4 · semanal: 1234) e o endereço do cliente — ou, se já tiver, a Latitude e a Longitude dele. Quem não estiver na base de clientes é cadastrado com esse endereço e localizado automaticamente; vendedores que não existirem viram pendência para cadastro.', rotas: 'Uma linha por cliente e vendedor, com o Dia e a Semana do roteiro, ou a Data de cada visita. Com uma coluna de Período (ou datas de meses diferentes), cada mês vira uma base separada no histórico. Equipe, Região e Segmento são opcionais e viram filtros. A posição do cliente vem da base de clientes ou da Latitude/Longitude da planilha.', lancamentos: 'Uma linha por lançamento: SOLD do vendedor e Valor. Opcionais: Tipo (reembolso ou desconto; valor negativo também conta como desconto), Mês ou Data, Motivo e Referência. As imagens de comprovante podem ser incluídas depois, editando cada lançamento.', pedagios: 'Uma linha por praça: Nome, Latitude e Longitude. Opcionais: Rodovia, KM, Concessionária, Cidade, UF, Cobrança (os dois sentidos ou um), as tarifas de carro, moto e utilitário de 2 eixos e a data de início dos valores. Importar de novo atualiza as praças de mesmo nome perto do mesmo local.' }[wz.kind];
+    body = `<p class="muted" style="margin:0">${help}</p>
+      <div class="row"><button class="btn sm" type="button" data-modelo="${wz.kind}">Baixar modelo (.xlsx)</button><span class="muted" style="font-size:12px">Planilha pronta com as colunas, exemplos e uma aba de instruções.</span></div>
+      <label class="field"><span class="lbl">Planilha (.xlsx, .xls, .csv)</span><input type="file" id="wzFile" accept=".xlsx,.xls,.xlsm,.csv,.txt"></label>
+      ${wz.wb && wz.wb.SheetNames.length > 1 ? `<label class="field"><span class="lbl">Aba</span><select id="wzSheet">${wz.wb.SheetNames.map(n => `<option${n === wz.sheet ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>` : ''}
+      <label class="field"><span class="lbl">Ou cole os dados copiados do Excel (com cabeçalho)</span><textarea id="wzPaste" placeholder="SOLD&#9;Nome&#9;Latitude&#9;Longitude"></textarea></label>
+      ${wz.rows ? `<div class="banner info">${wz.rows.length} linha(s) lidas · ${wz.headers.length} colunas</div>` : ''}`;
+    foot = `<button class="btn" data-close>Cancelar</button><button class="btn" id="wzRead">Ler dados colados</button><button class="btn primary" id="wzNext" ${wz.rows ? '' : 'disabled'}>Continuar</button>`;
+  } else if (wz.step === 2) {
+    const F = FIELDS[wz.kind];
+    const opt = sel => `<option value="-1">— não importar —</option>` + wz.headers.map((h, i) => `<option value="${i}"${sel === i ? ' selected' : ''}>${esc(h || 'Coluna ' + (i + 1))}</option>`).join('');
+    const prev = wz.rows.slice(0, 4);
+    body = `<div style="overflow-x:auto"><table class="t maptbl"><thead><tr><th>Campo do sistema</th><th>Coluna da planilha</th><th>Exemplo</th></tr></thead><tbody>${F.map(f => `<tr><td>${esc(f.l)}${f.req ? ' *' : ''}</td><td><select data-wzf="${f.k}">${opt(wz.map[f.k] ?? -1)}</select></td><td class="muted" style="font-size:12px">${prev.map(r => esc(wz.map[f.k] >= 0 ? r[wz.map[f.k]] : '')).filter(Boolean).slice(0, 2).join(' · ')}</td></tr>`).join('')}</tbody></table></div>
+      ${modImport(wz.kind) ? modImport(wz.kind).opcoesImport(wz) : wz.kind !== 'roteiro' ? `<label class="chk"><input type="checkbox" id="wzUpd" ${wz.update ? 'checked' : ''}> Atualizar registros que já existem (pelo ${wz.kind === 'clientes' ? 'SOLD' : 'código'})</label>` : `
+      <div class="fgrid">
+        <label class="field"><span class="lbl">Destino</span><select id="wzTgt">${amb() ? `<option value="atual"${wz.target === 'atual' ? ' selected' : ''}>Estudo aberto: ${esc(amb().nome)}</option>` : ''}<option value="novo"${wz.target === 'novo' ? ' selected' : ''}>Novo estudo</option></select></label>
+        <label class="field" ${wz.target === 'novo' ? '' : 'hidden'}><span class="lbl">Nome do novo estudo</span><input type="text" id="wzNome" value="${esc(wz.novoNome)}"></label>
+        <label class="field" ${wz.target === 'atual' ? '' : 'hidden'}><span class="lbl">Modo</span><select id="wzModo"><option value="mesclar"${wz.modo === 'mesclar' ? ' selected' : ''}>Mesclar com o que existe</option><option value="substituir"${wz.modo === 'substituir' ? ' selected' : ''}>Substituir todo o roteiro do estudo</option></select></label>
+      </div>`}
+      ${modImport(wz.kind) ? '' : `<div class="row"><label class="chk"><input type="checkbox" id="wzGeo" ${wz.geo ? 'checked' : ''}> Buscar as coordenadas pelo endereço de quem não tiver latitude/longitude</label>${geoSrcSel()}</div>`}`;
+    foot = `<button class="btn" id="wzBack">Voltar</button><button class="btn primary" id="wzGo">Importar ${wz.rows.length} linha(s)</button>`;
+  } else {
+    const r = wz.res, rg = r.regId && st.imp && st.imp.get(r.regId);
+    body = `<div class="stack">${r.lines.map(l => `<div class="banner ${l[0]}">${l[1]}</div>`).join('')}
+      ${rg ? `<div class="imp-reg"><div class="row" style="justify-content:space-between"><span class="lbl">Registrado no histórico de importações</span><span class="muted" style="font-size:12px">${fdh(rg.em)} · ${esc(rg.usuario || 'sem usuário')}</span></div>
+        <label class="field"><span class="lbl">Observação (opcional)</span><textarea id="wzMsg" class="msg" maxlength="500" placeholder="Ex.: roteiro de novembro enviado pelo comercial">${esc(rg.msg || '')}</textarea><span class="hint">Fica no histórico junto com a data, o usuário e as quantidades. Pode ser editada depois.</span></label></div>` : ''}</div>`;
+    foot = wz.kind === 'rotas' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="rotas">Abrir em Rotas</button>` : wz.kind === 'lancamentos' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="verba">Abrir na Verba</button>` : wz.kind === 'pedagios' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-hub="ped">Abrir Pedágios</button>` : wz.toPlanner && wz.kind === 'roteiro' && st.cur ? `<button class="btn" data-close>Ficar no início</button><button class="btn primary" data-enter="__cur">Abrir no Planner</button>` : wz.kind === 'clientes' ? `<button class="btn" data-close>Concluir</button><button class="btn primary" data-enter="__cur">Ver no mapa e criar setores</button>` : `<button class="btn primary" data-close>Concluir</button>`;
+  }
+  openModal(`<div class="dh"><h2>${T}</h2>${steps}<button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div><div class="db">${body}</div><div class="df">${foot}</div>`);
+  const wm = $('#wzMsg'); if (wm) wm.oninput = () => impMsg(wz.res.regId, wm.value);
+  if (wz.step === 1) {
+    $('#wzFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; wz.arquivo = f.name; try { const buf = await f.arrayBuffer(); if (!window.XLSX) throw new Error('leitor indisponível'); wz.wb = XLSX.read(buf, { type: 'array', cellDates: false }); wz.sheet = wz.wb.SheetNames[0]; loadSheet(); renderWz(); } catch (err) { toast('Não consegui ler o arquivo: ' + (err.message || err)); } };
+    const sh = $('#wzSheet'); if (sh) sh.onchange = e => { wz.sheet = e.target.value; loadSheet(); renderWz(); };
+    $('#wzRead').onclick = () => { const txt = $('#wzPaste').value; if (!txt.trim()) { toast('Cole os dados primeiro'); return; } wz.wb = null; wz.arquivo = 'Dados colados'; parseText(txt); renderWz(); };
+    $('#wzNext').onclick = () => { autoMap(); wz.step = 2; renderWz(); };
+  } else if (wz.step === 2) {
+    $$('[data-wzf]').forEach(s => { s.onchange = () => { wz.map[s.dataset.wzf] = +s.value; renderWz(); }; });
+    const u = $('#wzUpd'); if (u) u.onchange = () => { wz.update = u.checked; };
+    const wg = $('#wzGeo'); if (wg) wg.onchange = e => { wz.geo = e.target.checked; };
+    if (modImport(wz.kind)) modImport(wz.kind).ligaOpcoesImport(wz);
+    const tg = $('#wzTgt'); if (tg) tg.onchange = () => { wz.target = tg.value; renderWz(); };
+    const nm = $('#wzNome'); if (nm) nm.oninput = () => { wz.novoNome = nm.value; };
+    const md = $('#wzModo'); if (md) md.onchange = () => { wz.modo = md.value; };
+    $('#wzBack').onclick = () => { wz.step = 1; renderWz(); };
+    $('#wzGo').onclick = () => runImport();
+  }
+}
+// Importações tratadas por módulos em arquivos separados
+function modImport(kind) { return kind === 'rotas' ? window.RotasMod : kind === 'lancamentos' ? window.VerbaMod : kind === 'pedagios' ? window.PedMod : null; }
+function loadSheet() { const ws = wz.wb.Sheets[wz.sheet]; const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }); setRows(rows); }
+function parseText(txt) {
+  if (window.XLSX) { try { const wb = XLSX.read(txt, { type: 'string' }); setRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' })); return; } catch (e) { /* cai no simples */ } }
+  const lines = txt.replace(/\r/g, '').split('\n').filter(l => l.trim());
+  const sep = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
+  setRows(lines.map(l => l.split(sep)));
+}
+function setRows(rows) {
+  rows = rows.map(r => (Array.isArray(r) ? r : []).map(v => (typeof v === 'string' ? Seg.texto(v, 2000) : v))); // sem controles invisíveis, até 2000 caracteres por célula
+  const ne = rows.filter(r => r.some(v => String(v).trim() !== ''));
+  wz.headers = (ne[0] || []).map(h => String(h).trim()); wz.rows = ne.slice(1);
+}
+function autoMap() {
+  const F = FIELDS[wz.kind]; const H = wz.headers.map(norm); const used = new Set(); wz.map = {};
+  for (const f of F) { const i = H.findIndex((h, ix) => !used.has(ix) && f.al.includes(h)); if (i >= 0) { wz.map[f.k] = i; used.add(i); } }
+  for (const f of F) { if (wz.map[f.k] >= 0) continue; const i = H.findIndex((h, ix) => !used.has(ix) && h && f.al.some(a => a.length > 2 && h.includes(a))); if (i >= 0) { wz.map[f.k] = i; used.add(i); } }
+}
+// Dias em número no padrão brasileiro: 1 domingo, 2 segunda, 3 terça … 7 sábado (internamente 1 = segunda … 7 = domingo).
+// Cada algarismo é um dia: "2", "2,5", "25" ou 2,5 lido do Excel como número (2.5) = segunda e quinta. Texto (Seg, Terça…) também vale.
+function parseDias(v) {
+  const s = norm(v); if (!s) return [];
+  const map = [['segunda', 1], ['seg', 1], ['terca', 2], ['ter', 2], ['quarta', 3], ['qua', 3], ['quinta', 4], ['qui', 4], ['sexta', 5], ['sex', 5], ['sabado', 6], ['sab', 6], ['domingo', 7], ['dom', 7]];
+  const out = new Set();
+  String(v).split(/[\/,;.+\s-]+/).forEach(part => {
+    const p = norm(part); if (!p || p === 'e') return;
+    if (/^\d/.test(p)) { (p.match(/\d/g) || []).forEach(x => { const n = +x; if (n >= 2 && n <= 7) out.add(n - 1); else if (n === 1) out.add(7); }); return; }
+    const m = map.find(([k]) => p.startsWith(k)); if (m) out.add(m[1]);
+  });
+  return [...out].sort((a, b) => a - b);
+}
+// Semanas do ciclo de 4: cada algarismo é uma semana. Mensal "1" a "4"; quinzenal "1,3" ou "2,4"; semanal "1234" (ou Todas)
+function parseSemanas(v, W) {
+  const s = String(v ?? '').trim(); if (!s) return [];
+  if (/^(todas?|todos?|\*|t|semanal)$/i.test(s)) return [...Array(W)].map((_, i) => i + 1);
+  const out = new Set(); (s.match(/\d/g) || []).forEach(x => { const n = +x; if (n >= 1 && n <= 4) out.add(n); });
+  return [...out].sort((a, b) => a - b);
+}
+function cell(r, k) { const i = wz.map[k]; return i >= 0 ? r[i] : ''; }
+async function runImport() {
+  const F = FIELDS[wz.kind]; const req = F.filter(f => f.req);
+  for (const f of req) if (!(wz.map[f.k] >= 0)) { toast(`Escolha a coluna de “${f.l}”`); return; }
+  if (modImport(wz.kind)) {
+    const res = await modImport(wz.kind).importar(wz, r => k => cell(r, k));
+    if (!res) return;
+    const regId = (wz.kind === 'rotas' ? st.rotasSemTabela : wz.kind === 'pedagios' ? st.pedSemTabela : st.verbaSemTabela) ? null : registraImport(res.reg, res.lines);
+    wz.res = { lines: res.lines, regId }; wz.step = 3; renderWz(); renderHome(); return;
+  }
+  const lines = [], toGeo = []; let reg = { linhas: wz.rows.length };
+  // Endereço da linha; se mudou em relação ao cadastro (e a planilha não trouxe coordenada), a coordenada antiga é descartada e buscada de novo
+  const readAddr = (r, o, ex) => {
+    for (const k of ['endereco', 'bairro', 'cidade', 'uf', 'cep']) if (wz.map[k] >= 0) { let v = String(cell(r, k)).trim(); if (k === 'uf') v = v.toUpperCase(); if (v || !ex) o[k] = v; }
+    const xy = isNum(numBR(cell(r, 'lat'))) && isNum(numBR(cell(r, 'lng')));
+    if (ex && hasXY(ex) && !xy && wz.geo && norm(o.endereco) + norm(o.cidade) !== norm(ex.endereco) + norm(ex.cidade)) { o.lat = null; o.lng = null; }
+    return xy;
+  };
+  const geoLine = (n, quem) => lines.push(['info', `${n} ${quem} entraram na busca de coordenadas pelo ${geoQ.src === 'google' ? 'Google' : 'OpenStreetMap (cerca de 1 por segundo)'}. Acompanhe no quadro do canto inferior direito${wz.kind === 'colaboradores' ? '' : '; os não encontrados ficam no mar e aparecem em “Ajustar endereços”'}.`]);
+  if (wz.kind === 'clientes') {
+    let nNew = 0, nUpd = 0, nSkip = 0, nSemEnd = 0, nNoXY = 0; const comSetor = [];
+    for (const r of wz.rows) {
+      const sold = String(cell(r, 'sold')).trim(); if (!sold) { nSkip++; continue; }
+      const ex = st.cli.get(sold); if (ex && !wz.update) { nSkip++; continue; }
+      const o = { ...(ex || {}), sold };
+      for (const k of ['nome']) if (wz.map[k] >= 0) { const v = String(cell(r, k)).trim(); if (v || !ex) o[k] = v; }
+      const xy = readAddr(r, o, ex);
+      for (const k of ['lat', 'lng', 'f', 't']) if (wz.map[k] >= 0) { const v = numBR(cell(r, k)); if (isNum(v)) o[k] = v; }
+      if (isNum(o.lat) && Math.abs(o.lat) > 90) o.lat = null;
+      if (hasXY(o)) { delete o.geoPend; if (xy) { o.geo = 'planilha'; delete o.geoNivel; } }
+      else if (o.endereco || o.cep) { if (wz.geo) toGeo.push(['cli', sold]); else nNoXY++; }
+      else { o.lat = null; o.lng = null; o.geoPend = { msg: 'sem endereço na planilha', sug: null }; nSemEnd++; }
+      if (!o.f) o.f = 4;
+      st.cli.put(sold, o); ex ? nUpd++ : nNew++;
+      const setorNome = String(cell(r, 'setor') || '').trim(), colab = String(cell(r, 'colab') || '').trim();
+      if (setorNome || colab) comSetor.push([sold, setorNome || colab, colab]);
+    }
+    lines.push(['info', `${nNew} cliente(s) novos, ${nUpd} atualizados${nSkip ? `, ${nSkip} linha(s) ignoradas` : ''}.`]);
+    reg = { ...reg, alteracoes: nNew + nUpd, novos: nNew, atualizados: nUpd, ignorados: nSkip };
+    if (comSetor.length) {
+      // A listagem já diz o setor de cada cliente: carrega os setores no estudo aberto, ou em um novo com toda a base
+      await garantirEstudo(); pushUndo('Importar setores');
+      const a = clone(amb()); a.setores = a.setores || {}; a.pend = a.pend || { cli: [], col: [] };
+      const byName = new Map(Object.entries(a.setores).map(([id, x]) => [norm(x.nome), id])), antes = byName.size;
+      for (const [sold, nome, colab] of comSetor) {
+        let sid = byName.get(norm(nome));
+        if (!sid) { sid = uid('s'); const i = Object.keys(a.setores).length; a.setores[sid] = { nome, cor: E.PALETA[i % E.PALETA.length], colab }; byName.set(norm(nome), sid); }
+        else if (colab && !a.setores[sid].colab) a.setores[sid].colab = colab;
+        if (colab && !st.col.has(colab) && !a.pend.col.some(p => p.codigo === colab)) a.pend.col.push({ codigo: colab });
+        st.itens.put(sold, { ...(st.itens.get(sold) || { d: [], w: [], q: {} }), s: sid });
+      }
+      a.alterado = Date.now(); st.amb.put(a.id, a); st.visao = 'setores'; verSetor('');
+      lines.push(['info', `${byName.size} setor(es) carregados no estudo “${esc(a.nome)}”${byName.size > antes ? `, ${byName.size - antes} novos` : ''}, com ${comSetor.length} cliente(s). Abra um setor para montar as rotas diárias.`]);
+      const pendC = cleanPend(a).col.length; reg = { ...reg, estudo: a.id, estudoNome: a.nome, pend: pendC };
+      if (pendC) lines.push(['', `${pendC} colaborador(es) citados não existem na base. Cadastre-os com a base de saída para calcular KM de ida e volta.`]);
+    }
+    if (toGeo.length) geoLine(toGeo.length, 'endereço(s)');
+    if (nSemEnd) lines.push(['', `${nSemEnd} cliente(s) sem endereço e sem coordenada foram para o mar. Preencha o endereço ou marque no mapa em “Ajustar endereços”.`]);
+    if (nNoXY) lines.push(['', `${nNoXY} cliente(s) sem coordenada ficaram no mar (a busca pelo endereço estava desligada). Use “Ajustar endereços” para buscar depois.`]);
+  } else if (wz.kind === 'colaboradores') {
+    let nNew = 0, nUpd = 0;
+    for (const r of wz.rows) {
+      const codigo = String(cell(r, 'codigo')).trim(); if (!codigo) continue;
+      const ex = st.col.get(codigo); if (ex && !wz.update) continue;
+      const o = { ...(ex || {}), codigo };
+      for (const k of ['nome', 'funcao']) if (wz.map[k] >= 0) { const v = String(cell(r, k)).trim(); if (v || !ex) o[k] = v; }
+      readAddr(r, o, ex);
+      for (const k of ['lat', 'lng', 'jornada']) if (wz.map[k] >= 0) { const v = numBR(cell(r, k)); if (isNum(v)) o[k] = v; }
+      if (!o.nome) o.nome = codigo; if (!o.funcao) o.funcao = 'Vendedor'; if (!o.cor) o.cor = E.PALETA[(st.col.size) % E.PALETA.length];
+      if (hasXY(o)) delete o.geoPend; else if (wz.geo && (o.endereco || o.cep)) toGeo.push(['col', codigo]);
+      st.col.put(codigo, o); ex ? nUpd++ : nNew++;
+    }
+    lines.push(['info', `${nNew} colaborador(es) novos, ${nUpd} atualizados.`]);
+    reg = { ...reg, alteracoes: nNew + nUpd, novos: nNew, atualizados: nUpd, ignorados: Math.max(0, wz.rows.length - nNew - nUpd) };
+    if (toGeo.length) geoLine(toGeo.length, 'base(s) de saída');
+    const semBase = [...st.col.values()].filter(c => !hasXY(c) && !toGeo.some(([, id]) => id === c.codigo)).length;
+    if (semBase) lines.push(['', `${semBase} colaborador(es) sem localização da base. Sem ela não há KM de ida e volta; abra o colaborador e busque pelo endereço ou informe a coordenada.`]);
+  } else {
+    // Roteiro
+    const maxW = Math.max(1, ...wz.rows.map(r => Math.max(0, ...parseSemanas(cell(r, 'semana'), 4))));
+    if (wz.target === 'novo') {
+      const id = uid('a');
+      st.amb.put(id, { id, nome: wz.novoNome || 'Roteiro importado', desc: 'Importado de planilha', criado: Date.now(), alterado: Date.now(), params: { ...DEF_P, semanas: wz.map.semana >= 0 ? 4 : maxW }, setores: {}, pend: { cli: [], col: [] } });
+      await openAmb(id, false);
+    } else { pushUndo('Importar roteiro'); if (maxW > P().semanas) { touchAmb(x => { x.params = { ...P(x), semanas: 4 }; }); lines.push(['info', 'O ciclo do estudo passou para 4 semanas para receber as semanas do roteiro.']); } }
+    const W = P().semanas;
+    const a = clone(amb()); a.setores = a.setores || {}; a.pend = a.pend || { cli: [], col: [] };
+    if (wz.target === 'atual' && wz.modo === 'substituir') { st.itens.replaceAll(new Map()); a.setores = {}; }
+    const byName = new Map(Object.entries(a.setores).map(([id, s]) => [norm(s.nome), id]));
+    const pendCli = new Map(a.pend.cli.map(p => [p.sold, p])), pendCol = new Map(a.pend.col.map(p => [p.codigo, p]));
+    let n = 0, nCriados = 0, semDia = 0, nFreq = 0, nCoord = 0; const novos = new Set(), geoSet = new Set(), vistos = new Set();
+    for (const r of wz.rows) {
+      const sold = String(cell(r, 'sold')).trim(); if (!sold) continue;
+      const ad = {}; for (const k of ['endereco', 'bairro', 'cidade', 'uf', 'cep']) if (wz.map[k] >= 0) { const v = String(cell(r, k)).trim(); if (v) ad[k] = k === 'uf' ? v.toUpperCase() : v; }
+      const temEnd = !!(ad.endereco || ad.cep);
+      const lat = numBR(cell(r, 'lat')), lng = numBR(cell(r, 'lng')), xy = isNum(lat) && isNum(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+      if (!st.cli.has(sold)) {
+        const nome = String(cell(r, 'nome') || '').trim() || sold;
+        if (xy) { st.cli.put(sold, { sold, nome, ...ad, lat, lng, f: 4, geo: 'planilha' }); nCriados++; novos.add(sold); }
+        else if (temEnd) { st.cli.put(sold, { sold, nome, ...ad, lat: null, lng: null, f: 4, ...(wz.geo ? {} : { geoPend: { msg: 'ainda sem coordenada', sug: null } }) }); nCriados++; novos.add(sold); if (wz.geo) geoSet.add(sold); }
+        else if (!pendCli.has(sold)) pendCli.set(sold, { sold, nome: String(cell(r, 'nome') || '').trim() });
+      } else if (!hasXY(st.cli.get(sold))) {
+        const c = st.cli.get(sold); // já cadastrado sem coordenada: usa a coordenada da planilha ou completa o endereço e busca
+        if (xy) { const o = { ...c, ...ad, lat, lng, geo: 'planilha' }; delete o.geoPend; delete o.geoNivel; st.cli.put(sold, o); geoSet.delete(sold); nCoord++; }
+        else if (temEnd && wz.geo && !geoSet.has(sold)) { st.cli.put(sold, { ...c, ...ad }); geoSet.add(sold); }
+      }
+      const colab = String(cell(r, 'colab') || '').trim();
+      if (colab && !st.col.has(colab) && !pendCol.has(colab)) pendCol.set(colab, { codigo: colab });
+      const setorNome = String(cell(r, 'setor') || '').trim() || colab || 'Sem nome';
+      let sid = byName.get(norm(setorNome));
+      if (!sid) { sid = uid('s'); const i = Object.keys(a.setores).length; a.setores[sid] = { nome: setorNome, cor: E.PALETA[i % E.PALETA.length], colab: colab || '' }; byName.set(norm(setorNome), sid); }
+      else if (colab && !a.setores[sid].colab) a.setores[sid].colab = colab;
+      const ex = st.itens.get(sold) || { s: '', d: [], w: [], q: {} };
+      const it = clone(ex); it.s = sid;
+      // na 1ª linha do cliente nesta planilha, dias e semanas são substituídos; nas seguintes, somados
+      const soma = ex.s === sid && vistos.has(sold); vistos.add(sold);
+      // Dia: 2 segunda … 6 sexta; 7 ou vazio = sábado. Semana: cada algarismo é uma semana (1, 1,3, 2,4, 1234…)
+      const diaTxt = String(cell(r, 'dia') ?? '').trim();
+      const ds = wz.map.dia >= 0 && !diaTxt ? [6] : parseDias(diaTxt); const ws = parseSemanas(cell(r, 'semana'), W);
+      if (ds.length) it.d = [...new Set([...(soma ? it.d : []), ...ds])].sort((x, y) => x - y); else if (ex.s !== sid) it.d = [];
+      if (ws.length) it.w = [...new Set([...(soma ? it.w : []), ...ws])].sort((x, y) => x - y);
+      else if (!(it.w || []).length) { const c = st.cli.get(sold); it.w = weeksByFreq((c && c.f) || 4, W, {}); }
+      const sq = numBR(cell(r, 'seq')); if (isNum(sq)) ds.forEach(d => { it.q = { ...(it.q || {}), [d]: sq }; });
+      if (!it.d.length) semDia++;
+      st.itens.put(sold, it); n++;
+    }
+    // frequência do cliente = semanas × dias do roteiro, em visitas por mês (1 semana = mensal, 2 = quinzenal, 4 = semanal)
+    for (const sold of vistos) {
+      const it = st.itens.get(sold), c = st.cli.get(sold); if (!it || !c || !(it.w || []).length) continue;
+      const f = Math.round(it.w.length * (4 / W) * (it.d || []).length);
+      if (f > 0 && f !== c.f) { st.cli.put(sold, { ...c, f }); if (!novos.has(sold)) nFreq++; }
+    }
+    geoSet.forEach(s => toGeo.push(['cli', s]));
+    const usados = new Set(P(a).dias); for (const it of st.itens.values()) (it.d || []).forEach(d => usados.add(d));
+    a.params = { ...P(a), dias: [...usados].filter(d => d >= 1 && d <= 7).sort((x, y) => x - y) };
+    a.pend = { ...a.pend, cli: [...pendCli.values()], col: [...pendCol.values()] }; a.alterado = Date.now(); st.amb.put(a.id, a);
+    // sequência para dias sem coluna de sequência
+    if (wz.map.seq === undefined || wz.map.seq < 0) { const sd = new Set(); for (const it of st.itens.values()) sdKeys(it).forEach(k => sd.add(k)); resequence(sd); }
+    lines.push(['info', `${n} linha(s) aplicadas ao estudo “${esc(a.nome)}” em ${Object.keys(a.setores).length} setor(es).`]);
+    if (nCriados) lines.push(['info', `${nCriados} cliente(s) que não estavam na base foram cadastrados com o endereço ou a coordenada da planilha.`]);
+    if (nCoord) lines.push(['info', `${nCoord} cliente(s) da base que estavam sem coordenada receberam a latitude/longitude da planilha.`]);
+    if (nFreq) lines.push(['info', `Frequência atualizada na base em ${nFreq} cliente(s), conforme as semanas e os dias do roteiro.`]);
+    if (toGeo.length) geoLine(toGeo.length, 'endereço(s) de cliente');
+    const pc = cleanPend(a);
+    reg = { ...reg, estudo: a.id, estudoNome: a.nome, alteracoes: n, novos: nCriados, atualizados: nFreq + nCoord, ignorados: Math.max(0, wz.rows.length - n), pend: pc.cli.length + pc.col.length };
+    if (pc.cli.length) lines.push(['', `${pc.cli.length} cliente(s) não existem na base e a planilha não trouxe endereço: ${pc.cli.slice(0, 8).map(x => esc(x.sold)).join(', ')}${pc.cli.length > 8 ? '…' : ''}. Eles ficam pendentes até serem cadastrados.`]);
+    if (pc.col.length) lines.push(['', `${pc.col.length} colaborador(es) não existem na base: ${pc.col.map(x => esc(x.codigo)).join(', ')}. Cadastre-os com a base de saída para calcular KM de ida e volta.`]);
+    if (semDia) lines.push(['', `${semDia} cliente(s) ficaram sem dia de visita. Use “Distribuir automaticamente” ou defina os dias no mapa.`]);
+  }
+  if (toGeo.length) geoEnqueue(toGeo);
+  const regId = registraImport(reg, lines);
+  rebuild(); wz.res = { lines, regId }; wz.step = 3; renderWz(); renderAll(); if (wz.kind !== 'colaboradores') fitVisible();
+}
+
+/* ================= Histórico de importações =================
+   Cada importação fica registrada para a empresa: data e hora, usuário, arquivo, quantidades e uma observação opcional. */
+const IMP_MAX = 400;
+const IMP_TIPO = { clientes: 'Clientes', colaboradores: 'Colaboradores', roteiro: 'Roteiro', rotas: 'Base de rotas', lancamentos: 'Reembolsos e descontos', pedagios: 'Praças de pedágio' };
+const fdh = ts => new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const semHtml = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.trim(); };
+function registraImport(reg, lines) {
+  if (!st.imp || st.ro) return null;
+  const u = st.usuario || {};
+  const r = { id: uid('i'), em: Date.now(), tipo: wz.kind, arquivo: wz.arquivo || '', usuario: u.nome || u.login || '', login: u.login || '', linhas: 0, alteracoes: 0, novos: 0, atualizados: 0, ignorados: 0, pend: 0, ...reg, resumo: lines.map(l => semHtml(l[1])).slice(0, 20), msg: '' };
+  st.imp.put(r.id, r); audita('importacao', `${IMP_TIPO[r.tipo] || r.tipo}: ${r.arquivo || ''} · ${r.linhas} linha(s)`);
+  const todos = impLista(); todos.slice(IMP_MAX).forEach(x => st.imp.del(x.id));
+  return r.id;
+}
+function impLista() { return st.imp ? [...st.imp.values()].sort((a, b) => (b.em || 0) - (a.em || 0)) : []; }
+function impMsg(id, txt) { const r = id && st.imp && st.imp.get(id); if (!r) return; st.imp.put(id, { ...r, msg: String(txt || '').slice(0, 500) }); }
+function impQtd(r) {
+  const partes = [];
+  if (r.novos) partes.push(`${nf0.format(r.novos)} ${r.tipo === 'roteiro' ? 'cliente(s) cadastrados' : 'novos'}`);
+  if (r.atualizados) partes.push(`${nf0.format(r.atualizados)} atualizados`);
+  if (r.ignorados) partes.push(`${nf0.format(r.ignorados)} linha(s) ignoradas`);
+  return partes.join(' · ');
+}
+function impUltima() {
+  const r = impLista()[0]; if (!r) return '';
+  return `Última importação: <b>${IMP_TIPO[r.tipo] || r.tipo}</b> em ${fdh(r.em)}${r.usuario ? ' por ' + esc(r.usuario) : ''} · ${nf0.format(r.alteracoes || 0)} alteração(ões)`;
+}
+function histImpHtml() {
+  const f = st.pg.imp, todos = impLista(), lista = todos.filter(r => !f.tipo || r.tipo === f.tipo), vis = lista.slice(0, f.n);
+  const cont = k => todos.filter(r => r.tipo === k).length;
+  const seg = (v, l, n) => `<button type="button" data-act="impf" data-t="${v}" aria-pressed="${f.tipo === v}">${l}${n ? ` <span class="muted">${n}</span>` : ''}</button>`;
+  const aviso = st.impSemTabela ? `<div class="banner" style="font-size:12.5px">O banco de dados ainda não tem a tabela do histórico: as importações desta sessão aparecem aqui, mas não ficam gravadas. Peça para rodar <b>supabase/migracao_03_importacoes.sql</b> no Supabase.</div>` : '';
+  const rows = vis.map(r => `<tr class="clk" data-act="impver" data-iid="${esc(r.id)}">
+      <td class="num">${new Date(r.em).toLocaleDateString('pt-BR')}</td><td class="num">${new Date(r.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
+      <td>${esc(r.usuario || '—')}</td><td><span class="pill imp-${esc(r.tipo)}">${IMP_TIPO[r.tipo] || esc(r.tipo)}</span></td>
+      <td class="wrap imp-arq" title="${esc(r.arquivo || '')}">${esc(r.arquivo || '—')}${r.estudoNome ? `<div class="muted" style="font-size:11.5px">Estudo: ${esc(r.estudoNome)}</div>` : ''}</td>
+      <td class="n"><b class="num">${nf0.format(r.alteracoes || 0)}</b><div class="muted" style="font-size:11.5px">${impQtd(r) || `${nf0.format(r.linhas || 0)} linha(s)`}</div></td>
+      <td class="n">${r.pend ? `<span class="pill warn">${nf0.format(r.pend)}</span>` : '<span class="muted">—</span>'}</td>
+      <td class="wrap imp-msg">${r.msg ? esc(r.msg) : '<span class="muted">+ adicionar observação</span>'}</td></tr>`).join('');
+  return `<div class="card" id="impHist"><div class="ch"><h2>Histórico de importações${todos.length ? ` <span class="pill idle">${nf0.format(todos.length)}</span>` : ''}</h2>
+      ${todos.length ? `<div class="seg">${seg('', 'Todas')}${seg('roteiro', 'Roteiro', cont('roteiro'))}${seg('clientes', 'Clientes', cont('clientes'))}${seg('colaboradores', 'Colaboradores', cont('colaboradores'))}</div>` : ''}</div>
+    ${aviso ? `<div class="cb">${aviso}</div>` : ''}
+    ${rows ? `<div style="overflow-x:auto"><table class="t imp-t"><thead><tr><th>Data</th><th>Hora</th><th>Usuário</th><th>Tipo</th><th>Arquivo</th><th class="n">Alterações</th><th class="n">Pendências</th><th>Observação</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${lista.length > vis.length ? `<div class="cb row" style="justify-content:center"><button class="btn sm" data-act="impmais">Mostrar mais (${lista.length - vis.length})</button></div>` : ''}`
+    : `<div class="cb muted">${todos.length ? 'Nenhuma importação deste tipo.' : 'Nenhuma importação registrada ainda. Cada planilha importada aparece aqui com data, hora, usuário e quantidades.'}</div>`}
+  </div>`;
+}
+function impDetalhe(id) {
+  const r = st.imp && st.imp.get(id); if (!r) return;
+  const item = (l, v) => `<div><div class="lbl">${l}</div><div>${v}</div></div>`;
+  openModal(`<div class="dh"><h2>Importação de ${(IMP_TIPO[r.tipo] || r.tipo).toLowerCase()}</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db stack">
+    <div class="imp-det">
+      ${item('Data e hora', fdh(r.em))}${item('Usuário', esc(r.usuario || '—') + (r.login && r.login !== r.usuario ? `<div class="muted" style="font-size:12px">${esc(r.login)}</div>` : ''))}
+      ${item('Arquivo', esc(r.arquivo || '—'))}${item('Estudo', esc(r.estudoNome || '—'))}
+      ${item('Linhas lidas', nf0.format(r.linhas || 0))}${item('Alterações', `<b class="num">${nf0.format(r.alteracoes || 0)}</b>`)}
+      ${item(r.tipo === 'roteiro' ? 'Clientes cadastrados' : 'Novos', nf0.format(r.novos || 0))}${item('Atualizados', nf0.format(r.atualizados || 0))}
+      ${item('Linhas ignoradas', nf0.format(r.ignorados || 0))}${item('Pendências', r.pend ? `<span class="pill warn">${nf0.format(r.pend)}</span>` : '0')}
+    </div>
+    ${(r.resumo || []).length ? `<div><div class="lbl">Resultado</div><ul class="imp-res">${r.resumo.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+    <label class="field"><span class="lbl">Observação</span><textarea id="impMsgTxt" class="msg" maxlength="500" placeholder="Uma breve mensagem sobre esta importação"${st.ro ? ' disabled' : ''}>${esc(r.msg || '')}</textarea></label>
+  </div>
+  <div class="df"><button class="btn" data-close>Fechar</button><button class="btn primary" id="impMsgOk"${st.ro ? ' disabled' : ''}>Salvar observação</button></div>`);
+  $('#impMsgOk').onclick = () => { impMsg(id, $('#impMsgTxt').value); closeModal(); renderAll(); toast('Observação salva'); };
+}
+
+/* ================= Exportação ================= */
+async function saveFile(filename, blob) {
+  let dl = null;
+  if (window.claude && claude.use) { try { dl = await claude.use('downloads'); } catch (e) { dl = null; } }
+  if (dl) {
+    try { await dl.save({ filename, data: blob }); toast('Arquivo pronto: ' + filename); }
+    catch (e) { const c = e && e.code; toast(c === 'declined' ? 'Download cancelado' : c === 'rate_limited' ? 'Aguarde um instante e tente de novo' : 'Não foi possível baixar aqui (' + (c || 'erro') + ')'); }
+    return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.append(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 3000);
+}
+function xlsxBlob(sheets) {
+  const wb = XLSX.utils.book_new();
+  for (const [name, rows] of sheets) { const ws = XLSX.utils.json_to_sheet(rows); XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31)); }
+  const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+  return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+const dstamp = () => new Date().toISOString().slice(0, 10);
+const slug = s => norm(s).slice(0, 40) || 'estudo';
+async function doExport(kind) {
+  if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
+  if (kind === 'colaboradores' && !(await confirmarIdentidade('Exportar os colaboradores (dados pessoais)'))) return;
+  audita('exportacao', 'Planilha de ' + kind);
+  if (kind === 'clientes') {
+    const rows = [...st.cli.values()].map(c => ({ SOLD: c.sold, Nome: c.nome || '', 'Endereço': c.endereco || '', Bairro: c.bairro || '', Cidade: c.cidade || '', UF: c.uf || '', CEP: c.cep || '', 'Visitas por mês': c.f || '', 'Atendimento (min)': c.t || '', Latitude: c.lat ?? '', Longitude: c.lng ?? '', 'Situação da coordenada': hasXY(c) ? (c.geoNivel === 'rua' ? 'Rua (sem o número)' : 'OK') : (c.geoPend ? 'No mar: ' + c.geoPend.msg : 'Sem coordenada') }));
+    saveFile(`clientes_${dstamp()}.xlsx`, xlsxBlob([['Clientes', rows]]));
+  } else if (kind === 'colaboradores') {
+    const rows = [...st.col.values()].map(c => ({ 'SOLD vendedor': c.codigo, Nome: c.nome, 'Função': c.funcao || '', 'Endereço da base': c.endereco || '', Bairro: c.bairro || '', Cidade: c.cidade || '', UF: c.uf || '', CEP: c.cep || '', 'Jornada (min)': c.jornada || '', Latitude: c.lat ?? '', Longitude: c.lng ?? '' }));
+    saveFile(`colaboradores_${dstamp()}.xlsx`, xlsxBlob([['Colaboradores', rows]]));
+  } else {
+    const a = amb(); if (!a) return;
+    const visitas = [], rotas = [], setores = [];
+    for (const r of sortedRoutes([...st.routes.values()])) {
+      const s = setorOf(r.s), c = colabOfSetor(r.s);
+      r.stops.forEach((sold, i) => { const cl = st.cli.get(sold) || {}; visitas.push({ 'SOLD cliente': sold, 'SOLD vendedor': s.colab || '', Dia: r.d === 7 ? 1 : r.d + 1, Semana: r.w, 'Endereço': cl.endereco || '', Bairro: cl.bairro || '', Cidade: cl.cidade || '', UF: cl.uf || '', CEP: cl.cep || '', 'Nome do cliente': cl.nome || '', 'Sequência': i + 1, Setor: s.nome, 'Nome do vendedor': c ? c.nome : '', Latitude: cl.lat ?? '', Longitude: cl.lng ?? '', 'Visitas por mês': cl.f || '', 'Atendimento (min)': cl.t || P().tPadrao, 'Dia da semana': DIA_L[r.d] }); });
+      rotas.push({ Setor: s.nome, Colaborador: c ? c.nome : '', Semana: r.w, Dia: DIA_L[r.d], Visitas: r.m.n, 'KM ida': +r.m.kmIda.toFixed(2), 'KM entre visitas': +r.m.kmEntre.toFixed(2), 'KM volta': +r.m.kmVolta.toFixed(2), 'KM total': +r.m.km.toFixed(2), 'Deslocamento (min)': Math.round(r.m.tDesl), 'Atendimento (min)': Math.round(r.m.tAtend), 'Total (min)': Math.round(r.m.total), 'Ocupação da jornada': +r.m.ocup.toFixed(3), 'Fonte do KM': r.m.real ? (r.m.src === 'google' ? 'Google (ruas)' : r.m.src === 'valhalla' ? 'Ruas (Valhalla / OpenStreetMap)' : 'Ruas (OSRM / OpenStreetMap)') : 'Estimado (linha reta × fator)', 'Formato da rota': r.m.real ? rotaTxt(r.m.o) : '', 'Sem alternativa': r.m.real ? rotaAviso(r.m) : '' });
+    }
+    for (const [id, s] of sortedSetores()) { const rs = [...st.routes.values()].filter(r => r.s === id); const sm = sumRoutes(rs); const c = colabOfSetor(id); let n = 0; for (const it of st.itens.values()) if (it.s === id) n++; setores.push({ Setor: s.nome, Colaborador: s.colab || '', 'Nome do colaborador': c ? c.nome : '', Clientes: n, Rotas: rs.length, 'Visitas no ciclo': sm.n, 'KM no ciclo': +sm.km.toFixed(1), 'Horas no ciclo': +(sm.total / 60).toFixed(2), 'Ocupação média': +sm.ocMed.toFixed(3) }); }
+    const sem = []; for (const [sold, it] of st.itens.map) if (!itemKeys(it).length) { const cl = st.cli.get(sold) || {}; sem.push({ SOLD: sold, Cliente: cl.nome || '', Setor: (setorOf(it.s) || {}).nome || '', 'Situação': it.s ? 'Sem dia/semana' : 'Sem setor' }); }
+    const sh = [['Roteiro', visitas], ['Resumo das rotas', rotas], ['Setores', setores]]; if (sem.length) sh.push(['Não roteirizados', sem]);
+    saveFile(`roteiro_${slug(a.nome)}_${dstamp()}.xlsx`, xlsxBlob(sh));
+  }
+}
+async function doBackup() {
+  if (!(await confirmarIdentidade('Exportar o backup completo'))) return;
+  openModal(`<div class="dh"><h2>Exportar backup</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+    <form class="db stack" id="bkForm"><p class="muted" style="margin:0">O backup tem todos os clientes, os colaboradores (com os endereços) e os estudos. Proteja o arquivo com uma senha: ele é cifrado com AES-256 e só abre com ela.</p>
+      <label class="chk"><input type="checkbox" name="proteger" checked> Proteger com senha (recomendado)</label>
+      <div class="fgrid" id="bkSenhas">${senhaCampo('senha', 'Senha do arquivo', 'new-password')}${senhaCampo('senha2', 'Repita a senha', 'new-password')}</div>
+      <span class="hint">Guarde a senha em lugar seguro: sem ela, o backup não pode ser restaurado.</span><div id="bkMsg" role="alert"></div></form>
+    <div class="df"><button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="submit" form="bkForm">Exportar</button></div>`, 'sm');
+  const fm = $('#bkForm'), chk = fm.querySelector('[name=proteger]'), ins = $$('#bkSenhas input');
+  chk.onchange = () => ins.forEach(i => { i.required = chk.checked; i.disabled = !chk.checked; });
+  $$('#bkForm [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  fm.onsubmit = async ev => {
+    ev.preventDefault();
+    const f = new FormData(fm), proteger = chk.checked, senha = String(f.get('senha') || ''), aviso = t => { $('#bkMsg').innerHTML = `<div class="banner bad">${esc(t)}</div>`; };
+    if (proteger && senha.length < SENHA_MIN) { aviso(`Use uma senha com ao menos ${SENHA_MIN} caracteres.`); return; }
+    if (proteger && senha !== f.get('senha2')) { aviso('As duas senhas não são iguais.'); return; }
+    const b = $('#modal .df .primary'); b.disabled = true; b.textContent = 'Gerando…';
+    try { await gerarBackup(proteger ? senha : ''); closeModal(); }
+    catch (e) { b.disabled = false; b.textContent = 'Exportar'; aviso('Não foi possível gerar o backup: ' + (e.message || e)); }
+  };
+}
+async function gerarBackup(senha) {
+  const estudos = [];
+  for (const a of st.amb.values()) {
+    let items;
+    if (a.id === st.cur) items = st.itens.map; else { const b = new BucketStore('itens/' + a.id + '/b'); await b.load(); items = b.map; b.detach(); }
+    estudos.push({ meta: a, itens: Object.fromEntries(items) });
+  }
+  const data = { app: 'roteirizador', versao: 1, empresa: st.empresa.id, exportado: new Date().toISOString(), clientes: [...st.cli.values()], colaboradores: [...st.col.values()], estudos };
+  const arq = senha ? await Seg.selar(data, senha, { app: 'roteirizador', empresa: data.empresa, exportado: data.exportado }) : data;
+  saveFile(`backup_roteirizador_${slug(st.empresa.nome)}_${dstamp()}${senha ? '_protegido' : ''}.json`, new Blob([JSON.stringify(arq)], { type: 'application/json' }));
+  audita('backup', `${data.clientes.length} clientes · ${data.colaboradores.length} colaboradores · ${estudos.length} estudos · ${senha ? 'protegido por senha (AES-256-GCM)' : 'sem senha'}`);
+}
+async function restoreForm() {
+  if (!(await confirmarIdentidade('Restaurar um backup'))) return;
+  openModal(`<div class="dh"><h2>Restaurar backup</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db"><label class="field"><span class="lbl">Arquivo .json exportado por este sistema</span><input type="file" id="rsFile" accept=".json,application/json"></label>
+  <p class="muted" style="margin:0">Clientes e colaboradores são mesclados pelo código. Estudos do backup entram como estudos novos se ainda não existirem.</p><div id="rsAviso"></div></div>
+  <div class="df"><button class="btn" data-close>Cancelar</button></div>`, 'sm');
+  $('#rsFile').onchange = async e => {
+    try {
+      const arq = e.target.files[0]; if (!arq) return;
+      if (arq.size > 300 * 1024 * 1024) throw new Error('arquivo grande demais');
+      // JSON lido sem __proto__/constructor; backup protegido pede a senha; tudo passa pela limpeza antes de entrar
+      let d = Seg.json(await arq.text()); if (!d || d.app !== 'roteirizador') throw new Error('arquivo não reconhecido');
+      if (d.formato === 'rvx-cofre') { d = await pedeSenhaBackup(d); if (!d || d.app !== 'roteirizador') throw new Error('arquivo não reconhecido'); }
+      Seg.higienizar(d);
+      const deOutro = d.empresa && d.empresa !== st.empresa.id ? EMPRESAS.find(x => x.id === d.empresa) : null;
+      if (deOutro) {
+        $('#rsAviso').innerHTML = `<div class="banner"><span>Este backup é do ambiente <b>${esc(deOutro.nome)}</b>. Restaurar aqui mistura os dados dele com os de <b>${esc(st.empresa.nome)}</b>.</span><button class="btn sm danger" type="button" id="rsMesmo">Restaurar mesmo assim</button></div>`;
+        $('#rsMesmo').onclick = () => aplicarBackup(d);
+        return;
+      }
+      await aplicarBackup(d);
+    } catch (err) { toast('Não foi possível restaurar: ' + (err.message || err)); }
+  };
+}
+// Backup protegido: pede a senha dentro da própria janela de restauração
+function pedeSenhaBackup(env) {
+  return new Promise(res => {
+    const box = $('#rsAviso');
+    box.innerHTML = `<form class="stack" id="rsSenhaF"><div class="banner info">Este backup está protegido por senha (AES-256).</div>${senhaCampo('senha', 'Senha do arquivo', 'off')}<div class="row"><button class="btn sm primary" type="submit">Abrir o backup</button></div><div id="rsSenhaMsg" role="alert"></div></form>`;
+    $$('#rsSenhaF [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+    $('#rsSenhaF input[type=password]').focus();
+    $('#rsSenhaF').onsubmit = async ev => {
+      ev.preventDefault(); const b = ev.target.querySelector('[type=submit]'); b.disabled = true; b.textContent = 'Abrindo…';
+      try { const d = await Seg.abrir(env, new FormData(ev.target).get('senha')); box.innerHTML = ''; res(d); }
+      catch (err) { $('#rsSenhaMsg').innerHTML = `<div class="banner bad">${esc(err.message)}</div>`; b.disabled = false; b.textContent = 'Abrir o backup'; }
+    };
+  });
+}
+async function aplicarBackup(d) {
+  audita('restauracao', `Backup de ${d && d.exportado ? d.exportado.slice(0, 10) : 'data desconhecida'}`);
+  try {
+      (d.clientes || []).forEach(c => c && c.sold && st.cli.put(String(c.sold), c));
+      (d.colaboradores || []).forEach(c => c && c.codigo && st.col.put(String(c.codigo), c));
+      let n = 0;
+      for (const e2 of d.estudos || []) { if (!e2.meta || st.amb.has(e2.meta.id)) continue; st.amb.put(e2.meta.id, e2.meta); const b = new BucketStore('itens/' + e2.meta.id + '/b'); b.replaceAll(new Map(Object.entries(e2.itens || {}))); await b.flush(); b.detach(); n++; }
+      closeModal(); renderAll(); toast(`Backup restaurado · ${n} estudo(s) novos`);
+  } catch (err) { toast('Não foi possível restaurar: ' + (err.message || err)); }
+}
+
+/* ================= Ações automáticas de estudo ================= */
+function runAutoSet() {
+  const a = amb(); const esc_ = $('#aEsc').value; const k = Math.max(1, +$('#aK').value || 1); const by = $('#aBy').value;
+  const cods = $$('[data-acol]:checked').map(x => x.dataset.acol);
+  const colabs = cods.map(c => st.col.get(c)).filter(Boolean);
+  pushUndo('Setorização automática');
+  if (esc_ === 'encaixe') return encaixar();
+  const cls = [...st.itens.map.keys()].map(cliPt).filter(Boolean);
+  if (!cls.length) { toast('O estudo não tem clientes com coordenadas'); st.undo.pop(); return; }
+  const res = E.buildStudy(cls, colabs, k, P(), { by, seed: (Date.now() % 997) + 1 });
+  // mantém clientes sem coordenada como "sem setor"
+  const m = new Map(); for (const sold of st.itens.map.keys()) m.set(sold, res.itens.get(sold) || { s: '', d: [], w: [], q: {} });
+  touchAmb(x => { x.setores = res.setores; }); if (st.geo) st.geo.replaceAll(new Map()); st.pathCache.clear();
+  st.itens.replaceAll(m); st.hidden.clear(); st.hiddenSet.clear();
+  rebuild(); renderAll(); toastU(`${Object.keys(res.setores).length} setores criados e roteirizados`);
+  if ($('#aRoad') && $('#aRoad').checked && roadOk()) roadJob([...st.routes.keys()], true, 'Estudo roteirizado pelas ruas');
+}
+function encaixar() {
+  const a = amb(); const sets = sortedSetores(); if (!sets.length) { toast('Crie setores antes de encaixar'); st.undo.pop(); return; }
+  const cent = new Map(); for (const [sold, it] of st.itens.map) { if (!it.s || !setorOf(it.s)) continue; const p = cliPt(sold); if (!p) continue; const c = cent.get(it.s) || { lat: 0, lng: 0, n: 0 }; c.lat += p.lat; c.lng += p.lng; c.n++; cent.set(it.s, c); }
+  for (const c of cent.values()) { c.lat /= c.n; c.lng /= c.n; }
+  const W = P().semanas; const touched = new Set(); let n = 0;
+  for (const [sold, it] of st.itens.map) {
+    if (it.s && setorOf(it.s)) continue; const p = cliPt(sold); if (!p) continue;
+    let best = null, bd = Infinity; for (const [sid, c] of cent) { const d = E.hav(p, c); if (d < bd) { bd = d; best = sid; } }
+    if (!best) continue;
+    // dia do vizinho roteirizado mais próximo do mesmo setor
+    let nd = null, ndd = Infinity; for (const [s2, it2] of st.itens.map) { if (it2.s !== best || !(it2.d || []).length) continue; const p2 = cliPt(s2); if (!p2) continue; const d = E.hav(p, p2); if (d < ndd) { ndd = d; nd = it2; } }
+    const d = nd ? [nd.d[0]] : [P().dias[0]];
+    const load = {}; for (const r of st.routes.values()) if (r.s === best && r.d === d[0]) load[r.w] = r.m.total;
+    const nv = { s: best, d, w: weeksByFreq(p.f, W, load), q: {} };
+    st.itens.put(sold, nv); touched.add(best + '|' + d[0]); n++;
+  }
+  resequence(touched); rebuild(); renderAll(); toastU(`${n} cliente(s) encaixados no setor mais próximo`);
+}
+function runAutoRoute() {
+  pushUndo('Roteirização automática');
+  for (const [sid] of sortedSetores()) {
+    const solds = [...st.itens.map].filter(([, it]) => it.s === sid).map(([s]) => s);
+    const res = E.autoRoute(solds.map(cliPt).filter(Boolean), baseOf(sid), P(), { seed: 3 });
+    for (const [sold, v] of res) st.itens.put(sold, { ...st.itens.get(sold), d: v.d, w: v.w, q: v.q });
+  }
+  rebuild(); renderAll(); toastU('Setores roteirizados em dias e semanas');
+  if ($('#aRoad') && $('#aRoad').checked && roadOk()) roadJob([...st.routes.keys()], true, 'Estudo roteirizado pelas ruas');
+}
+async function runCmp() {
+  const out = [];
+  for (const a of st.amb.values()) {
+    let items, geo; if (a.id === st.cur) { items = st.itens.map; geo = st.geo.map; } else { const b = new BucketStore('itens/' + a.id + '/b'), g = new BucketStore('geo/' + a.id + '/b'); await Promise.all([b.load(), g.load()]); items = b.map; geo = g.map; b.detach(); g.detach(); }
+    const routes = buildRoutes(a, items, geo); out.push({ id: a.id, nome: a.nome, ...ambStats(a, items, routes) });
+  }
+  st.cmp = out.sort((x, y) => x.km - y.km); renderPage();
+}
+async function dupAmb() {
+  const a = amb(); await st.itens.flush(); await st.geo.flush();
+  const id = uid('a'); const meta = { ...clone(a), id, nome: a.nome + ' (cenário)', criado: Date.now(), alterado: Date.now() };
+  st.amb.put(id, meta);
+  const b = new BucketStore('itens/' + id + '/b'); b.replaceAll(new Map(st.itens.map)); await b.flush(); b.detach();
+  const g = new BucketStore('geo/' + id + '/b'); g.replaceAll(new Map(st.geo.map)); await g.flush(); g.detach();
+  await openAmb(id, false); toast('Cenário criado — as alterações agora valem só para ele');
+}
+async function delAmb() {
+  const a = amb(); const old = st.itens, oldG = st.geo; st.amb.del(a.id); homeCache.delete(a.id); st.itens = null; st.geo = null; await old.destroy(); if (oldG) await oldG.destroy();
+  st.cmp = null; const next = [...st.amb.values()][0]; await openAmb(next ? next.id : null); toast('Estudo excluído'); audita('exclusao', 'Estudo ' + (a.nome || a.id));
+}
+async function loadSample() {
+  const { clientes, colabs } = E.sample(42);
+  clientes.forEach(c => st.cli.put(c.sold, c)); colabs.forEach(c => st.col.put(c.codigo, c));
+  const p = { ...DEF_P };
+  const vend = colabs.filter(c => c.funcao === 'Vendedor');
+  const mk = (nome, k, seed, desc) => {
+    const id = uid('a'); const res = E.buildStudy(clientes, vend.slice(0, k), k, p, { seed });
+    st.amb.put(id, { id, nome, desc, criado: Date.now(), alterado: Date.now(), params: p, setores: res.setores, pend: { cli: [], col: [] }, exemplo: true });
+    const b = new BucketStore('itens/' + id + '/b'); b.replaceAll(res.itens); return [id, b];
+  };
+  const [id1, b1] = mk('Exemplo · Zona Sul SP · 4 setores', 4, 1, 'Dados fictícios para conhecer o sistema');
+  const [, b2] = mk('Exemplo · Zona Sul SP · 3 setores', 3, 2, 'Cenário alternativo com um vendedor a menos');
+  await Promise.all([b1.flush(), b2.flush()]); b1.detach(); b2.detach();
+  await openAmb(id1); toast('Dados de exemplo gerados');
+}
+async function delExamples() {
+  for (const c of [...st.cli.values()]) if (c.exemplo) st.cli.del(c.sold);
+  for (const c of [...st.col.values()]) if (c.exemplo) st.col.del(c.codigo);
+  for (const a of [...st.amb.values()]) if (a.exemplo) { st.amb.del(a.id); const b = a.id === st.cur ? st.itens : new BucketStore('itens/' + a.id + '/b'); if (a.id === st.cur) { st.itens = null; if (st.geo) { await st.geo.destroy(); st.geo = null; } } else await new BucketStore('geo/' + a.id + '/b').destroy(); await b.destroy(); }
+  st.cmp = null; const next = [...st.amb.values()][0]; await openAmb(next ? next.id : null, false); toast('Dados de exemplo removidos');
+}
+/* ================= Coordenadas pelo endereço (geocodificação) ================= */
+// Clientes sem coordenada ficam todos num único ponto no mar (config.js → pontoMar) até serem ajustados
+const SEA = CFG.pontoMar && isNum(+CFG.pontoMar.lat) && isNum(+CFG.pontoMar.lng) ? { lat: +CFG.pontoMar.lat, lng: +CFG.pontoMar.lng } : { lat: -24.4, lng: -45.4 };
+const hasXY = o => !!o && isNum(o.lat) && isNum(o.lng);
+const addrTxt = o => [o.endereco, o.bairro, [o.cidade, o.uf].filter(Boolean).join(' - '), o.cep].filter(Boolean).join(', ');
+const NIVEL = { exato: 'endereço exato', rua: 'rua, sem o número', bairro: 'só o bairro ou o CEP', cidade: 'só a cidade' };
+const RANK = { exato: 0, rua: 1, bairro: 2, cidade: 3 };
+const PAIR = /^\s*(-?\d{1,3}[.,]\d+)\s*[,;\s]\s*(-?\d{1,3}[.,]\d+)\s*$/; // "-23.5891, -46.6349" copiado do Google Maps
+const geoQ = { list: [], set: new Set(), busy: false, cancel: false, cancelled: false, done: 0, total: 0, ok: 0, fail: 0, err: '', src: 'osm', usedGoogle: false };
+try { geoQ.src = localStorage.getItem('rt1:geosrc') === 'google' ? 'google' : 'osm'; } catch (e) { /* ignora */ }
+function setGeoSrc(v) { geoQ.src = v === 'google' ? 'google' : 'osm'; try { localStorage.setItem('rt1:geosrc', geoQ.src); } catch (e) { /* ignora */ } }
+function geoSrcSel() { return `<select id="geoSrc" aria-label="Serviço de busca de endereços"><option value="osm"${geoQ.src === 'osm' ? ' selected' : ''}>Buscar pelo OpenStreetMap (gratuito)</option><option value="google"${geoQ.src === 'google' ? ' selected' : ''}>Buscar pelo Google (mais preciso, usa a chave)</option></select>`; }
+const qKey = (k, id) => k + ':' + id;
+const geoQueued = sold => geoQ.set.has(qKey('cli', sold));
+function seaList() { return st.cli ? [...st.cli.values()].filter(c => !hasXY(c) && !geoQueued(c.sold)) : []; }
+
+function ensureGoogle() {
+  return new Promise(res => {
+    if (gReady()) { res(true); return; }
+    if (st.g === 'fail') { res(false); return; }
+    startGoogle(); let n = 0;
+    const t = setInterval(() => { if (gReady() || st.g === 'fail' || ++n > 100) { clearInterval(t); res(gReady()); } }, 200);
+  });
+}
+function sameCity(a, b) { const x = norm(a), y = norm(b); return !x || !y || x === y || x.includes(y) || y.includes(x); }
+// Aceita só resultado no nível de endereço ou rua, na cidade informada; o resto vira sugestão para o ajuste manual
+function judge(cands, o) {
+  const ok = c => sameCity(c.cid, o.cidade);
+  const good = cands.find(c => RANK[c.nivel] <= 1 && ok(c));
+  if (good) return { ok: true, lat: good.lat, lng: good.lng, nivel: good.nivel };
+  const s = [...cands].sort((x, y) => (ok(y) - ok(x)) || RANK[x.nivel] - RANK[y.nivel])[0];
+  if (!s) return { ok: false, msg: 'endereço não encontrado' };
+  return { ok: false, msg: ok(s) ? 'encontrado ' + NIVEL[s.nivel] : `encontrado em outra cidade (${s.cid})`, sug: { lat: s.lat, lng: s.lng, nivel: s.nivel } };
+}
+function nivelOSM(x) {
+  const ts = [x.type, x.addresstype].filter(Boolean), c = x.category || x.class || '', has = l => ts.some(t => l.includes(t));
+  if (has(['house', 'building', 'house_number']) || ['building', 'amenity', 'shop', 'office', 'craft', 'tourism', 'leisure', 'healthcare'].includes(c)) return 'exato';
+  if (c === 'highway' || has(['road'])) return 'rua';
+  if (has(['suburb', 'neighbourhood', 'quarter', 'city_block', 'borough', 'city_district', 'postcode', 'hamlet', 'residential', 'isolated_dwelling'])) return 'bairro';
+  return 'cidade';
+}
+let lastGeo = 0;
+async function osmSearch(params, tries = 0) {
+  const w = 1100 - (Date.now() - lastGeo); if (w > 0) await sleep(w); lastGeo = Date.now();
+  let r;
+  try { r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=3&countrycodes=br&accept-language=pt-BR&' + params); }
+  catch (e) { throw { code: 'net', message: inClaude() ? 'a janela do Claude bloqueia serviços externos — abra o arquivo no navegador' : 'sem conexão com o serviço de endereços do OpenStreetMap' }; }
+  if ((r.status === 429 || r.status >= 500) && tries < 3) { await sleep(4000 * (tries + 1)); return osmSearch(params, tries + 1); }
+  if (!r.ok) throw { code: 'bad', message: 'o serviço de endereços respondeu ' + r.status };
+  const j = await r.json();
+  return (Array.isArray(j) ? j : []).map(x => { const a = x.address || {}; return { lat: +(+x.lat).toFixed(6), lng: +(+x.lon).toFixed(6), nivel: nivelOSM(x), cid: a.city || a.town || a.village || a.municipality || '' }; });
+}
+async function geoOSM(o) {
+  const qs = [], join = (...p) => p.filter(Boolean).join(', ');
+  if (o.endereco) { qs.push('q=' + encodeURIComponent(join(o.endereco, o.bairro, o.cidade, o.uf, 'Brasil'))); if (o.bairro) qs.push('q=' + encodeURIComponent(join(o.endereco, o.cidade, o.uf, 'Brasil'))); }
+  const cep = String(o.cep || '').replace(/\D/g, '');
+  if (cep.length === 8) qs.push('postalcode=' + cep.slice(0, 5) + '-' + cep.slice(5) + '&country=Brasil');
+  let all = [];
+  for (const q of qs) { const c = await osmSearch(q); const j = judge(c, o); if (j.ok) return j; all = all.concat(c); }
+  return judge(all, o);
+}
+function nivelG(x) {
+  const lt = x.geometry && x.geometry.location_type, ty = x.types || [];
+  if (lt === 'ROOFTOP' || lt === 'RANGE_INTERPOLATED' || ty.some(t => ['street_address', 'premise', 'subpremise', 'establishment', 'point_of_interest'].includes(t))) return 'exato';
+  if (ty.includes('route')) return 'rua';
+  if (ty.some(t => /sublocality|neighborhood|postal_code/.test(t))) return 'bairro';
+  return 'cidade';
+}
+async function geoGoogle(o) {
+  const gc = new google.maps.Geocoder(), q = [o.endereco, o.bairro, o.cidade, o.uf, o.cep, 'Brasil'].filter(Boolean).join(', ');
+  for (let a = 0; ; a++) {
+    try {
+      const { results } = await gc.geocode({ address: q, region: 'br', componentRestrictions: { country: 'BR' } });
+      await sleep(60);
+      return judge((results || []).slice(0, 3).map(x => {
+        const ac = x.address_components || [], cc = ac.find(c => c.types.includes('administrative_area_level_2')) || ac.find(c => c.types.includes('locality'));
+        return { lat: +x.geometry.location.lat().toFixed(6), lng: +x.geometry.location.lng().toFixed(6), nivel: nivelG(x), cid: cc ? cc.long_name : '' };
+      }), o);
+    } catch (e) {
+      const c = String((e && (e.code || e.message)) || '');
+      if (/ZERO_RESULTS/i.test(c)) return { ok: false, msg: 'endereço não encontrado' };
+      if (/OVER_QUERY_LIMIT/i.test(c) && a < 3) { await sleep(1500 * (a + 1)); continue; }
+      throw { code: /REQUEST_DENIED/i.test(c) ? 'denied' : 'bad', message: gErr(e) };
+    }
+  }
+}
+async function geocodeAddr(o, google) {
+  if (!o.endereco && !o.cep) return { ok: false, msg: 'sem endereço' };
+  const r = google ? await geoGoogle(o) : await geoOSM(o);
+  return { ...r, src: google ? 'google' : 'nominatim' };
+}
+function applyGeo(store, id, r) {
+  const cur = store.get(id); if (!cur || hasXY(cur)) return;
+  const n = { ...cur };
+  if (r.ok) { n.lat = r.lat; n.lng = r.lng; n.geo = r.src; n.geoNivel = r.nivel; delete n.geoPend; }
+  else { n.lat = null; n.lng = null; n.geoPend = { msg: r.msg, sug: r.sug || null }; }
+  store.put(id, n);
+}
+
+/* Fila em segundo plano: o sistema continua utilizável enquanto busca */
+function geoEnqueue(items) {
+  if (!geoQ.busy && !geoQ.list.length) Object.assign(geoQ, { done: 0, total: 0, ok: 0, fail: 0, err: '', cancelled: false });
+  let n = 0;
+  for (const [k, id] of items) { const key = qKey(k, id); if (geoQ.set.has(key)) continue; geoQ.set.add(key); geoQ.list.push([k, id]); geoQ.total++; n++; }
+  if (n) { renderGeoBar(); geoRun(); }
+  return n;
+}
+async function geoRun() {
+  if (geoQ.busy) return; geoQ.busy = true; geoQ.cancel = false;
+  let google = geoQ.src === 'google' ? await ensureGoogle() : false;
+  if (geoQ.src === 'google' && !google) toast('O Google não está disponível agora — buscando pelo OpenStreetMap (gratuito)', 5000);
+  geoQ.usedGoogle = google; renderGeoBar();
+  let since = 0;
+  try {
+    while (geoQ.list.length && !geoQ.cancel) {
+      const [k, id] = geoQ.list[0];
+      const store = k === 'col' ? st.col : st.cli, o = store.get(id);
+      if (o && !hasXY(o)) {
+        let r;
+        try { r = await geocodeAddr(o, google); }
+        catch (e) {
+          if (google && e.code === 'denied') { google = false; geoQ.usedGoogle = false; toast('O Google recusou a busca de endereços (' + e.message + '). Continuando pelo OpenStreetMap.', 7000); continue; }
+          geoQ.err = e.message || String(e); break;
+        }
+        applyGeo(store, id, r);
+        if (r.ok) geoQ.ok++; else geoQ.fail++;
+      }
+      geoQ.list.shift(); geoQ.set.delete(qKey(k, id)); geoQ.done++;
+      renderGeoBar();
+      if (++since >= 20) { since = 0; geoRefresh(); }
+    }
+  } finally {
+    if (geoQ.list.length) { geoQ.cancelled = geoQ.cancel; geoQ.list.forEach(([k, id]) => geoQ.set.delete(qKey(k, id))); geoQ.list = []; }
+    geoQ.busy = false; geoRefresh(); renderGeoBar();
+    if ($('#adjDlg')) adjustForm();
+  }
+}
+function geoRefresh() {
+  rebuild();
+  const ae = document.activeElement; // não redesenha a página enquanto a pessoa digita nela
+  if (ae && ae.closest && ae.closest('#pageView') && ae.matches('input,textarea,select')) { if (st.screen === 'planner' && st.view === 'mapa') renderMap(); return; }
+  renderAll();
+}
+let geoBarT;
+function renderGeoBar() {
+  const el = $('#geoBar'), q = geoQ;
+  if (q.busy || q.list.length) {
+    clearTimeout(geoBarT);
+    const sec = (q.total - q.done) * (q.usedGoogle ? 0.25 : 1.6), eta = sec < 90 ? `cerca de ${Math.max(1, Math.ceil(sec))} s` : `cerca de ${Math.ceil(sec / 60)} min`;
+    el.innerHTML = `<div class="gt"><b>Buscando coordenadas pelo ${q.usedGoogle ? 'Google' : 'OpenStreetMap'}</b><button class="btn sm" data-geo="cancel">Cancelar</button></div>
+      <div class="gbar"><i style="width:${(100 * q.done / Math.max(1, q.total)).toFixed(1)}%"></i></div>
+      <div class="muted num">${q.done} de ${q.total} · ${q.ok} encontrados · ${q.fail} para ajustar · ${eta}</div>`;
+    el.hidden = false; return;
+  }
+  if (!q.total) { el.hidden = true; return; }
+  const rest = q.total - q.done;
+  el.innerHTML = `<div class="gt"><b>${q.err ? 'Busca interrompida' : q.cancelled ? 'Busca cancelada' : 'Busca de coordenadas concluída'}</b><button class="iconbtn" data-geo="close" aria-label="Fechar">${ICON.close}</button></div>
+    <div class="muted">${q.ok} encontrados · ${q.fail} ficaram no mar para ajustar${rest ? ` · ${rest} não buscados` : ''}${q.err ? ` · ${esc(q.err)}` : ''}</div>
+    ${q.fail || rest ? '<div class="row"><button class="btn sm primary" data-geo="adj">Ajustar endereços</button></div>' : ''}`;
+  el.hidden = false; clearTimeout(geoBarT); geoBarT = setTimeout(geoBarClose, q.fail || rest ? 25000 : 8000);
+}
+function geoBarClose() { clearTimeout(geoBarT); $('#geoBar').hidden = true; if (!geoQ.busy && !geoQ.list.length) Object.assign(geoQ, { done: 0, total: 0, ok: 0, fail: 0, err: '', cancelled: false }); }
+function geoAgain() {
+  const n = geoEnqueue(seaList().filter(c => c.endereco || c.cep).map(c => ['cli', c.sold]));
+  toast(n ? `${n} endereço(s) na fila de busca` : 'Nenhum cliente no mar tem endereço preenchido — corrija o endereço ou marque no mapa');
+  renderView();
+}
+
+/* ----- Ajuste dos endereços não encontrados ----- */
+const adjS = { q: '', page: 0 };
+function adjustForm() {
+  const all = seaList(), q = norm(adjS.q);
+  const rows = q ? all.filter(c => norm(c.sold + ' ' + (c.nome || '') + ' ' + addrTxt(c)).includes(q)) : all;
+  const PER = 50, pages = Math.max(1, Math.ceil(rows.length / PER)); adjS.page = Math.max(0, Math.min(adjS.page, pages - 1));
+  const tb = rows.slice(adjS.page * PER, adjS.page * PER + PER).map(c => {
+    const g = c.geoPend || {}, s = esc(c.sold);
+    return `<tr><td class="num">${s}</td><td class="wrap"><b>${esc(c.nome || '')}</b><div class="muted" style="font-size:12px">${esc(addrTxt(c) || 'sem endereço')}</div></td>
+      <td class="wrap" style="min-width:150px">${esc(g.msg || 'ainda sem coordenada')}</td>
+      <td><div class="row" style="flex-wrap:nowrap">${g.sug ? `<button class="btn sm" data-adj="sug" data-sold="${s}" title="Grava a coordenada aproximada encontrada (${esc(NIVEL[g.sug.nivel] || '')})">Usar sugestão</button>` : ''}<button class="btn sm primary" data-adj="place" data-sold="${s}" title="Abre o mapa: clique no local do cliente">Marcar no mapa</button>${c.endereco || c.cep ? `<button class="btn sm" data-adj="retry" data-sold="${s}">Buscar</button>` : ''}<button class="btn sm" data-editcli="${s}" title="Corrigir endereço ou colar a coordenada">Editar</button></div></td></tr>`;
+  }).join('');
+  const nBusca = all.filter(c => c.endereco || c.cep).length;
+  openModal(`<div class="dh" id="adjDlg"><div><h2>Endereços a ajustar · ${all.length}</h2><div class="muted" style="font-size:12.5px">Estes clientes estão no mar e ficam fora dos cálculos de KM até ganharem coordenada.</div></div><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db">
+    <div class="toolbar"><div class="grow"><input type="search" id="adjQ" placeholder="Buscar por SOLD, nome ou endereço" value="${esc(adjS.q)}"></div>${geoSrcSel()}<button class="btn sm" data-adj="all"${nBusca && !geoQ.busy && !st.ro ? '' : ' disabled'}>Buscar todos de novo (${nBusca})</button><button class="btn sm" data-adj="sea"${all.length ? '' : ' disabled'}>Ver no mar</button></div>
+    ${geoQ.busy ? `<div class="banner info">Busca em andamento: ${geoQ.list.length} endereço(s) na fila. A lista se atualiza ao terminar.</div>` : ''}
+    ${rows.length ? `<div class="tblwrap"><table class="t"><thead><tr><th>SOLD</th><th>Cliente e endereço</th><th>Situação</th><th></th></tr></thead><tbody>${tb}</tbody></table>
+      ${pages > 1 ? `<div class="pager"><span>Página ${adjS.page + 1} de ${pages}</span><button class="btn sm" data-adj="pg" data-n="-1"${adjS.page ? '' : ' disabled'}>Anterior</button><button class="btn sm" data-adj="pg" data-n="1"${adjS.page < pages - 1 ? '' : ' disabled'}>Próxima</button></div>` : ''}</div>`
+      : `<div class="empty"><h3>${all.length ? 'Nada com esse filtro' : 'Tudo localizado'}</h3><p>${all.length ? 'Limpe a busca para ver todos.' : 'Nenhum cliente da base está sem coordenada.'}</p></div>`}
+    <p class="muted" style="margin:0;font-size:12.5px">Outras formas de ajustar: no mapa, arraste o pino do mar até o local certo; ou em “Editar”, cole a coordenada copiada do Google Maps (botão direito no local).</p>
+  </div><div class="df"><button class="btn" data-close>Fechar</button></div>`, 'lg');
+  const dlg = $('#modal .dlg');
+  dlg.addEventListener('click', async e => {
+    const b = e.target.closest('[data-adj]'); if (!b) return;
+    const act = b.dataset.adj, c = b.dataset.sold && st.cli.get(b.dataset.sold);
+    if (act === 'pg') { adjS.page += +b.dataset.n; adjustForm(); }
+    else if (act === 'sea') { closeModal(); goSea(); }
+    else if (act === 'all') geoAgain();
+    else if (act === 'place' && c) startPlace(c.sold);
+    else if (act === 'sug' && c && c.geoPend && c.geoPend.sug) { const g = c.geoPend.sug; placeClient(c.sold, g, 'sugestao', g.nivel); toast('Coordenada aproximada gravada para ' + (c.nome || c.sold)); adjustForm(); }
+    else if (act === 'retry' && c) {
+      b.disabled = true; b.textContent = 'Buscando…';
+      try { const r = await geocodeAddr(c, geoQ.src === 'google' && await ensureGoogle()); applyGeo(st.cli, c.sold, r); rebuild(); renderAll(); toast(r.ok ? `${c.nome || c.sold}: encontrado (${NIVEL[r.nivel]})` : `${c.nome || c.sold}: ${r.msg}`); }
+      catch (err) { toast('Não foi possível buscar: ' + (err.message || err), 5000); }
+      if ($('#adjDlg')) adjustForm();
+    }
+  });
+  let t; $('#adjQ').oninput = e => { clearTimeout(t); t = setTimeout(() => { adjS.q = e.target.value; adjS.page = 0; adjustForm(); const n = $('#adjQ'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); };
+}
+// Botão “Buscar pelo endereço” e colagem de "lat, lng" nos formulários de cliente e colaborador
+function bindFormGeo(f) {
+  const el = n => f.elements[n], out = f.querySelector('.fgeo-msg');
+  el('lat').addEventListener('input', () => { const m = String(el('lat').value).match(PAIR); if (m) { el('lat').value = m[1]; el('lng').value = m[2]; f.dataset.gsrc = 'manual'; } });
+  const b = f.querySelector('[data-fgeo]'); if (!b) return;
+  b.onclick = async () => {
+    const v = n => (el(n) ? el(n).value.trim() : '');
+    const o = { endereco: v('endereco'), bairro: v('bairro'), cidade: v('cidade'), uf: v('uf'), cep: v('cep') };
+    if (!o.endereco && !o.cep) { out.textContent = 'Preencha o endereço ou o CEP.'; return; }
+    const put = (p, src) => { el('lat').value = p.lat; el('lng').value = p.lng; f.dataset.gsrc = src; f.dataset.gniv = p.nivel || ''; };
+    b.disabled = true; out.textContent = 'Buscando…';
+    try {
+      const r = await geocodeAddr(o, geoQ.src === 'google' && await ensureGoogle());
+      if (r.ok) { put(r, r.src); out.textContent = `Encontrado: ${NIVEL[r.nivel]}. Salve para gravar.`; }
+      else if (r.sug) { out.innerHTML = `${esc(r.msg)}. <button type="button" class="btn sm" id="fgeoSug">Usar mesmo assim</button>`; $('#fgeoSug').onclick = () => { put(r.sug, 'sugestao'); out.textContent = 'Coordenada aproximada preenchida. Salve para gravar.'; }; }
+      else out.textContent = r.msg + '. Corrija o endereço, cole a coordenada ou use “Marcar no mapa”.';
+    } catch (e) { out.textContent = 'Não foi possível buscar: ' + (e.message || e); }
+    b.disabled = false;
+  };
+}
+
+/* ----- Modelos de importação ----- */
+// [coluna, 0 opcional | 1 obrigatório | 2 recomendado, descrição, exemplo 1, exemplo 2]
+const MODELOS = {
+  clientes: {
+    titulo: 'Base de clientes', aba: 'Clientes', arq: 'modelo_clientes.xlsx',
+    desc: 'Basta o SOLD e o endereço. Na importação o sistema busca as coordenadas; o que não for encontrado fica no mar para você ajustar.',
+    cols: [
+      ['SOLD', 1, 'Código único do cliente', '700101', '700102'],
+      ['Nome', 0, 'Razão social ou nome fantasia', 'Mercado Exemplo', 'Padaria Exemplo'],
+      ['Endereço', 1, 'Logradouro e número', 'Rua Vergueiro, 1000', 'Av. Jabaquara, 500'],
+      ['Bairro', 2, 'Melhora a precisão da busca', 'Vila Mariana', 'Saúde'],
+      ['Cidade', 2, 'Município; também confere se o resultado é da cidade certa', 'São Paulo', 'São Paulo'],
+      ['UF', 2, 'Sigla do estado', 'SP', 'SP'],
+      ['CEP', 0, 'Usado quando o endereço não é encontrado', '04101-000', '04046-000'],
+      ['Visitas por mês', 0, '1 mensal · 2 quinzenal · 4 semanal · 8 duas por semana · 12 três por semana. Vazio = 4', 4, 2],
+      ['Atendimento (min)', 0, 'Tempo dentro do cliente. Vazio = padrão do estudo', 20, 15],
+      ['Latitude', 0, 'Deixe em branco para o sistema buscar pelo endereço', '', ''],
+      ['Longitude', 0, 'Deixe em branco para o sistema buscar pelo endereço', '', ''],
+      ['Setor', 0, 'Preenchido, os setores já são carregados no estudo ao importar. Vazio = cliente sem setor', 'Setor 01', 'Setor 02'],
+      ['SOLD vendedor', 0, 'Colaborador responsável pelo setor (o código da base de colaboradores)', 'V101', 'V102']
+    ],
+    dicas: ['O SOLD identifica o cliente: importar de novo o mesmo SOLD atualiza o cadastro.', 'Se o endereço mudar e a planilha não trouxer coordenada, a coordenada é buscada de novo.', 'Endereços não encontrados (ou encontrados só pela cidade) ficam num ponto no mar. Ajuste em Importação → Ajustar endereços, arrastando o pino no mapa ou clicando no local.', 'Para colar uma coordenada do Google Maps: clique com o botão direito no local e copie os números.']
+  },
+  colaboradores: {
+    titulo: 'Base de colaboradores', aba: 'Colaboradores', arq: 'modelo_colaboradores.xlsx',
+    desc: 'Vendedores e demais colaboradores. A base de saída (casa ou depósito) é localizada pelo endereço e é o início e o fim das rotas.',
+    cols: [
+      ['SOLD vendedor', 1, 'Código do colaborador — o mesmo usado na coluna SOLD vendedor do roteiro', 'V101', 'V102'],
+      ['Nome', 2, 'Nome do colaborador', 'Vendedor 1', 'Vendedor 2'],
+      ['Função', 0, 'Vendedor, Promotor, Supervisor, Motorista, Técnico ou Outro', 'Vendedor', 'Vendedor'],
+      ['Endereço da base', 2, 'Logradouro e número do ponto de saída', 'Rua Domingos de Morais, 2000', 'Av. Cupecê, 1200'],
+      ['Bairro', 0, '', 'Vila Mariana', 'Jardim Prudência'],
+      ['Cidade', 2, '', 'São Paulo', 'São Paulo'],
+      ['UF', 2, '', 'SP', 'SP'],
+      ['CEP', 0, '', '', ''],
+      ['Jornada (min)', 0, 'Minutos de trabalho por dia. Vazio = padrão do estudo (480)', 480, 440],
+      ['Latitude', 0, 'Deixe em branco para o sistema buscar pelo endereço', '', ''],
+      ['Longitude', 0, 'Deixe em branco para o sistema buscar pelo endereço', '', '']
+    ],
+    dicas: ['Importe os colaboradores antes do roteiro: assim cada setor já nasce com a base de saída.', 'Sem a base localizada não há KM de ida e volta; abra o colaborador para buscar de novo ou informar a coordenada.']
+  },
+  roteiro: {
+    titulo: 'Roteiro', aba: 'Roteiro', arq: 'modelo_roteiro.xlsx',
+    desc: 'Uma linha por cliente e dia de visita. Quem não estiver na base de clientes é cadastrado com o endereço da linha e localizado automaticamente.',
+    cols: [
+      ['SOLD cliente', 1, 'Código do cliente', '700101', '700102'],
+      ['SOLD vendedor', 1, 'Código do colaborador que atende. Cada vendedor vira um setor', 'V101', 'V101'],
+      ['Dia', 1, '2 = segunda, 3 = terça, 4 = quarta, 5 = quinta, 6 = sexta, 7 ou vazio = sábado (1 = domingo). Mais de um dia: 2,5 ou 25', '2', '3'],
+      ['Semana', 1, 'Mensal: um número de 1 a 4 · Quinzenal: 1,3 ou 2,4 · Semanal: 1234', '1234', '1,3'],
+      ['Endereço', 2, 'Logradouro e número do cliente (usado se ele não estiver na base ou estiver sem coordenada)', 'Rua Vergueiro, 1000', 'Av. Jabaquara, 500'],
+      ['Bairro', 0, '', 'Vila Mariana', 'Saúde'],
+      ['Cidade', 2, '', 'São Paulo', 'São Paulo'],
+      ['UF', 2, '', 'SP', 'SP'],
+      ['CEP', 0, '', '', ''],
+      ['Nome do cliente', 0, 'Usado para cadastrar clientes novos', 'Mercado Exemplo', 'Padaria Exemplo'],
+      ['Sequência', 0, 'Ordem de visita no dia. Vazio = o sistema calcula a melhor ordem', 1, ''],
+      ['Latitude', 0, 'Coordenada do cliente, se já tiver (ex.: -23,5891). Com ela, o endereço não precisa ser buscado', '-23.5891', ''],
+      ['Longitude', 0, 'Coordenada do cliente, se já tiver (ex.: -46,6349)', '-46.6349', '']
+    ],
+    dicas: ['Ordem recomendada: importe colaboradores, depois clientes e por último o roteiro.', 'Para usar setores com outro nome, acrescente uma coluna “Setor”; sem ela, cada SOLD vendedor vira um setor.', 'Vendedores que não existirem na base viram pendência no estudo, para cadastrar depois.', 'Ciclo de 4 semanas. Cada algarismo da coluna Semana é uma semana do ciclo: 1 (ou 2, 3, 4) = mensal naquela semana; 1,3 ou 2,4 = quinzenal; 1234 = semanal.', 'A frequência do cliente na base é atualizada pelo roteiro: semanas × dias (ex.: 1,3 com dia 2 = quinzenal às segundas).', 'Os dias também podem ser escritos por extenso (Seg, Terça…).']
+  }
+};
+MODELOS.rotas = {
+  titulo: 'Base de roteiros (Rotas)', aba: 'Rotas', arq: 'modelo_base_rotas.xlsx',
+  desc: 'O roteiro em uso, mês a mês, para o histórico, o mapa e a comparação com os estudos do Planejamento.',
+  cols: [
+    ['SOLD cliente', 1, 'Código do cliente', '700101', '700102'],
+    ['SOLD vendedor', 1, 'Código do vendedor que visita', '1157', '1157'],
+    ['Dia', 2, '2 = segunda … 6 = sexta, 7 = sábado (1 = domingo). Mais de um dia: 2,5. Sem Dia e Semana, use a Data', '2', '3'],
+    ['Semana', 2, 'Mensal: 1 a 4 · Quinzenal: 1,3 ou 2,4 · Semanal: 1234', '1234', '1,3'],
+    ['Data', 0, 'Data de cada visita (dd/mm/aaaa). Substitui Dia e Semana e define o mês', '', ''],
+    ['Período', 0, 'Mês de referência (11/2026, nov/2026 ou 2026-11). Vazio = o mês escolhido na importação', '11/2026', '11/2026'],
+    ['Equipe', 0, 'Equipe ou supervisor', 'Equipe Sul', 'Equipe Sul'],
+    ['Região', 0, 'Região comercial', 'Zona Sul', 'Zona Sul'],
+    ['Segmento', 0, 'Segmento ou canal do cliente', 'Mercado', 'Padaria'],
+    ['Cidade', 0, 'Vazio = a cidade da base de clientes', 'São Paulo', 'São Paulo'],
+    ['Nome do cliente', 0, 'Vazio = o nome da base de clientes', '', ''],
+    ['Tempo de atendimento (min)', 0, 'Vazio = o da base de clientes ou o padrão de Rotas', 20, 15],
+    ['Sequência', 0, 'Ordem de visita no dia. Vazio = o sistema calcula a melhor ordem', 1, 2],
+    ['Latitude', 0, 'Só para clientes que não estão na base ou estão sem coordenada', '', ''],
+    ['Longitude', 0, '', '', '']
+  ],
+  dicas: ['Uma planilha com vários meses (coluna Período ou Data) gera uma base por mês no histórico.', 'Importar de novo o mesmo mês substitui a base daquele mês, se a opção estiver marcada.', 'O KM é estimado pela distância em linha reta × fator de rota (como no Planejamento) e pode ser recalculado pelas ruas em Rotas → Mapa.', 'O valor do KM (R$) fica em Rotas → Parâmetros.']
+};
+MODELOS.pedagios = {
+  titulo: 'Praças de pedágio', aba: 'Pracas', arq: 'modelo_pracas_pedagio.xlsx',
+  desc: 'Local e tarifas de cada praça de pedágio, para o módulo Pedágios e a roteirização.',
+  cols: [
+    ['Praça', 1, 'Nome da praça', 'Praça Exemplo Norte', 'Praça Exemplo Sul'],
+    ['Latitude', 1, 'Em graus decimais (copie do Google Maps)', '-23,1534', '-23,2071'],
+    ['Longitude', 1, 'Em graus decimais', '-47,0189', '-46,7843'],
+    ['Rodovia', 2, 'Sigla da rodovia', 'SP-000', 'BR-000'],
+    ['KM', 0, 'Marco quilométrico', '78', '39,4'],
+    ['Concessionária', 0, 'Quem administra', 'Concessionária X', 'Concessionária Y'],
+    ['Cidade', 0, '', 'Cidade A', 'Cidade B'],
+    ['UF', 0, '', 'SP', 'SP'],
+    ['Cobrança', 0, 'Os dois sentidos ou Um sentido. Vazio = os dois', 'Os dois sentidos', 'Um sentido'],
+    ['Sentido cobrado', 0, 'Só para cobrança em um sentido: rumo de quem paga (N, NE, L, SE, S, SO, O, NO ou graus). Vazio = conta metade das passagens', '', 'S'],
+    ['Tarifa carro', 2, 'R$ por passagem, automóvel (categoria 1)', '12,30', '9,80'],
+    ['Tarifa moto', 0, 'R$ por passagem, motocicleta', '6,15', '4,90'],
+    ['Tarifa utilitário', 0, 'R$ por passagem, utilitário ou caminhão leve de 2 eixos', '24,60', '19,60'],
+    ['Valores desde', 0, 'Data do último reajuste (dd/mm/aaaa)', '01/07/2026', '01/07/2026'],
+    ['Observação', 0, '', '', '']
+  ],
+  dicas: ['Os nomes e valores do exemplo são fictícios: use a tabela da concessionária ou da agência reguladora (ANTT nas rodovias federais, ARTESP em SP e as agências dos outros estados).', 'Em Pedágios → Mapa, “Buscar praças nesta área” traz do OpenStreetMap o local das praças visíveis no mapa; os valores ficam para você completar.', 'Uma rota passa pela praça quando o percurso pelas ruas chega a menos do raio de detecção (padrão 150 m, em Pedágios → Parâmetros).']
+};
+MODELOS.lancamentos = {
+  titulo: 'Reembolsos e descontos (Verba)', aba: 'Lancamentos', arq: 'modelo_reembolsos_descontos.xlsx',
+  desc: 'Lançamentos que somam (reembolso) ou subtraem (desconto) da verba indenizatória do mês.',
+  cols: [
+    ['SOLD vendedor', 1, 'Código do vendedor', '1157', '1157'],
+    ['Valor', 1, 'Em reais. Valor negativo também conta como desconto', '45,90', '30,00'],
+    ['Tipo', 2, 'Reembolso ou Desconto. Vazio = o escolhido na importação', 'Reembolso', 'Desconto'],
+    ['Mês', 0, 'Mês da verba (11/2026). Vazio = o mês da Data, ou o escolhido na importação', '11/2026', '11/2026'],
+    ['Data', 0, 'Data da despesa ou do fato (dd/mm/aaaa)', '10/11/2026', '17/11/2026'],
+    ['Motivo', 2, 'Ex.: Pedágio, Estacionamento, KM não realizado', 'Pedágio', 'Rota não cumprida'],
+    ['Referência', 0, 'Rota, dia ou documento (NF, recibo)', 'NF 1234', 'segunda S2']
+  ],
+  dicas: ['As imagens de comprovante ou evidência são incluídas depois, editando o lançamento em Verba → Reembolsos ou Descontos.', 'Só o administrador do ambiente importa e altera lançamentos.']
+};
+function downloadModelo(kind) {
+  const m = MODELOS[kind]; if (!m) return;
+  if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([m.cols.map(c => c[0]), m.cols.map(c => c[3]), m.cols.map(c => c[4])]);
+  ws['!cols'] = m.cols.map(c => ({ wch: Math.max(12, c[0].length + 3, String(c[3]).length + 2) }));
+  XLSX.utils.book_append_sheet(wb, ws, m.aba);
+  const ins = XLSX.utils.aoa_to_sheet([['Coluna', 'Preenchimento', 'O que colocar'], ...m.cols.map(c => [c[0], ['Opcional', 'Obrigatório', 'Recomendado'][c[1]], c[2]]), [], ['Dicas'], ...m.dicas.map(d => [d]), [], ['Apague as linhas de exemplo antes de importar. A importação lê a primeira aba.']]);
+  ins['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 100 }];
+  XLSX.utils.book_append_sheet(wb, ins, 'Instruções');
+  saveFile(m.arq, new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+}
+function pageImportar() {
+  const nSea = seaList().length, nBusca = seaList().filter(c => c.endereco || c.cep).length;
+  const semBase = st.col ? [...st.col.values()].filter(c => !hasXY(c)).length : 0;
+  const card = (k, n) => { const m = MODELOS[k]; return `<div class="card"><div class="ch"><h2>${n} · ${esc(m.titulo)}</h2></div><div class="cb">
+    <p>${esc(m.desc)}</p>
+    <ul class="cols-list">${m.cols.map(c => `<li><span>${esc(c[0])}</span><span>${['opcional', '<b style="color:var(--ink)">obrigatório</b>', 'recomendado'][c[1]]}</span></li>`).join('')}</ul>
+    <div class="row end"><button class="btn" data-modelo="${k}">Baixar modelo (.xlsx)</button><button class="btn primary" data-imp="${k}"${st.ro ? ' disabled' : ''}>Importar planilha</button></div></div></div>`; };
+  return `<div class="page">
+    <div class="ph"><div><h1>Importação e modelos</h1><p>Baixe o modelo, preencha no Excel e importe. Cada modelo traz exemplos e uma aba “Instruções”. A ordem recomendada é colaboradores, clientes e, por fim, o roteiro.</p>${impUltima() ? `<p class="imp-ult"><button type="button" class="linkbtn" data-act="impir" title="Ver o histórico de importações">${impUltima()}</button></p>` : ''}</div></div>
+    <div class="impgrid">${card('colaboradores', 1)}${card('clientes', 2)}${card('roteiro', 3)}</div>
+    ${histImpHtml()}
+    <div class="card"><div class="ch"><h2>Endereços a ajustar</h2>${nSea ? `<span class="pill warn">${nSea} no mar</span>` : geoQ.busy ? `<span class="pill idle">buscando…</span>` : '<span class="pill ok">nenhum</span>'}</div><div class="cb stack">
+      <p class="muted" style="margin:0">Clientes cujo endereço não foi encontrado ficam empilhados num único ponto no mar e não entram nos cálculos de KM. Para corrigir: arraste o pino do mar até o local, use “Marcar no mapa”, aceite a sugestão aproximada ou corrija o endereço e busque de novo.</p>
+      ${geoQ.busy ? `<div class="banner info">Busca em andamento: ${geoQ.done} de ${geoQ.total}. Você pode continuar usando o sistema.</div>` : ''}
+      <div class="row"><button class="btn primary" data-act="adj"${nSea ? '' : ' disabled'}>Ajustar endereços (${nSea})</button><button class="btn" data-act="gosea"${nSea ? '' : ' disabled'}>Ver no mar</button><button class="btn" data-act="geo"${nBusca && !geoQ.busy && !st.ro ? '' : ' disabled'}>Buscar de novo os que têm endereço (${nBusca})</button>${geoSrcSel()}</div>
+      ${semBase ? `<p class="muted" style="margin:0">${semBase} colaborador(es) sem a base localizada. <button class="btn sm" data-go="colaboradores">Ver colaboradores</button></p>` : ''}
+    </div></div>
+  </div>`;
+}
+
+/* ----- Configurações ----- */
+function pageConfig() {
+  const e = st.empresa, u = st.usuario;
+  const status = v => (v === 'ok' ? '<span class="pill ok">Conectado</span>' : v === 'fail' ? '<span class="pill bad">Indisponível</span>' : '<span class="pill idle">Verificando…</span>');
+  const bases = [...$('#baseSel').options].map(o => `<option value="${esc(o.value)}"${o.value === st.baseKind ? ' selected' : ''}>${esc(o.textContent)}</option>`).join('');
+  const temEx = [...st.cli.values()].some(c => c.exemplo) || [...st.col.values()].some(c => c.exemplo) || [...st.amb.values()].some(a => a.exemplo);
+  return `<div class="page">
+    <div class="ph"><div><h1>Configurações</h1><p>Ajustes deste ambiente${st.sb ? '' : ' neste navegador'}. Os parâmetros de cada estudo, como jornada e formato da rota, ficam em Estudos e setores.</p></div></div>
+    <div class="cgrid">
+      <div class="card"><div class="ch"><h2>Conta e ambiente</h2></div><div class="cb stack">
+        <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(e.nome)}</b><div class="muted">${esc(u.nome)} · ${u.papel === 'admin' ? 'Administrador' : 'Usuário'}</div></div></div>
+        <div class="row"><button class="btn" data-act="conta">Abrir Minha conta</button></div>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Segurança e privacidade</h2>${st.mfaAtivo ? '<span class="pill ok">2 etapas ativa</span>' : '<span class="pill warn">2 etapas desligada</span>'}</div><div class="cb stack">
+        <p class="muted" style="margin:0">Verificação em duas etapas, aviso de privacidade (LGPD), registro de atividades${u.papel === 'admin' ? ', política do ambiente' : ''} e download dos seus dados.</p>
+        <div class="field"><span class="lbl">Sessão</span><span>${+st.politica.inatividadeMin ? `Encerra depois de ${st.politica.inatividadeMin} min sem uso` : 'Sem limite de inatividade'}${st.politica.exige2fa ? ' · duas etapas obrigatória' : ''}</span></div>
+        <div class="row"><button class="btn primary" data-act="seguranca">Abrir segurança e privacidade</button></div>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Aparência</h2></div><div class="cb stack">
+        <p class="muted" style="margin:0">Tema do aplicativo neste dispositivo. Também dá para trocar pelo botão de tema na barra superior.</p>
+        <div class="temas" role="radiogroup" aria-label="Tema do aplicativo">${window.RVXTema ? window.RVXTema.opcoesHtml() : ''}</div>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Mapa e endereços</h2></div><div class="cb stack">
+        <label class="field"><span class="lbl">Mapa de fundo</span><select id="cfgBase">${bases}</select></label>
+        <label class="field"><span class="lbl">Busca de endereços</span>${geoSrcSel()}</label>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Servidores de rota</h2></div><div class="cb stack">
+        <label class="field"><span class="row" style="justify-content:space-between"><span class="lbl">OSRM · rota mais rápida</span>${status(st.road)}</span><input type="text" id="pOsrm" value="${esc(osrmUrl())}"><span class="hint">Padrão: servidor público gratuito</span></label>
+        <div class="field"><span class="row" style="justify-content:space-between"><span class="lbl">Valhalla · demais formatos de rota</span>${status(st.vh)}</span><span class="muted mono" style="font-size:12.5px;overflow-wrap:anywhere">${esc(VH_DEF)}</span><span class="hint">Definido em js/config.js</span></div>
+      </div></div>
+      <div class="card"><div class="ch"><h2>Dados</h2></div><div class="cb stack">
+        <div class="field"><span class="lbl">Onde os dados ficam</span><span>${st.sb ? 'Banco de dados (Supabase)' : 'Neste navegador'}</span></div>
+        <div class="field"><span class="lbl">Backup deste ambiente</span><div class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button></div></div>
+        <div class="field"><span class="lbl">Dados de exemplo</span><div class="row"><button class="btn sm" data-act="sample">Gerar dados de exemplo</button>${temEx ? '<button class="btn sm danger" data-act="delex">Remover dados de exemplo</button>' : ''}</div></div>
+      </div></div>
+    </div>
+  </div>`;
+}
+
+/* ================= Eventos ================= */
+function bindEvents() {
+  $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) { if (b.dataset.view === 'conta') contaForm(); else setView(b.dataset.view); } });
+  $('#goHome').onclick = () => setScreen('home', 'hub');
+  $('#openPlanner').onclick = openPlannerChooser;
+  $('#acctBtn').onclick = contaForm;
+  const tip = $('#tip'), showTip = (t, x, y) => { tip.textContent = t.dataset.tip; tip.hidden = false; tip.style.left = Math.max(8, Math.min(x, innerWidth - tip.offsetWidth - 8)) + 'px'; tip.style.top = Math.min(y, innerHeight - tip.offsetHeight - 8) + 'px'; };
+  document.addEventListener('mouseover', e => { const t = e.target.closest('[data-tip]'); if (t) showTip(t, e.clientX + 14, e.clientY + 16); });
+  document.addEventListener('mousemove', e => { const t = e.target.closest('[data-tip]'); if (t) showTip(t, e.clientX + 14, e.clientY + 16); else tip.hidden = true; });
+  document.addEventListener('focusin', e => { const t = e.target.closest('[data-tip]'); if (t) { const r = t.getBoundingClientRect(); showTip(t, r.left + 8, r.bottom + 6); } });
+  document.addEventListener('focusout', () => { tip.hidden = true; });
+  $('#ambSel').addEventListener('change', e => { openAmb(e.target.value); });
+  $('#btnLayers').onclick = () => { st.panelL = true; applyPanels(); renderLayersPanel(); };
+  $('#btnSel').onclick = () => { st.panelR = true; applyPanels(); renderSelPanel(); };
+  $('#layersPanel header .iconbtn').onclick = () => { st.panelL = false; applyPanels(); };
+  $('#selPanel header .iconbtn').onclick = () => { st.panelR = false; applyPanels(); };
+  $('#baseSel').value = st.baseKind; $('#baseSel').onchange = e => { st.baseKind = e.target.value; saveUI(); $('#mapNote').hidden = true; setBase(); };
+  $('#toolbar').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.tool) setTool(b.dataset.tool);
+    const a = b.dataset.act;
+    if (a === 'zin') map.zoomIn(); if (a === 'zout') map.zoomOut(); if (a === 'fit') fitVisible(); if (a === 'full') toggleFull(); if (a === 'undo') doUndo(); if (a === 'redo') doRedo(); if (a === 'hist') historicoForm();
+  });
+  $('#layersPanel').addEventListener('click', e => {
+    const b = e.target.closest('button, input'); if (!b) return;
+    if (b.dataset.colorby) { st.colorBy = b.dataset.colorby; st.colorAntes = null; saveUI(); renderMap(); }
+    else if (b.dataset.visao) setVisao(b.dataset.visao);
+    else if (b.dataset.bzcor) { st.baseCor = b.dataset.bzcor; renderMap(); }
+    else if (b.dataset.act === 'bzlimpa') { st.baseF.cidades.clear(); st.baseF.soldes.clear(); st.baseF.q = ''; st.baseF.cq = ''; renderMap(); setTimeout(fitVisible, 30); }
+    else if (b.dataset.act === 'bzlimpasold') { st.baseF.soldes.clear(); renderMap(); setTimeout(fitVisible, 30); }
+    else if (b.dataset.act === 'bzmarca') { st.bzRes.forEach(x => st.baseF.soldes.add(x)); renderMap(); setTimeout(fitVisible, 30); }
+    else if (b.dataset.act === 'rotastodas') { st.hidden.clear(); st.hiddenSet.clear(); applyQF(); abrirDetalheRotas(); renderMap(); setTimeout(fitVisible, 30); }
+    else if (b.dataset.act === 'rotasnenhuma') { st.hidden.clear(); sortedSetores().forEach(([id]) => st.hiddenSet.add(id)); renderMap(); }
+    else if (b.dataset.arv) { const id = b.dataset.arv; st.arv.set(id, b.getAttribute('aria-expanded') !== 'true'); renderLayersPanel(); }
+    else if (b.dataset.qw !== undefined) toggleQF('w', +b.dataset.qw);
+    else if (b.dataset.qd !== undefined) toggleQF('d', +b.dataset.qd);
+    else if (b.dataset.rk) {
+      if (e.shiftKey || e.altKey) { soloRoute(b.dataset.rk); return; }
+      const sid = b.dataset.rk.split('|')[0];
+      if (st.hiddenSet.has(sid)) { st.hiddenSet.delete(sid); for (const r of st.routes.values()) if (r.s === sid) st.hidden.add(r.k); st.hidden.delete(b.dataset.rk); }
+      else if (st.hidden.has(b.dataset.rk)) st.hidden.delete(b.dataset.rk); else st.hidden.add(b.dataset.rk);
+      abrirDetalheRotas(); renderMap();
+    } else if (b.dataset.solo) soloSetor(b.dataset.solo);
+    else if (b.dataset.act === 'showall') { st.qf = { w: [], d: [] }; verSetor(''); }
+    else if (b.dataset.act === 'hideall') { sortedSetores().forEach(([id]) => st.hiddenSet.add(id)); renderMap(); }
+    else if (b.dataset.act === 'fit') fitVisible();
+  });
+  $('#seaChip').addEventListener('click', e => { const b = e.target.closest('[data-sea]'); if (!b) return; if (b.dataset.sea === 'go') goSea(); else adjustForm(); });
+  $('#geoBar').addEventListener('click', e => {
+    const b = e.target.closest('[data-geo]'); if (!b) return;
+    if (b.dataset.geo === 'cancel') { geoQ.cancel = true; b.disabled = true; b.textContent = 'Cancelando…'; }
+    else if (b.dataset.geo === 'adj') { geoBarClose(); adjustForm(); }
+    else geoBarClose();
+  });
+  $('#layersPanel').addEventListener('change', e => {
+    const t = e.target;
+    if (t.dataset.setvis) {
+      if (t.checked) { st.hiddenSet.delete(t.dataset.setvis); if (st.visao === 'rotas') { for (const r of st.routes.values()) if (r.s === t.dataset.setvis && passaFiltro(r)) st.hidden.delete(r.k); abrirDetalheRotas(); setTimeout(fitVisible, 30); } }
+      else st.hiddenSet.add(t.dataset.setvis);
+      renderMap();
+    }
+    if (t.dataset.bzcid !== undefined) { const c = st.baseF.cidades; if (t.checked) c.add(t.dataset.bzcid); else c.delete(t.dataset.bzcid); renderMap(); setTimeout(fitVisible, 30); }
+    if (t.dataset.bzsold) { const c = st.baseF.soldes; if (t.checked) c.add(t.dataset.bzsold); else c.delete(t.dataset.bzsold); renderMap(); setTimeout(fitVisible, 30); }
+    if (t.dataset.opt) { st[t.dataset.opt] = t.checked; saveUI(); renderMap(); }
+    if (t.id === 'rzSet') { verSetor(t.value); if (t.value !== '__nenhum') setTimeout(fitVisible, 30); }
+  });
+  $('#layersPanel').addEventListener('input', e => {
+    const t = e.target;
+    if (t.id === 'bzQ') { st.baseF.q = t.value; $('#bzRes').innerHTML = bzResHtml(); }
+    else if (t.id === 'bzCidQ') { st.baseF.cq = t.value; const n = norm(t.value); $$('#bzCids [data-cid]').forEach(x => { x.hidden = !!n && !x.dataset.cid.includes(n); }); }
+  });
+  $('#layersPanel').addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.sec; if (k) st.rzSec[k] = e.target.open; }, true);
+  $('#selPanel').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.rkver) { st.rotaAntes = { hidden: new Set(st.hidden), hiddenSet: new Set(st.hiddenSet) }; soloRoute(b.dataset.rkver); return; }
+    if (b.dataset.rkvolta !== undefined) { const x = st.rotaAntes; st.rotaAntes = null; if (x) { st.hidden = x.hidden; st.hiddenSet = x.hiddenSet; renderMap(); setTimeout(fitVisible, 30); } return; }
+    if (b.dataset.fd !== undefined) { selChip('dias', b.dataset.fd); return; }
+    if (b.dataset.fw !== undefined) { selChip('sem', b.dataset.fw); return; }
+    if (b.dataset.rzcrit) { setRotaParam('criterio', b.dataset.rzcrit); return; }
+    const act = b.dataset.act, sid = b.dataset.sid;
+    if (act === 'estudoBase') garantirEstudo().then(() => { rebuild(); renderAll(); toast('Estudo criado com toda a base'); });
+    else if (act === 'selsemdia' || act === 'selsetor') { st.sel = new Set([...st.itens.map].filter(([, it]) => it.s === sid && (act === 'selsetor' || !itemKeys(it).length)).map(([x]) => x)); afterSel(); }
+    else if (act === 'distsemdia') distribuirSetor(sid, false);
+    else if (act === 'redist') armButton(b, () => distribuirSetor(sid, true), 'Confirmar');
+    else if (act === 'delsetor') armButton(b, () => { excluirSetor(sid); verSetor(''); setTimeout(fitVisible, 30); }, 'Confirmar exclusão');
+    else if (act === 'roadvis') roadJob((st.visRoutes || []).map(r => r.k), true, `Rotas roteirizadas (${rotaTxt(rotaKey(rotaOpt()))})`);
+    else if (act === 'distribuir') runAutoRoute();
+    else if (act === 'newcli' || act === 'incl') pageAct(act, b);
+    if (b.dataset.rop) routeOp(b.dataset.rop, b.dataset.rk);
+    if (b.dataset.sop) {
+      if (b.dataset.sop === 'remove') armButton(b, () => selOp('remove'), 'Confirmar remoção');
+      else if (b.dataset.sop === 'delbase') armButton(b, () => selOp('delbase'), 'Confirmar exclusão');
+      else if (b.dataset.sop === 'go') aplicarSelecao(true);
+      else if (b.dataset.sop === 'salvar') aplicarSelecao(false);
+      else selOp(b.dataset.sop);
+    }
+  });
+  $('#selPanel').addEventListener('change', e => {
+    const t = e.target;
+    if (t.id === 'sSet') { st.selForm.setor = t.value; renderSelPanel(); }
+    else if (t.id === 'sCol') st.selForm.colab = t.value;
+    else if (t.dataset.rzopt) setRotaParam(t.dataset.rzopt, t.checked);
+    else if (t.dataset.opt) { st[t.dataset.opt] = t.checked; saveUI(); renderMap(); }
+    else if (t.dataset.rzcol !== undefined) { touchAmb(a => { a.setores[t.dataset.rzcol].colab = t.value; }); rebuild(); renderMap(); }
+  });
+  $('#selPanel').addEventListener('input', e => { if (e.target.id === 'sNome') st.selForm.nome = e.target.value; });
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('#ctx')) fecharCtx(); }, true);
+  document.addEventListener('click', e => {
+    const hb = e.target.closest('[data-hub]');
+    if (hb && !hb.disabled) { closeModal(); const k = hb.dataset.hub; if (k === 'config') setView('config'); else setScreen('home', k); if ($('#homeView')) $('#homeView').scrollTop = 0; return; }
+    const t = e.target.closest('[data-go],[data-close],[data-imp],[data-exp],[data-modelo],[data-act],[data-openrk],[data-solo-set],[data-openamb],[data-enter],[data-editcli],[data-editcol],[data-newcli],[data-newcol],[data-sdel],[data-delcli],[data-delcol],[data-rmode],[data-cpage],[data-d]');
+    if (!t) return;
+    if (t.closest('#selPanel') || t.closest('#layersPanel') || t.closest('#toolbar')) { if (t.dataset.go) setView(t.dataset.go); return; }
+    if (e.target.closest('input[type=checkbox]')) return;
+    const ds = t.dataset;
+    if (ds.go) { closeModal(); setView(ds.go); }
+    else if (ds.close !== undefined) closeModal();
+    else if (ds.imp) openImport(ds.imp);
+    else if (ds.exp) doExport(ds.exp);
+    else if (ds.modelo) downloadModelo(ds.modelo);
+    else if (ds.openrk) { st.visao = 'rotas'; soloRoute(ds.openrk); setView('mapa'); }
+    else if (ds.soloSet) { soloSetor(ds.soloSet); setView('mapa'); }
+    else if (ds.openamb) { openAmb(ds.openamb, true); }
+    else if (ds.enter) { closeModal(); enterStudy(ds.enter); }
+    else if (ds.editcli) cliForm(st.cli.get(ds.editcli), false);
+    else if (ds.editcol) colForm(st.col.get(ds.editcol), false);
+    else if (ds.newcli) cliForm({ sold: ds.newcli, nome: ds.nome }, true);
+    else if (ds.newcol) colForm({ codigo: ds.newcol, nome: ds.nome }, true);
+    else if (ds.rmode) { st.pg.roteiros.mode = ds.rmode; renderPage(); }
+    else if (ds.cpage) { st.pg.clientes.page += +ds.cpage; renderPage(); $('#pageView').scrollTop = 0; }
+    else if (ds.d && t.closest('#pDias')) { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); const ds2 = $$('#pDias button[aria-pressed="true"]').map(x => +x.dataset.d); if (!ds2.length) { t.setAttribute('aria-pressed', 'true'); toast('Mantenha ao menos um dia'); return; } touchAmb(a => { a.params = { ...P(), dias: ds2 }; }); rebuild(); renderPage(); }
+    else if (ds.sdel) armButton(t, () => excluirSetor(ds.sdel), 'Confirmar');
+    else if (ds.delcli) armButton(t, () => { audita('exclusao', 'Cliente ' + ds.delcli); st.cli.del(ds.delcli); if (st.itens) st.itens.del(ds.delcli); closeModal(); rebuild(); renderAll(); toast('Cliente excluído da base'); }, 'Confirmar exclusão');
+    else if (ds.delcol) armButton(t, () => { audita('exclusao', 'Colaborador ' + ds.delcol); st.col.del(ds.delcol); closeModal(); rebuild(); renderAll(); toast('Colaborador excluído'); }, 'Confirmar exclusão');
+    else if (ds.act) pageAct(ds.act, t);
+  });
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (t.id === 'hFocus') { st.homeFocus = t.value; st.homeSetor = ''; renderHome(); return; }
+    if (t.id === 'hSetor') { st.homeSetor = t.value; renderHome(); return; }
+    if (t.id === 'geoSrc') { setGeoSrc(t.value); if (t.value === 'google') ensureGoogle(); return; }
+    if (!t.closest('#pageView')) return;
+    const id = t.id;
+    if (id === 'aNome' || id === 'aDesc') { touchAmb(a => { a[id === 'aNome' ? 'nome' : 'desc'] = t.value.trim() || a.nome; }); renderAmbSel(); }
+    else if (id === 'pCrit' || id === 'pMotor') { touchAmb(a => { a.params = { ...P(), [id === 'pCrit' ? 'criterio' : 'motor']: t.value }; }); if (id === 'pMotor' && t.value === 'google') startGoogle(); renderPage(); }
+    else if (id === 'cfgBase') { st.baseKind = t.value; $('#baseSel').value = t.value; saveUI(); $('#mapNote').hidden = true; setBase(); }
+    else if (id === 'pPed' || id === 'pTer') { touchAmb(a => { a.params = { ...P(), [id === 'pPed' ? 'evitaPedagio' : 'evitaTerra']: t.checked }; }); renderPage(); }
+    else if (id === 'pOsrm') { try { const v = t.value.trim(); if (!v || v === OSRM_DEF) localStorage.removeItem('rt1:osrm'); else localStorage.setItem('rt1:osrm', v); } catch (e) { /* ok */ } probeRoads(); toast('Testando o servidor de rotas…'); }
+    else if (['pSem', 'pVel', 'pFat', 'pJor', 'pTpa'].includes(id)) {
+      const k = { pSem: 'semanas', pVel: 'vel', pFat: 'fator', pJor: 'jornada', pTpa: 'tPadrao' }[id]; const v = numBR(t.value); if (!isNum(v) || v <= 0) { toast('Valor inválido'); return; }
+      touchAmb(a => { a.params = { ...P(), [k]: v }; }); rebuild(); renderPage();
+    }
+    else if (t.dataset.scor) { touchAmb(a => { a.setores[t.dataset.scor].cor = t.value; }); rebuild(); }
+    else if (t.dataset.snome) { touchAmb(a => { a.setores[t.dataset.snome].nome = t.value.trim() || 'Setor'; }); rebuild(); }
+    else if (t.dataset.scol !== undefined) { touchAmb(a => { a.setores[t.dataset.scol].colab = t.value; }); rebuild(); renderPage(); }
+    else if (id === 'rSet') { st.pg.roteiros.setor = t.value; renderPage(); }
+    else if (t.dataset.chkrk) { const c = st.pg.roteiros.chk; t.checked ? c.add(t.dataset.chkrk) : c.delete(t.dataset.chkrk); renderPage(); }
+    else if (t.dataset.chkcli) { const c = st.pg.clientes.chk; t.checked ? c.add(t.dataset.chkcli) : c.delete(t.dataset.chkcli); renderPage(); }
+    else if (id === 'cCid') { st.pg.clientes.cidade = t.value; st.pg.clientes.page = 0; renderPage(); }
+    else if (id === 'cEst') { st.pg.clientes.noEstudo = t.value; st.pg.clientes.page = 0; renderPage(); }
+    else if (id === 'cSem') { st.pg.clientes.semCoord = t.checked; st.pg.clientes.page = 0; renderPage(); }
+  });
+  let qT;
+  document.addEventListener('input', e => {
+    const t = e.target;
+    if (t.id === 'cQ' || t.id === 'kQ') { clearTimeout(qT); qT = setTimeout(() => { const pg = t.id === 'cQ' ? st.pg.clientes : st.pg.colaboradores; pg.q = t.value; pg.page = 0; renderPage(); const n = $('#' + t.id); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 220); }
+  });
+  $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { if (!$('#ctx').hidden) { fecharCtx(); return; } if (!$('#modal').hidden) { closeModal(); return; } if (st.placing) { endPlace(); return; } if (st.tool === 'ruler') { st.ruler = { pts: [], active: false }; drawRuler(); return; } if (st.sel.size) { st.sel.clear(); afterSel(); } return; }
+    if (e.target.closest('input,select,textarea') || !$('#modal').hidden) return;
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); doRedo(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); doUndo(); return; }
+    if (st.screen !== 'planner' || st.view !== 'mapa' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    const tools = { h: 'pan', v: 'select', b: 'rect', l: 'lasso', m: 'ruler' };
+    if (tools[k]) setTool(tools[k]);
+    else if (k === 'f') toggleFull();
+    else if (k === 'e') fitVisible();
+    else if (k === 'enter' && st.tool === 'ruler') { st.ruler.active = false; drawRuler(); }
+  });
+  const mq = matchMedia('(prefers-color-scheme: dark)'); if (mq.addEventListener) mq.addEventListener('change', onTheme);
+  new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  addEventListener('resize', () => map && map.invalidateSize());
+}
+function toggleQF(k, v) { const a = st.qf[k]; st.qf[k] = !v ? [] : a.includes(v) ? a.filter(x => x !== v) : [...a, v]; applyQF(); }
+function applyQF() {
+  st.hidden.clear();
+  const { w, d } = st.qf;
+  for (const r of st.routes.values()) if ((w.length && !w.includes(r.w)) || (d.length && !d.includes(r.d))) st.hidden.add(r.k);
+  if (st.visao === 'setores') { if (w.length || d.length) st.showLines = true; else if (setorVisto() === '') st.showLines = false; }
+  renderMap();
+}
+function soloRoute(rk) { st.hiddenSet.clear(); st.hidden.clear(); for (const k of st.routes.keys()) if (k !== rk) st.hidden.add(k); if (st.visao === 'rotas') sortedSetores().forEach(([id]) => { if (id !== rk.split('|')[0]) st.hiddenSet.add(id); }); st.showUnassigned = false; st.verSemSetor = false; st.showLines = true; st.panelR = true; applyPanels(); renderMap(); setTimeout(fitVisible, 30); }
+/* '' = todos, __nenhum, __sem = só quem não tem setor, ou o id do setor a abrir. Um setor aberto é colorido por dia, para montar as rotas diárias */
+function verSetor(v) {
+  if (v === '__parte') return;
+  const sets = sortedSetores().map(([id]) => id);
+  st.visao = 'setores'; st.hiddenSet.clear(); st.showLines = sets.includes(v);
+  if (v === '') { st.verSemSetor = true; st.showUnassigned = true; st.showOut = true; }
+  else if (v === '__nenhum') { sets.forEach(id => st.hiddenSet.add(id)); st.verSemSetor = false; }
+  else if (v === '__sem') { sets.forEach(id => st.hiddenSet.add(id)); st.verSemSetor = true; st.showUnassigned = true; st.showOut = true; }
+  else { sets.forEach(id => { if (id !== v) st.hiddenSet.add(id); }); st.verSemSetor = false; st.showUnassigned = true; }
+  if (sets.includes(v)) { if (!st.colorAntes) st.colorAntes = st.colorBy; st.colorBy = 'dia'; if (innerWidth > 640) { st.panelR = true; applyPanels(); } }
+  else if (st.colorAntes) { st.colorBy = st.colorAntes; st.colorAntes = null; }
+  applyQF();
+}
+function soloSetor(sid) { verSetor(sid); setTimeout(fitVisible, 30); }
+function pageAct(act, btn) {
+  const pg = st.pg;
+  switch (act) {
+    case 'newamb': newAmbForm(); break;
+    case 'plannerOpen': openPlannerChooser(); break;
+    case 'rotasImport': openImport('rotas'); break;
+    case 'focoplan': if (st.homeFocus !== btn.dataset.fid) st.homeSetor = ''; st.homeFocus = btn.dataset.fid; renderHome(); $('#homeView').scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'setorver': st.homeSetor = btn.dataset.sid; renderHome(); break;
+    case 'setorlimpa': st.homeSetor = ''; renderHome(); break;
+    case 'abrirsetor': { const sid = btn.dataset.sid; enterStudy(btn.dataset.fid).then(() => { if (sid) soloSetor(sid); }); break; }
+    case 'seguranca': segurancaForm(); break;
+    case 'listagens': openListagens(); break;
+    case 'conta': if (btn && btn.closest('#modal')) closeModal(); contaForm(); break;
+    case 'contaVoltar': voltarConta(); break;
+    case 'mapabase': closeModal(); setVisao('base'); enterPlanner('mapa'); break;
+    case 'clibase': {
+      const pc = pg.clientes; st.baseF.cidades.clear(); st.baseF.soldes.clear();
+      if (pc.chk.size) pc.chk.forEach(x => st.baseF.soldes.add(x));
+      else if (pc.cidade && !pc.q.trim() && !pc.semCoord && !pc.noEstudo) st.baseF.cidades.add(pc.cidade);
+      else if (pc.q.trim() || pc.cidade || pc.semCoord || pc.noEstudo) pc.ultimos.forEach(x => st.baseF.soldes.add(x));
+      setVisao('base'); enterPlanner('mapa'); break;
+    }
+    case 'plannerNew': newAmbForm({ vazio: true, go: true }); break;
+    case 'plannerImport': openImport('roteiro', { toPlanner: true }); break;    case 'sample': loadSample(); break;
+    case 'newcli': cliForm({}, true); break;
+    case 'newcol': colForm({}, true); break;
+    case 'incl': inclForm(); break;
+    case 'dupamb': dupAmb(); break;
+    case 'delamb': armButton(btn, delAmb, 'Confirmar exclusão'); break;
+    case 'undo': $('#toast').hidden = true; doUndo(); if (btn && btn.closest('#modal')) historicoForm(); break;
+    case 'redo': $('#toast').hidden = true; doRedo(); if (btn && btn.closest('#modal')) historicoForm(); break;
+    case 'hist': historicoForm(); break;
+    case 'pendign': ignorarPend(btn.dataset.pt, btn.dataset.pid); break;
+    case 'pendvolta': reconsiderarPend(); break;
+    case 'impver': impDetalhe(btn.dataset.iid); break;
+    case 'impf': pg.imp.tipo = btn.dataset.t; pg.imp.n = 15; renderPage(); break;
+    case 'impmais': pg.imp.n += 30; renderPage(); break;
+    case 'impir': { const h = $('#impHist'); if (h) h.scrollIntoView({ block: 'start', behavior: 'smooth' }); break; }
+    case 'histvolta': voltarPara(+btn.dataset.hid); break;
+    case 'autoset': runAutoSet(); break;
+    case 'autoroute': runAutoRoute(); break;
+    case 'reseqall': { pushUndo('Otimizar sequências'); const sd = new Set(); for (const it of st.itens.values()) sdKeys(it).forEach(k => sd.add(k)); const before = sumRoutes([...st.routes.values()]).km; resequence(sd); rebuild(); renderAll(); toastU(`Sequências otimizadas: ${fkm(before)} → ${fkm(sumRoutes([...st.routes.values()]).km)} km no ciclo`); break; }
+    case 'newset': { const id = uid('s'); const n = sortedSetores().length + 1; touchAmb(a => { a.setores[id] = { nome: `Setor ${String(n).padStart(2, '0')}`, cor: E.PALETA[(n - 1) % E.PALETA.length], colab: '' }; }); renderPage(); break; }
+    case 'cmp': runCmp(); break;
+    case 'backup': doBackup(); break;
+    case 'restore': restoreForm(); break;
+    case 'roadchk': roadJob([...pg.roteiros.chk], true, 'Rotas roteirizadas pelas ruas'); break;
+    case 'roadall': armButton(btn, () => roadJob(sortedRoutes([...st.routes.values()]).filter(r => !pg.roteiros.setor || r.s === pg.roteiros.setor).map(r => r.k), true, 'Estudo roteirizado pelas ruas'), 'Confirmar'); break;
+    case 'openchk': { const ks = [...pg.roteiros.chk]; st.hiddenSet.clear(); st.hidden.clear(); for (const k of st.routes.keys()) if (!pg.roteiros.chk.has(k)) st.hidden.add(k); st.showUnassigned = false; st.verSemSetor = false; st.visao = 'rotas'; st.showLines = true; setView('mapa'); setTimeout(fitVisible, 60); break; }
+    case 'chkall': { const pc = pg.clientes; const q = pc.q.trim().toLowerCase(); for (const c of st.cli.values()) { if (q && !(c.sold + ' ' + (c.nome || '') + ' ' + (c.endereco || '') + ' ' + (c.bairro || '')).toLowerCase().includes(q)) continue; if (pc.cidade && c.cidade !== pc.cidade) continue; if (pc.semCoord && isNum(c.lat) && isNum(c.lng)) continue; if (pc.noEstudo === 'sim' && !(st.itens && st.itens.has(c.sold))) continue; if (pc.noEstudo === 'nao' && st.itens && st.itens.has(c.sold)) continue; pc.chk.add(c.sold); } renderPage(); break; }
+    case 'chknone': pg.clientes.chk.clear(); renderPage(); break;
+    case 'cliIncl': { pushUndo('Incluir clientes'); let n = 0; for (const s of pg.clientes.chk) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); break; }
+    case 'cliDel': armButton(btn, () => { audita('exclusao', `${pg.clientes.chk.size} cliente(s) da base`); for (const s of pg.clientes.chk) { st.cli.del(s); if (st.itens) st.itens.del(s); } const n = pg.clientes.chk.size; pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) excluídos da base`); }, 'Confirmar exclusão'); break;
+    case 'geo': geoAgain(); break;
+    case 'adj': adjustForm(); break;
+    case 'gosea': goSea(); break;
+    case 'delex': armButton(btn, delExamples, 'Confirmar remoção'); break;
+  }
+}
+
+/* ================= Página inicial ================= */
+const homeCache = new Map(); // id do estudo → { alt, s } (resumo dos estudos que não estão abertos)
+let homeBusy = false;
+const fdate = ts => (ts ? new Date(ts).toLocaleDateString('pt-BR') : '—');
+
+function studySummary(a, items, routes) {
+  const rs = [...routes.values()], t = sumRoutes(rs), base = ambStats(a, items, routes);
+  const cnt = new Map(); for (const it of items.values()) if (it.s) cnt.set(it.s, (cnt.get(it.s) || 0) + 1);
+  // Detalhe por setor, para o painel do Planejamento mostrar os números do setor escolhido
+  const porSetor = new Map(Object.keys(a.setores || {}).map(id => [id, { cid: {}, semDia: 0 }]));
+  for (const [sold, it] of items) {
+    const x = it.s && porSetor.get(it.s); if (!x) continue;
+    const c = st.cli.get(sold), cid = (c && c.cidade) || 'Sem cidade'; x.cid[cid] = (x.cid[cid] || 0) + 1;
+    if (!(it.d || []).length || !(it.w || []).length) x.semDia++;
+  }
+  const setoresList = Object.entries(a.setores || {}).map(([id, s]) => {
+    const r2 = rs.filter(r => r.s === id), m = sumRoutes(r2), dias = {}, kmD = {}, nD = {}, occ = [0, 0, 0, 0];
+    for (const r of r2) { dias[r.d] = (dias[r.d] || 0) + r.m.n; kmD[r.d] = (kmD[r.d] || 0) + r.m.km; nD[r.d] = (nD[r.d] || 0) + 1; const o = r.m.ocup; occ[o > 1 ? 3 : o >= 0.9 ? 2 : o < 0.5 ? 0 : 1]++; }
+    const x = porSetor.get(id);
+    return { id, nome: s.nome, cor: s.cor, colab: s.colab, clientes: cnt.get(id) || 0, rotas: r2.length, km: m.km, horas: m.total, desl: m.tDesl, atend: m.tAtend, oc: m.ocMed, ocMax: Math.max(0, ...r2.map(r => r.m.ocup)), visitas: m.n, dias, kmD, nD, occ, cid: x.cid, semDia: x.semDia };
+  }).sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR', { numeric: true }));
+  const dias = {}, occ = [0, 0, 0, 0];
+  for (const r of rs) { dias[r.d] = (dias[r.d] || 0) + r.m.n; const o = r.m.ocup; occ[o > 1 ? 3 : o >= 0.9 ? 2 : o < 0.5 ? 0 : 1]++; }
+  const pts = [], stride = Math.max(1, Math.ceil(items.size / 3000)); let i = 0;
+  for (const [sold, it] of items) {
+    if (i++ % stride) continue;
+    const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) continue;
+    pts.push([c.lat, c.lng, it.s && a.setores && a.setores[it.s] ? a.setores[it.s].cor : '', it.s || '']);
+  }
+  return { id: a.id, nome: a.nome, desc: a.desc || '', exemplo: !!a.exemplo, alterado: a.alterado || a.criado || 0, semanas: P(a).semanas, diasP: P(a).dias, ...base, desl: t.tDesl, atend: t.tAtend, setoresList, dias, occ, pts };
+}
+function homeSummaries() { // null = ainda calculando
+  return [...st.amb.values()].map(a => {
+    if (a.id === st.cur && st.itens) return studySummary(a, st.itens.map, st.routes);
+    const c = homeCache.get(a.id); return c && c.alt === a.alterado ? c.s : null;
+  });
+}
+async function loadHomeMissing() {
+  if (homeBusy) return; homeBusy = true;
+  try {
+    for (const a of [...st.amb.values()]) {
+      if (a.id === st.cur) continue;
+      const c = homeCache.get(a.id); if (c && c.alt === a.alterado) continue;
+      const b = new BucketStore('itens/' + a.id + '/b'), g = new BucketStore('geo/' + a.id + '/b');
+      try { await Promise.all([b.load(), g.load()]); homeCache.set(a.id, { alt: a.alterado, s: studySummary(a, b.map, buildRoutes(a, b.map, g.map)) }); }
+      catch (e) { homeCache.set(a.id, { alt: a.alterado, s: studySummary(a, new Map(), new Map()) }); }
+      finally { b.detach(); g.detach(); }
+    }
+  } finally { homeBusy = false; }
+  if (st.screen === 'home') renderHome();
+}
+
+function kcard(k, v, s) { return `<div class="kc"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`; }
+function hbars(rows) {
+  const max = Math.max(0, ...rows.map(r => r.v)) || 1;
+  return `<div class="hbars">${rows.map(r => {
+    const btn = r.enter || r.attrs, tag = btn ? 'button type="button"' : 'div', end = btn ? 'button' : 'div';
+    return `<${tag} class="hb${r.on ? ' on' : ''}" tabindex="0" data-tip="${esc(r.tip)}"${r.enter ? ` data-enter="${esc(r.enter)}"` : ''}${r.attrs ? ' ' + r.attrs : ''}><span class="hl${r.strong ? ' strong' : ''}">${r.cor ? `<i class="sw" style="background:${esc(r.cor)}"></i>` : ''}<span>${esc(r.label)}</span></span><span class="ht"><i style="width:${r.v > 0 ? Math.max(2, r.v / max * 100) : 0}%${r.cor ? ';background:' + esc(r.cor) : ''}"></i></span><span class="hv num">${esc(r.fmt)}</span></${end}>`;
+  }).join('')}</div>`;
+}
+function vcols(cols) {
+  const max = Math.max(0, ...cols.map(c => c.v)) || 1;
+  return `<div class="vcols">${cols.map(c => `<div class="vc" tabindex="0" data-tip="${esc(c.tip)}"><span class="vv num">${nf0.format(c.v)}</span><span class="vb"><i style="height:${c.v > 0 ? Math.max(3, c.v / max * 100) : 0}%;background:${c.cor || 'var(--accent)'}"></i></span><span class="vl">${esc(c.label)}</span>${c.sub ? `<span class="vs">${esc(c.sub)}</span>` : ''}</div>`).join('')}</div>`;
+}
+function homeScatter(f, soColab) {
+  let pts = f && (f.pts.length || soColab) ? f.pts : null;
+  if (!pts) { const all = [...st.cli.values()].filter(c => isNum(c.lat) && isNum(c.lng)), stride = Math.max(1, Math.ceil(all.length / 3000)); pts = all.filter((c, i) => i % stride === 0).map(c => [c.lat, c.lng, '']); }
+  const bases = [...st.col.values()].filter(c => isNum(c.lat) && isNum(c.lng) && (!soColab || c.codigo === soColab));
+  if (!pts.length && !bases.length) return '<div class="empty"><p>Nenhum cliente ou base com coordenadas ainda. Importe as planilhas em Importação: as coordenadas são buscadas pelo endereço.</p><button class="btn sm" data-go="importar">Abrir Importação</button></div>';
+  const q = (arr, p) => arr[Math.round(p * (arr.length - 1))];
+  const ys = pts.map(p => p[0]).sort((a, b) => a - b), xs = pts.map(p => p[1]).sort((a, b) => a - b), big = ys.length > 40;
+  let la0 = big ? q(ys, .01) : (ys[0] ?? Infinity), la1 = big ? q(ys, .99) : (ys[ys.length - 1] ?? -Infinity);
+  let ln0 = big ? q(xs, .01) : (xs[0] ?? Infinity), ln1 = big ? q(xs, .99) : (xs[xs.length - 1] ?? -Infinity);
+  for (const c of bases) { la0 = Math.min(la0, c.lat); la1 = Math.max(la1, c.lat); ln0 = Math.min(ln0, c.lng); ln1 = Math.max(ln1, c.lng); }
+  const W = 640, H = 340, pad = 18, kx = Math.cos((la0 + la1) / 2 * Math.PI / 180);
+  const dx = Math.max((ln1 - ln0) * kx, 1e-4), dy = Math.max(la1 - la0, 1e-4);
+  const sc = Math.min((W - 2 * pad) / dx, (H - 2 * pad) / dy), ox = (W - dx * sc) / 2, oy = (H - dy * sc) / 2;
+  const X = lng => (ox + (lng - ln0) * kx * sc).toFixed(1), Y = lat => (oy + (la1 - lat) * sc).toFixed(1);
+  const groups = new Map();
+  for (const [la, ln, cor] of pts) { if (la < la0 || la > la1 || ln < ln0 || ln > ln1) continue; const k = cor || ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(`<circle cx="${X(ln)}" cy="${Y(la)}" r="2.4"/>`); }
+  let grid = ''; for (let i = 1; i < 6; i++) grid += `M${(W / 6 * i).toFixed(0)} 0V${H}`; for (let i = 1; i < 4; i++) grid += `M0 ${(H / 4 * i).toFixed(0)}H${W}`;
+  return `<svg class="scatter" viewBox="0 0 ${W} ${H}" role="img" aria-label="Distribuição geográfica dos clientes e das bases dos colaboradores"><path d="${grid}" style="stroke:var(--line);fill:none" stroke-width="1" stroke-dasharray="2 5"/>
+    ${[...groups].map(([cor, cs]) => cor ? `<g fill="${esc(cor)}" fill-opacity=".9">${cs.join('')}</g>` : `<g style="fill:var(--muted)" fill-opacity=".5">${cs.join('')}</g>`).join('')}
+    ${bases.map(c => `<rect x="${(+X(c.lng) - 6).toFixed(1)}" y="${(+Y(c.lat) - 6).toFixed(1)}" width="12" height="12" rx="3" style="fill:${esc(c.cor || 'var(--ink)')};stroke:var(--surface);stroke-width:2" data-tip="${esc((c.nome || c.codigo) + '\n' + (c.endereco || 'Base de saída'))}"/>`).join('')}</svg>`;
+}
+
+function openPlannerChooser() {
+  const list = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0));
+  openModal(`<div class="dh"><div><h2>Abrir Planner</h2><div class="muted" style="font-size:12.5px">Como você quer começar?</div></div><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db"><div class="choose">
+    <section class="opt"><div class="oh"><span class="oi">${ICON.folder}</span><div><h3>Estudo existente</h3><p>Continue de onde parou ou compare um cenário.</p></div></div>
+      ${list.length ? `${list.length > 5 ? '<input type="search" id="pickQ" placeholder="Buscar estudo…" aria-label="Buscar estudo">' : ''}<div class="amblist pick" id="pickList">${list.map(x => `<button class="ambi" type="button" data-enter="${esc(x.id)}" data-nome="${esc(String(x.nome).toLowerCase())}"><span class="nm">${esc(x.nome)}</span><span class="mt">${Object.keys(x.setores || {}).length} setores · ${fdate(x.alterado || x.criado)}${x.id === st.cur ? ' · último aberto' : ''}</span></button>`).join('')}</div>` : '<p class="muted">Nenhum estudo criado ainda — comece por um planner vazio ou importe um roteiro.</p>'}
+    </section>
+    <button class="opt" type="button" data-act="plannerNew"><div class="oh"><span class="oi">${ICON.filePlus}</span><div><h3>Planner vazio e novo</h3><p>Cria um estudo do zero. Você inclui os clientes e desenha os setores no mapa.</p></div></div></button>
+    <button class="opt" type="button" data-act="plannerImport"><div class="oh"><span class="oi">${ICON.upload}</span><div><h3>Importar</h3><p>Traga um roteiro de uma planilha Excel ou CSV e abra direto no mapa.</p></div></div></button>
+  </div>
+  <div class="muted" style="font-size:12.5px">Tem um arquivo de backup? <button class="btn sm" type="button" data-act="restore">Restaurar backup (.json)</button></div></div>`, 'lg');
+  const q = $('#pickQ'); if (q) q.oninput = () => { const v = q.value.trim().toLowerCase(); $$('#pickList .ambi').forEach(b => { b.hidden = !!v && !b.dataset.nome.includes(v); }); };
+}
+
+function atalhosHome() {
+  const item = (icone, titulo, desc, attr) => `<button class="opt" type="button" ${attr}><div class="oh"><span class="oi">${icone}</span><div><h3>${titulo}</h3><p>${desc}</p></div></div></button>`;
+  return `<nav class="atalhos" aria-label="Seções">
+    ${item(ICON.list, 'Listagens', 'Clientes, colaboradores e roteiros', 'data-act="listagens"')}
+    ${item(ICON.folder, 'Estudos', 'Cenários, setores e parâmetros', 'data-go="estudos"')}
+    ${item(ICON.upload, 'Importações', 'Modelos de planilha e importação', 'data-go="importar"')}
+    ${item(ICON.gear, 'Configurações', 'Conta, mapa, servidores e backup', 'data-go="config"')}
+  </nav>`;
+}
+function openListagens() {
+  const item = (view, nome, info) => `<button class="ambi" type="button" data-go="${view}"><span class="nm">${nome}</span><span class="mt">${info}</span></button>`;
+  const a = amb();
+  openModal(`<div class="dh"><h2>Listagens</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db"><div class="amblist">
+    ${item('clientes', 'Clientes', `${nf0.format(st.cli.size)} na base`)}
+    ${item('colaboradores', 'Colaboradores', `${nf0.format(st.col.size)} na base`)}
+    ${item('roteiros', 'Roteiros', a ? `${nf0.format(st.routes.size)} rotas em ${esc(a.nome)}` : 'Nenhum estudo aberto')}
+    <button class="ambi" type="button" data-act="mapabase"><span class="nm">Mapa da base</span><span class="mt">Todos os clientes, com filtro por cidade ou cliente</span></button>
+  </div></div>`, 'sm');
+}
+function renderHome() {
+  const el = $('#homeView'); if (!el || !st.amb || !st.cli) return;
+  const tipH = $('#tip'); if (tipH) tipH.hidden = true;
+  if (st.homeSec === 'rotas' && window.RotasMod) { window.RotasMod.render(el); return; }
+  if (window.RotasMod) window.RotasMod.limpar();
+  if (st.homeSec === 'verba' && window.VerbaMod) { window.VerbaMod.render(el); return; }
+  if (st.homeSec === 'cal' && window.CalMod) { window.CalMod.render(el); return; }
+  if (st.homeSec === 'ped' && window.PedMod) { window.PedMod.render(el); return; }
+  if (window.PedMod) window.PedMod.limpar();
+  if (st.homeSec !== 'plan') { renderHub(el); return; }
+  renderPlanejamento(el);
+}
+const migalha = nome => `<nav class="crumb" aria-label="Caminho"><button type="button" class="linkbtn" data-hub="hub">Início</button><span aria-hidden="true">›</span><b>${esc(nome)}</b></nav>`;
+const ICON_MOD = {
+  plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>',
+  rotas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/><circle cx="18" cy="5" r="2.5"/></svg>',
+  verba: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg>',
+  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
+  ped: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M4.5 21V9.5L7 7l2.5 2.5V21"/><path d="M9.5 13H21"/><path d="M13 13l1.6-2M16.5 13l1.6-2"/><path d="M21 11v4"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17h2M11 17h2"/></svg>'
+};
+function renderHub(el) {
+  const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  const nome = String((st.usuario && st.usuario.nome) || '').split(' ')[0];
+  const cur = amb(), rotasMod = window.RotasMod, R = rotasMod ? rotasMod.resumoHub() : null, C = window.CalMod ? window.CalMod.resumoHub() : null, V = window.VerbaMod ? window.VerbaMod.resumoHub() : null, PD = window.PedMod ? window.PedMod.resumoHub() : null;
+  const stat = (v, l) => `<span class="ms"><b class="num${String(v).length > 12 ? ' longo' : ''}">${v}</b><span>${l}</span></span>`;
+  const mod = (k, titulo, desc, stats, extra = '', cls = '') => `<article class="mod ${cls}"><button type="button" class="mod-go" data-hub="${k}" aria-label="Abrir ${esc(titulo)}"></button>
+    <div class="mod-h"><span class="mod-i">${ICON_MOD[k]}</span><div><h2>${titulo}</h2><p>${desc}</p></div></div>
+    <div class="mod-s">${stats}</div>${extra ? `<div class="mod-a">${extra}</div>` : ''}</article>`;
+  const mfa = st.mfaAtivo ? '<span class="pill ok">2 etapas ativa</span>' : '<span class="pill warn">2 etapas desligada</span>';
+  el.innerHTML = `<div class="page home hub">
+    <section class="hub-hero"><div><span class="lbl">${esc(st.empresa.nome)}</span><h1>${saud}${nome ? ', ' + esc(nome) : ''}</h1><p>Escolha por onde começar. Os módulos usam as mesmas bases de clientes e colaboradores.</p></div>
+      <div class="row hub-at">${st.cli.size ? '<button class="btn sm" data-act="mapabase">Mapa da base</button>' : ''}<button class="btn sm" data-go="importar">Importações</button><button class="btn sm" data-act="listagens">Listagens</button><button class="btn sm" data-go="estudos">Estudos</button></div></section>
+    <nav class="mods" aria-label="Módulos">
+      ${mod('plan', 'Planejamento', 'Estudos, setores e roteirização no mapa, com KM, tempo e comparação de cenários.', stat(nf0.format(st.amb.size), 'estudos') + stat(nf0.format(st.cli.size), 'clientes') + stat(nf0.format(st.col.size), 'colaboradores'),
+        `<button class="btn sm primary" type="button" data-act="plannerOpen">Abrir Planner</button>${cur ? `<button class="btn sm" type="button" data-enter="${esc(cur.id)}">Continuar: ${esc(cur.nome)}</button>` : ''}`)}
+      ${mod('rotas', 'Rotas', 'Bases importadas por mês e ano e estudos do Planejamento, com tabela, mapa, filtros e comparação.', R ? (R.erro ? stat('—', 'indisponível') : R.semTabela ? stat('—', 'migração pendente') + stat(nf0.format(R.estudos), 'estudos no Planner') : stat(nf0.format(R.bases), R.bases === 1 ? 'base importada' : 'bases importadas') + stat(nf0.format(R.estudos), 'estudos no Planner') + stat(R.ultimo || '—', 'último período') + stat(R.km, 'KM/mês')) : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn sm" type="button" data-act="rotasImport"${st.ro ? ' disabled' : ''}>Importar base</button>`)}
+      ${mod('ped', 'Pedágios', 'Praças de pedágio com local e valores, mapa com as rotas de um estudo ou base e relatório de quem paga, quanto e onde.', PD ? stat(nf0.format(PD.n), PD.n === 1 ? 'praça cadastrada' : 'praças cadastradas') + stat(PD.media, `tarifa média · ${esc(PD.cat.toLowerCase())}`) + stat(nf0.format(PD.semValor), 'sem valor') : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="ped">Abrir Pedágios</button>`)}
+      ${mod('verba', 'Verba Indenizatória', 'KM das rotas × racional de combustível e cesta de serviço × dias de rota no mês, com reembolsos, descontos, extrato e histórico.', V ? stat(V.racional, 'racional') + stat(V.ultimo, 'última apuração') + stat(nf0.format(V.lanc), 'lançamentos no mês') : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="verba">Abrir Verba</button>`)}
+      ${mod('cal', 'Calendário', 'Ano inteiro com dias úteis, feriados, eventos da empresa e as semanas do ciclo (S1 a S4 e quinzenas 1,3 e 2,4).', C ? stat(C.semana, `semana atual · ${C.quinzena}`) + stat(nf0.format(C.uteis), 'dias úteis no mês') + stat(esc(C.proximo), 'próximo evento') : stat('—', 'carregando'),
+        `<button class="btn sm primary" type="button" data-hub="cal">Abrir Calendário</button>`)}
+      ${mod('config', 'Configurações', 'Minha conta, aparência e temas, segurança e privacidade, mapa de fundo, servidores de rota e backup.', mfa + (st.usuario && st.usuario.papel === 'admin' ? '<span class="pill idle">Administrador</span>' : ''),
+        `<button class="btn sm" type="button" data-hub="config">Abrir</button><button class="btn sm" type="button" data-act="seguranca">Segurança</button>`)}
+    </nav>
+  </div>`;
+  el.scrollTop = 0;
+  if (!R && rotasMod) rotasMod.iniciar().then(() => {
+    if (st.screen === 'home' && st.homeSec === 'hub') renderHub(el);
+  }).catch(() => {
+    if (st.screen === 'home' && st.homeSec === 'hub') renderHub(el);
+  });
+}
+
+function renderPlanejamento(el) {
+  const tipEl = $('#tip'); if (tipEl) tipEl.hidden = true;
+  const keep = el.scrollTop;
+  const sums = homeSummaries(), ready = sums.filter(Boolean);
+  if (ready.length < sums.length) loadHomeMissing();
+  const byId = new Map(ready.map(s => [s.id, s]));
+  const recent = [...ready].sort((x, y) => y.alterado - x.alterado);
+  const f = byId.get(st.homeFocus) || byId.get(st.cur) || recent[0] || null;
+  const clis = [...st.cli.values()], cols = [...st.col.values()];
+  const comCoord = clis.filter(c => isNum(c.lat) && isNum(c.lng)).length;
+  const basesOk = cols.filter(c => isNum(c.lat) && isNum(c.lng)).length;
+  const nSea = seaList().length;
+  // Setor escolhido: tudo abaixo do seletor mostra os números dele ('' = o estudo inteiro)
+  const set = f && st.homeSetor ? f.setoresList.find(s => s.id === st.homeSetor) || null : null;
+  if (f && st.homeSetor && !set) st.homeSetor = '';
+  const colSet = set && set.colab ? st.col.get(set.colab) : null;
+  const topo = `${migalha('Planejamento')}<div class="ph"><div><h1>Planejamento</h1><p>${nf0.format(st.amb.size)} estudo(s) · ${nf0.format(clis.length)} clientes na base${nSea ? ` (<button type="button" class="linkbtn" data-act="adj">${nf0.format(nSea)} a ajustar</button>)` : ''} · ${nf0.format(basesOk)} de ${nf0.format(cols.length)} colaboradores com base localizada</p></div>
+    <div class="row">${st.cli.size ? '<button class="btn" data-act="mapabase">Mapa da base</button>' : ''}<button class="btn" data-act="plannerImport">Importar roteiro</button><button class="btn primary" data-act="plannerOpen">Abrir Planner</button></div></div>`;
+
+  if (!st.amb.size && !st.cli.size) {
+    el.innerHTML = `<div class="page home plan">${topo}<div class="card"><div class="empty"><h3>Vamos começar</h3><p>Ainda não há clientes nem estudos. Importe colaboradores, clientes e roteiro, crie um planner vazio, restaure um backup ou gere dados de exemplo para conhecer o sistema.</p>
+      <div class="row" style="justify-content:center"><button class="btn primary" data-go="importar">Importação e modelos</button><button class="btn" data-act="plannerNew">Planner vazio</button><button class="btn" data-act="sample">Dados de exemplo</button><button class="btn" data-act="restore">Restaurar backup</button></div></div></div></div>`;
+    el.scrollTop = keep; return;
+  }
+
+  // Seletor de estudo e setor
+  const seletor = f ? `<div class="card plan-sel"><div class="cb row">
+      <label class="field"><span class="lbl">Estudo</span><select id="hFocus">${recent.map(s => `<option value="${esc(s.id)}"${s.id === f.id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
+      <label class="field"><span class="lbl">Setor</span><select id="hSetor"><option value="">Todos os setores (${f.setoresList.length})</option>${f.setoresList.map(s => `<option value="${esc(s.id)}"${set && s.id === set.id ? ' selected' : ''}>${esc(s.nome)}${s.colab ? ' · ' + esc((st.col.get(s.colab) || {}).nome || s.colab) : ''}</option>`).join('')}</select></label>
+      ${set ? `<span class="plan-set"><i class="sw" style="background:${esc(set.cor)}"></i><b>${esc(set.nome)}</b><span class="muted">${colSet ? esc(colSet.nome) + (hasXY(colSet) ? ' · base localizada' : ' · base sem coordenada') : 'sem colaborador'}</span></span>` : ''}
+      <span class="sp"></span>${set ? `<button class="btn sm" type="button" data-act="setorlimpa">Ver o estudo inteiro</button>` : ''}<button class="btn sm primary" type="button" data-act="abrirsetor" data-fid="${esc(f.id)}" data-sid="${set ? esc(set.id) : ''}">${set ? 'Abrir o setor no mapa' : 'Abrir no mapa'}</button></div></div>` : '';
+
+  // Indicadores: do setor escolhido ou do estudo inteiro
+  let kpis = '', foco = '';
+  if (f) {
+    const x = set || f, nCid = set ? Object.keys(set.cid).length : null;
+    const semDia = set ? set.semDia : f.setoresList.reduce((s2, s) => s2 + s.semDia, 0);
+    kpis = `<div class="kgrid">
+      ${kcard('Clientes', nf0.format(x.clientes), set ? (semDia ? `${nf0.format(semDia)} sem dia de visita` : 'todos com dia de visita') : `${nf0.format(f.setorizados)} com setor`)}
+      ${set ? kcard('Cidades', nf0.format(nCid), nCid ? esc(Object.entries(set.cid).sort((a, b) => b[1] - a[1])[0][0]) + ' é a maior' : '—') : kcard('Setores', nf0.format(f.setores), `${f.setoresList.filter(s => s.colab).length} com colaborador`)}
+      ${kcard('Rotas', nf0.format(x.rotas), `ciclo de ${f.semanas} semana${f.semanas > 1 ? 's' : ''}`)}
+      ${kcard('KM no ciclo', fkm(x.km), x.rotas ? `${fkm(x.km / x.rotas)} km por rota` : 'sem rotas')}
+      ${kcard('Tempo no ciclo', fhm(x.horas), `${fhm(x.desl)} desloc. · ${fhm(x.atend)} atend.`)}
+      ${kcard('Ocupação média', x.rotas ? fpct(x.oc) : '—', x.rotas ? `maior rota: ${fpct(x.ocMax)}` : 'sem rotas')}</div>`;
+    const chart = (t, sub, body) => `<div class="card"><div class="ch"><h2>${t}</h2><span class="muted" style="font-size:12px">${sub}</span></div><div class="cb">${body}</div></div>`;
+    const none = msg => `<p class="muted" style="margin:0">${msg}</p>`;
+    const OCC = [['Com folga', '< 50%', 'var(--muted)'], ['Adequada', '50–90%', 'var(--ok)'], ['No limite', '90–100%', 'var(--warn)'], ['Excede', '> 100%', 'var(--bad)']];
+    if (set) {
+      const dias = Object.keys(set.dias).map(Number).sort((a, b) => a - b);
+      const kmDia = dias.map(d => ({ label: DIA_L[d], cor: COR_DIA[d], v: set.kmD[d] / set.nD[d], fmt: fkm(set.kmD[d] / set.nD[d]) + ' km', tip: `${DIA_L[d]}\n${set.nD[d]} rota(s) no ciclo · ${fkm(set.kmD[d])} km\n${fkm(set.kmD[d] / set.nD[d])} km por rota\n${nf0.format(set.dias[d])} visitas no ciclo` }));
+      const cidRows = Object.entries(set.cid).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([c, n]) => ({ label: c, v: n, fmt: nf0.format(n), tip: `${c}\n${nf0.format(n)} clientes no setor` }));
+      foco = `<div class="cgrid">
+        ${chart('KM por rota em cada dia', esc(set.nome), kmDia.length ? hbars(kmDia) : none('Este setor ainda não tem rotas montadas.'))}
+        ${chart('Visitas por dia da semana', 'no ciclo', dias.length ? vcols(dias.map(d => ({ label: DIA_C[d], v: set.dias[d], cor: COR_DIA[d], tip: `${DIA_L[d]}\n${nf0.format(set.dias[d])} visitas no ciclo` }))) : none('Sem rotas para medir.'))}
+        ${chart('Clientes por cidade', `${nf0.format(Object.keys(set.cid).length)} cidade(s)`, cidRows.length ? hbars(cidRows) : none('Nenhum cliente no setor.'))}
+        ${chart('Ocupação da jornada', `${set.rotas} rota(s)`, set.rotas ? vcols(OCC.map(([n, r, cor], i) => ({ label: n, sub: r, v: set.occ[i], cor, tip: `${n} (${r} da jornada)\n${set.occ[i]} rota(s)` }))) : none('Sem rotas para medir.'))}</div>`;
+    } else {
+      const setRows = [...f.setoresList].sort((a, b) => b.km - a.km).map(s => ({ label: s.nome, cor: s.cor, v: s.km, fmt: s.rotas ? fkm(s.km) + ' km' : 'sem rotas', attrs: `data-act="setorver" data-sid="${esc(s.id)}"`, tip: `${s.nome}\n${s.clientes} clientes · ${s.rotas} rotas\n${fkm(s.km)} km · ${fhm(s.horas)}\nOcupação média ${fpct(s.oc)}\nClique para ver o setor` }));
+      const dias = [...new Set([...f.diasP, ...Object.keys(f.dias).map(Number)])].filter(d => d >= 1 && d <= 7).sort((a, b) => a - b);
+      foco = `<div class="cgrid">
+        ${chart('KM no ciclo por setor', 'clique em um setor para ver os números dele', setRows.length ? hbars(setRows) : none('Este estudo ainda não tem setores.'))}
+        ${chart('Visitas por dia da semana', 'no ciclo', f.rotas ? vcols(dias.map(d => ({ label: DIA_C[d], v: f.dias[d] || 0, cor: COR_DIA[d], tip: `${DIA_L[d]}\n${nf0.format(f.dias[d] || 0)} visitas no ciclo` }))) : none('Sem rotas para medir.'))}</div>`;
+    }
+  }
+
+  // Lista de estudos
+  const lista = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0)).map(a => {
+    const s = byId.get(a.id), tags = (a.id === st.cur ? ' <span class="pill ok">último aberto</span>' : '') + (a.exemplo ? ' <span class="pill idle">exemplo</span>' : '');
+    return `<tr class="clk${s && f && s.id === f.id ? ' on' : ''}" data-act="focoplan" data-fid="${esc(a.id)}"><td class="wrap"><b>${esc(a.nome)}</b>${tags}${a.desc ? `<div class="muted" style="font-size:12px">${esc(a.desc)}</div>` : ''}</td>
+      ${s ? `<td class="n">${s.setores}</td><td class="n">${nf0.format(s.clientes)}</td><td class="n">${fkm(s.km)}</td><td>${s.rotas ? ocPill(s.oc) : '<span class="muted">sem rotas</span>'}</td>` : '<td class="muted" colspan="4">calculando…</td>'}
+      <td class="muted">${fdate(a.alterado || a.criado)}</td><td class="n"><button class="btn sm primary" type="button" data-enter="${esc(a.id)}">Abrir</button></td></tr>`;
+  }).join('');
+  const estudos = `<section class="card"><div class="ch"><h2>Estudos</h2><span class="row"><span class="muted" style="font-size:12px">clique em um estudo para ver os números dele acima</span><button class="btn sm" data-act="plannerNew">Novo estudo</button></span></div>
+    <div class="tblwrap flat"><table class="t"><thead><tr><th>Estudo</th><th class="n">Setores</th><th class="n">Clientes</th><th class="n">KM no ciclo</th><th>Ocupação</th><th>Alterado</th><th></th></tr></thead><tbody>${lista}</tbody></table></div></section>`;
+
+  // Cobertura e bases, recolhidos. Com setor escolhido, o mapa mostra só ele e a base do colaborador dele
+  const fMapa = f && set ? { ...f, pts: f.pts.filter(p => p[3] === set.id) } : f;
+  const legend = f ? (set ? [set] : f.setoresList.slice(0, 12)).map(s => `<span class="li"><i class="sw" style="background:${esc(s.cor)}"></i>${esc(s.nome)}</span>`).join('') : '';
+  const colRows = [...cols].filter(c => !set || c.codigo === set.colab).sort((x, y) => String(x.nome).localeCompare(String(y.nome), 'pt-BR')).slice(0, 10).map(c => {
+    const s = f && f.setoresList.find(x => x.colab === c.codigo);
+    return `<tr><td><span class="sw" style="background:${esc(c.cor || 'var(--muted)')}"></span></td><td><b>${esc(c.nome)}</b> <span class="muted">${esc(c.codigo)}</span></td><td class="wrap">${esc(c.endereco || '—')}</td><td>${isNum(c.lat) && isNum(c.lng) ? '<span class="pill ok">localizada</span>' : '<span class="pill warn">sem coordenadas</span>'}</td><td>${s ? esc(s.nome) : '<span class="muted">—</span>'}</td></tr>`;
+  }).join('');
+  st.planMais = st.planMais || false;
+  const mais = `<details class="card mais" id="planMais"${st.planMais ? ' open' : ''}><summary><b>Cobertura e bases</b><span class="muted">${set ? 'mapa e base de saída de ' + esc(set.nome) : 'mapa de cobertura, bases de dados e bases de saída'}</span></summary>
+    <div class="cb stack"><div class="cols-b">
+      <div class="stack">${homeScatter(fMapa, set ? set.colab || '__nenhum' : '')}<div class="legend-row"><span class="li"><i class="sw" style="background:var(--muted);opacity:.6"></i>Clientes${f && !set ? ' fora de setor' : ''}</span>${legend}<span class="li"><i class="sw sq" style="background:var(--ink)"></i>Base do colaborador</span></div></div>
+      <div class="stack">
+        <div class="dbrow"><div><div class="lbl">Clientes</div><b class="num">${nf0.format(clis.length)}</b> <span class="muted">· ${nf0.format(clis.length - comCoord)} sem coordenadas</span></div><button class="btn sm" data-go="clientes">Gerenciar</button></div>
+        <div class="dbrow"><div><div class="lbl">Colaboradores</div><b class="num">${nf0.format(cols.length)}</b> <span class="muted">· ${nf0.format(cols.length - basesOk)} sem base localizada</span></div><button class="btn sm" data-go="colaboradores">Gerenciar</button></div>
+        <div class="dbrow"><div><div class="lbl">Importação</div><span class="muted">${impUltima() || 'Modelos de planilha para clientes, colaboradores e roteiro'}</span></div><button class="btn sm" data-go="importar">Abrir</button></div></div></div>
+      ${colRows ? `<div class="tblwrap"><table class="t"><thead><tr><th></th><th>Colaborador</th><th>Base de saída</th><th>Localização</th><th>Setor${f ? ' em ' + esc(f.nome) : ''}</th></tr></thead><tbody>${colRows}</tbody></table></div>${!set && cols.length > 10 ? `<div class="pager">Mostrando 10 de ${cols.length} · <button class="btn sm" data-go="colaboradores">Ver todos</button></div>` : ''}` : ''}
+      <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12.5px">${st.sb ? 'Os dados ficam no banco de dados da empresa.' : 'Os dados ficam neste navegador.'} O backup guarda bases e estudos em um arquivo.</span><span class="row"><button class="btn sm" data-act="backup">Exportar backup</button><button class="btn sm" data-act="restore">Restaurar backup</button><button class="btn sm" data-act="sample">Dados de exemplo</button></span></div>
+    </div></details>`;
+
+  el.innerHTML = `<div class="page home plan">${topo}${seletor}${kpis}${foco}${estudos}${mais}</div>`;
+  const d = $('#planMais'); if (d) d.ontoggle = () => { st.planMais = d.open; };
+  el.scrollTop = keep;
+}
+/* ================= Acesso: ambientes e usuários =================
+   Sem servidor, as contas ficam no mesmo armazenamento dos dados: isso separa as empresas e evita o acesso casual,
+   mas não substitui um login validado em servidor. Senhas e códigos são guardados só como hash (PBKDF2). */
+const EMPRESAS = CFG.empresas || [];
+const SES_KEY = 'rt1:sessao', ULT_KEY = 'rt1:ultimoAmbiente', MANTER_DIAS = 30, SENHA_MIN = 10;
+const lg = { step: 'empresa', emp: null, ctx: {} };
+/* ----- Supabase: login. "Manter conectado" decide se a sessão fica no navegador ou só nesta aba ----- */
+let sbManter = false;
+try { sbManter = !!localStorage.getItem('rt1:sessao'); } catch (e) { /* ignora */ }
+const sbArmazem = {
+  getItem: k => { try { return localStorage.getItem(k) ?? sessionStorage.getItem(k); } catch (e) { return null; } },
+  setItem: (k, v) => { try { (sbManter ? localStorage : sessionStorage).setItem(k, v); } catch (e) { /* ignora */ } },
+  removeItem: k => { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) { /* ignora */ } }
+};
+const sbConfigurado = () => !!(CFG.supabaseUrl && CFG.supabaseKey);
+function criaSupabase() { return supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { storage: sbArmazem, persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); }
+async function sbMembro(emp, user) {
+  const { data, error } = await st.sb.from('membros_empresa').select('nome,papel').eq('empresa_id', emp.id).eq('user_id', user.id).maybeSingle();
+  if (error) throw error;
+  return data ? { id: user.id, nome: data.nome, login: user.email, papel: data.papel, trocarSenha: !!(user.user_metadata && user.user_metadata.trocar_senha) } : null;
+}
+const sbMensagem = e => {
+  const m = (e && e.message) || '';
+  if (/invalid login/i.test(m)) return 'E-mail ou senha incorretos.';
+  if (/not confirmed/i.test(m)) return 'Este e-mail ainda não foi confirmado. Abra o link enviado para ele.';
+  if (/rate limit|too many/i.test(m) || (e && e.status === 429)) return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.';
+  if (/fetch|network/i.test(m)) return 'Sem conexão com o banco de dados. Verifique a internet e tente de novo.';
+  if (/different from the old/i.test(m)) return 'A nova senha precisa ser diferente da atual.';
+  if (/captcha/i.test(m)) return 'A verificação de segurança não foi aceita. Resolva o desafio de novo e tente outra vez.';
+  if (/weak|pwned|leaked/i.test(m)) return 'O servidor recusou a senha por ser fraca ou já ter vazado. Escolha outra.';
+  if (/reauthentication|nonce/i.test(m)) return 'Para trocar a senha, entre de novo no sistema e repita a alteração.';
+  if (/not authorized/i.test(m)) return 'O Supabase não envia e-mail para este endereço sem um servidor de e-mail próprio. Crie a conta em Authentication → Users e inclua de novo aqui.';
+  return m || 'Não foi possível concluir. Tente de novo.';
+};
+async function sbIpVerificar(e) {
+  if (!st.sb || !(st.srv >= 9)) return null;
+  const { data, error } = await st.sb.rpc('seguranca_ip_verificar', { e });
+  if (error) throw error;
+  return data;
+}
+async function sbIpRegistrarFalha(e) {
+  if (!st.sb || !(st.srv >= 9)) return null;
+  const { data, error } = await st.sb.rpc('seguranca_ip_falha', { e });
+  if (error) throw error;
+  return data;
+}
+async function sbIpRegistrarSucesso(e) {
+  if (!st.sb || !(st.srv >= 9)) return;
+  const { error } = await st.sb.rpc('seguranca_ip_sucesso', { e });
+  if (error) throw error;
+}
+async function sbLogin(f) {
+  const email = Seg.texto(String(f.get('login')).trim(), 320), manter = !!f.get('manter');
+  const at = bloqueado(lg.emp, email); if (at) { lgMsg(msgBloqueio(at)); return; }
+  let ip;
+  try { ip = await sbIpVerificar(lg.emp.id); }
+  catch (e) { lgMsg('Não foi possível verificar o bloqueio por IP: ' + sbMensagem(e)); return; }
+  if (ip && ip.decision === 'reject') { lgMsg(ip.message || 'Acesso temporariamente bloqueado para este IP.'); return; }
+  const cap = $('#lgCaptcha'), captchaToken = Seg.captcha.token(cap);
+  if (captchaToken === '') { lgMsg('Conclua a verificação de segurança antes de entrar.'); return; }
+  sbManter = manter;
+  try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignora */ }
+  const { data, error } = await st.sb.auth.signInWithPassword({ email, password: f.get('senha'), options: captchaToken ? { captchaToken } : undefined });
+  Seg.captcha.reiniciar(cap); // cada desafio vale para uma tentativa
+  if (error) {
+    const falhaSenha = /invalid login/i.test(error.message || '');
+    const b = falhaSenha ? registraFalha(lg.emp, email) : 0;
+    if (falhaSenha) {
+      try { ip = await sbIpRegistrarFalha(lg.emp.id); }
+      catch (e) { lgMsg('Senha incorreta. Não foi possível registrar a tentativa para o bloqueio por IP: ' + sbMensagem(e)); return; }
+      if (ip && ip.decision === 'reject') { lgMsg(ip.message || (b ? msgBloqueio(b) : 'Acesso temporariamente bloqueado para este IP.')); return; }
+    }
+    lgMsg(b ? msgBloqueio(b) : sbMensagem(error)); return;
+  }
+  lg.falhasAntes = limpaFalhas(lg.emp, email);
+  const seguir = () => sbPosLogin(data.user, manter);
+  if (await sbPrecisaMfa()) { lg.step = 'mfa'; lg.ctx = { manter, login: email, uid: data.user.id, seguir }; renderLogin(); return; }
+  try { await sbIpRegistrarSucesso(lg.emp.id); }
+  catch (e) { toast('Não foi possível atualizar o controle de tentativas por IP: ' + sbMensagem(e), 7000); }
+  await seguir();
+}
+async function sbPosLogin(user, manter) {
+  const u = await sbMembro(lg.emp, user);
+  if (!u) { await st.sb.auth.signOut({ scope: 'local' }); lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(`Este usuário não tem acesso a ${lg.emp.nome}. Peça a um administrador do ambiente para incluir o seu e-mail.`); return; }
+  if (u.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u, manter }; renderLogin(); return; }
+  await entrar(u, manter);
+}
+// Endereço para onde o link de nova senha do e-mail volta. No app de Windows (endereço app://), usa a versão web de RT_CONFIG.urlWeb.
+function urlRetorno() { const w = (window.RT_CONFIG || {}).urlWeb; return (window.rrmDesktop && w) ? w : location.origin + location.pathname; }
+async function sbEsqueci(f) {
+  const cap = $('#lgCaptcha'), captchaToken = Seg.captcha.token(cap);
+  if (captchaToken === '') { lgMsg('Conclua a verificação de segurança antes de enviar.'); return; }
+  const { error } = await st.sb.auth.resetPasswordForEmail(Seg.texto(String(f.get('login')).trim(), 320), { redirectTo: urlRetorno(), captchaToken });
+  Seg.captcha.reiniciar(cap);
+  if (error) { lgMsg(sbMensagem(error)); return; }
+  lg.step = 'login'; lg.ctx = {}; renderLogin();
+  lgMsg('Se houver uma conta com esse e-mail, o link para criar uma nova senha chega em instantes. Confira também o spam.', 'info');
+}
+async function sbTrocar(f) {
+  const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { lgMsg(erro); return; }
+  const { error } = await st.sb.auth.updateUser({ password: f.get('senha'), data: { trocar_senha: false } });
+  if (error) { lgMsg(sbMensagem(error)); return; }
+  const { u, manter } = lg.ctx; await entrar({ ...u, trocarSenha: false }, manter);
+}
+async function sbNovaSenha(f) {
+  const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { lgMsg(erro); return; }
+  const { error } = await st.sb.auth.updateUser({ password: f.get('senha') });
+  if (error) { lgMsg(sbMensagem(error)); return; }
+  await st.sb.auth.signOut({ scope: 'global' }).catch(() => st.sb.auth.signOut({ scope: 'local' })); // quem estava com a senha antiga sai em todo lugar
+  lg.step = 'empresa'; lg.emp = null; lg.ctx = {}; renderLogin();
+  lgMsg('Senha alterada. As sessões abertas em outros dispositivos foram encerradas. Escolha o ambiente e entre com a nova senha.', 'info');
+}
+/* Dados que estão só neste navegador podem subir para um ambiente ainda vazio. Nada é apagado daqui */
+const sbMarca = pre => `rt1:enviado_${pre || 'antigos'}`;
+async function sbDadosLocais(emp) {
+  const { count, error } = await st.sb.from('clientes').select('sold', { count: 'exact', head: true }).eq('empresa_id', emp.id);
+  if (error || count) return null;
+  const { count: nEst } = await st.sb.from('estudos').select('id', { count: 'exact', head: true }).eq('empresa_id', emp.id);
+  if (nEst) return null;
+  for (const pre of [emp.id + '_', '']) {
+    let enviado = null; try { enviado = localStorage.getItem(sbMarca(pre)); } catch (e) { /* ignora */ }
+    if (enviado) continue;
+    const v = await contarBase(pre, LocalBackend);
+    if (v.clientes || v.colaboradores || v.ambientes) return { ...v, pre };
+  }
+  return null;
+}
+async function sbEnviarLocais(emp, pre) {
+  const dest = SupabaseBackend(st.sb, emp.id), cols = ['colaboradores', 'clientes', 'ambientes'];
+  for (const d of await LocalBackend.list(pre + 'ambientes')) for (const id of Object.keys((d.data && d.data.items) || {})) cols.push(`itens/${id}/b`, `geo/${id}/b`);
+  for (const c of cols) for (const d of await LocalBackend.list(pre + c)) await dest.set(c, d.id, d.data);
+  try { localStorage.setItem(sbMarca(pre), String(Date.now())); } catch (e) { /* ignora */ }
+}
+const LOGO = '<svg class="vx" viewBox="9 5 54 54" aria-hidden="true" focusable="false"><g fill="none" stroke-linecap="round" stroke-width="4.8"><path class="vx-2" d="M32 32a12 12 0 0 1 24 0"/><path class="vx-3" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path class="vx-1" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g><g class="vx-n" stroke-width="2.3"><circle class="vx-2" cx="56" cy="32" r="3.2"/><circle class="vx-3" cx="56" cy="32" r="3.2" transform="rotate(120 32 32)"/><circle class="vx-1" cx="56" cy="32" r="3.2" transform="rotate(240 32 32)"/></g><circle class="vx-h" cx="32" cy="32" r="5.2" stroke-width="2.8"/></svg>';
+
+const hexOf = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+// Senhas: PBKDF2-SHA256 com 600 mil iterações (recomendação OWASP). Códigos de recuperação e de reserva, que já são
+// aleatórios e longos: 150 mil. Hashes antigos (sem "iter") são de 150 mil e sobem para 600 mil no próximo login certo.
+const ITER_SENHA = 600000, ITER_CODIGO = 150000;
+async function derivar(txt, salt, iter = ITER_CODIGO) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(txt), 'PBKDF2', false, ['deriveBits']);
+  return hexOf(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(salt), iterations: iter }, k, 256));
+}
+async function segredo(txt, iter = ITER_CODIGO) { const salt = hexOf(crypto.getRandomValues(new Uint8Array(16))); return { salt, hash: await derivar(txt, salt, iter), iter }; }
+const confere = async (txt, s) => !!s && Seg.iguais(await derivar(txt, s.salt, s.iter || ITER_CODIGO), s.hash);
+const precisaRehash = s => !!s && (s.iter || ITER_CODIGO) < ITER_SENHA;
+function novoCodigo() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; return [...crypto.getRandomValues(new Uint8Array(12))].map(x => A[x % A.length]).join('').match(/.{4}/g).join('-'); }
+const normCodigo = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const normLogin = v => String(v || '').trim().toLowerCase();
+const colUsuarios = emp => emp.id + '_usuarios';
+const usuariosDe = async emp => (await st.base.list(colUsuarios(emp))).map(d => d.data);
+const salvarUsuario = (emp, u) => st.base.set(colUsuarios(emp), u.id, u);
+function validaSenha(a, b, quem = {}) {
+  const s = String(a ?? ''), n = norm(s);
+  if (s.length < SENHA_MIN) return `A senha precisa ter ao menos ${SENHA_MIN} caracteres.`;
+  // O Supabase Auth (bcrypt) só considera os primeiros 72 bytes: o resto seria ignorado sem aviso
+  if (new TextEncoder().encode(s).length > 72) return 'Use no máximo 72 caracteres na senha (letras acentuadas contam como dois).';
+  if (!/[A-Za-zÀ-ÿ]/.test(s) || !/\d/.test(s)) return 'Use letras e números na senha.';
+  if (SENHAS_FRACAS.includes(s.toLowerCase()) || /^(.)\1+$/.test(s) || /^(?:0123456789|1234567890|9876543210|abcdefghij|qwertyuiop)/i.test(s)) return 'Essa senha é muito comum. Escolha outra.';
+  const partes = [quem.login, String(quem.login || '').split('@')[0], ...String(quem.nome || '').split(/\s+/), ...String((lg.emp || st.empresa || {}).nome || '').split(/\s+/)]
+    .map(x => norm(x || '')).filter(x => x.length >= 4);
+  if (partes.some(x => n.includes(x))) return 'A senha não pode conter o seu nome, o seu login nem o nome da empresa.';
+  if (a !== b) return 'As duas senhas não são iguais.';
+  return '';
+}
+// Regras acima e consulta de vazamentos (Have I Been Pwned: só o começo do hash sai do computador; sem internet, não bloqueia)
+async function validaSenhaCompleta(a, b, quem) {
+  const erro = validaSenha(a, b, quem); if (erro) return erro;
+  const n = await Seg.vazamentos(a);
+  return n > 0 ? `Essa senha já apareceu ${nf0.format(n)} vez(es) em vazamentos de dados na internet. Escolha outra.` : '';
+}
+const quemSenha = () => { const u = (lg.ctx && lg.ctx.u) || st.usuario || {}; return { login: u.login, nome: u.nome }; };
+
+function limparSessao() { for (const n of ['localStorage', 'sessionStorage']) { try { window[n].removeItem(SES_KEY); } catch (e) { /* ignora */ } } }
+function salvarSessao(emp, u, manter) {
+  limparSessao();
+  const v = JSON.stringify({ emp: emp.id, uid: u.id, ate: manter ? Date.now() + MANTER_DIAS * 864e5 : 0 });
+  try { (manter ? localStorage : sessionStorage).setItem(SES_KEY, v); localStorage.setItem(ULT_KEY, emp.id); } catch (e) { /* a sessão dura até recarregar a página */ }
+}
+function lerSessao() {
+  for (const n of ['sessionStorage', 'localStorage']) {
+    try { const v = JSON.parse(window[n].getItem(SES_KEY)); if (v && (!v.ate || v.ate > Date.now())) return v; } catch (e) { /* ignora */ }
+  }
+  return null;
+}
+
+/* Dados de antes da separação por ambiente ficavam sem prefixo; ao entrar, oferece trazê-los para um ambiente ainda vazio */
+const COLS_BASE = ['clientes', 'colaboradores', 'ambientes'];
+async function contarBase(pre, base = st.base) { const out = {}; for (const c of COLS_BASE) out[c] = (await base.list(pre + c)).reduce((n, d) => n + Object.keys((d.data && d.data.items) || {}).length, 0); return out; }
+async function dadosAntigos(emp) {
+  const v = await contarBase(''); if (!v.clientes && !v.colaboradores && !v.ambientes) return null;
+  const n = await contarBase(emp.id + '_'); return n.clientes || n.colaboradores || n.ambientes ? null : v;
+}
+async function moverDadosAntigos(emp) {
+  const pre = emp.id + '_', cols = [...COLS_BASE], feitos = [];
+  for (const d of await st.base.list('ambientes')) for (const id of Object.keys((d.data && d.data.items) || {})) cols.push(`itens/${id}/b`, `geo/${id}/b`);
+  try {
+    for (const c of cols) for (const d of await st.base.list(c)) { await st.base.set(pre + c, d.id, d.data); await st.base.del(c, d.id); feitos.push([c, d]); }
+  } catch (e) { // armazenamento cheio: devolve o que já tinha sido movido
+    for (const [c, d] of feitos.reverse()) { try { await st.base.del(pre + c, d.id); await st.base.set(c, d.id, d.data); } catch (e2) { /* ignora */ } }
+    throw e;
+  }
+  try { const ui = localStorage.getItem('rt1:ui'); if (ui) { localStorage.setItem('rt1:' + pre + 'ui', ui); localStorage.removeItem('rt1:ui'); } } catch (e) { /* ignora */ }
+}
+
+const senhaCampo = (id, rotulo, ac) => `<label class="field"><span class="lbl">${rotulo}</span><span class="pwrap"><input type="password" name="${id}" autocomplete="${ac}" required><button type="button" data-ver aria-label="Mostrar senha">Mostrar</button></span></label>`;
+const textoCampo = (id, rotulo, ac, extra = '') => `<label class="field"><span class="lbl">${rotulo}</span><input type="text" name="${id}" autocomplete="${ac}" required ${extra}></label>`;
+const manterCampo = `<label class="chk"><input type="checkbox" name="manter"> Manter conectado</label>`;
+// Desafio "não sou um robô" (Turnstile ou hCaptcha), só com o Supabase e o CAPTCHA configurado em js/config.js
+const captchaHtml = id => (st.sb && Seg.captcha.ativo() ? `<div class="rvx-captcha" id="${id}"></div>` : '');
+const montaCaptcha = (el, aviso) => { if (el) Seg.captcha.montar(el).catch(e => aviso && aviso(e.message || 'A verificação de segurança não carregou.')); };
+const LG_TELAS = {
+  empresa() {
+    let ult = null; try { ult = localStorage.getItem(ULT_KEY); } catch (e) { /* ignora */ }
+    return `<h1>Escolha o ambiente</h1><p class="sub">Cada empresa tem seus próprios usuários, clientes, colaboradores e estudos.</p>
+      <div class="lg-emps">${EMPRESAS.map(e => `<button class="opt" type="button" data-emp="${esc(e.id)}"><div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><h3>${esc(e.nome)}</h3>${e.id === ult ? '<p>Último acesso</p>' : ''}</div></div></button>`).join('')}</div>`;
+  },
+  login() {
+    return `<h1>Entrar</h1><form id="fLogin">${textoCampo('login', st.sb ? 'E-mail' : 'Usuário ou e-mail', 'username')}${senhaCampo('senha', 'Senha', 'current-password')}
+      <div class="lg-row">${manterCampo}<button class="lg-link" type="button" data-lg="esqueci">Esqueci minha senha</button></div>
+      ${captchaHtml('lgCaptcha')}<button class="btn primary lg-go" type="submit">Entrar</button></form>`;
+  },
+  primeiro() {
+    return `<h1>Primeiro acesso</h1><p class="sub">Este ambiente ainda não tem usuários neste navegador. Crie o administrador: depois ele cadastra os demais.</p>
+      <form id="fPrimeiro">${textoCampo('nome', 'Nome', 'name')}${textoCampo('login', 'Usuário ou e-mail', 'username')}${senhaCampo('senha', 'Senha', 'new-password')}${senhaCampo('senha2', 'Repita a senha', 'new-password')}
+      <div class="lg-row">${manterCampo}</div><button class="btn primary lg-go" type="submit">Criar acesso</button></form>`;
+  },
+  esqueci() {
+    if (st.sb) return `<h1>Redefinir senha</h1><p class="sub">Informe o seu e-mail. Enviaremos um link para você criar uma nova senha.</p>
+      <form id="fEsqueci">${textoCampo('login', 'E-mail', 'username')}
+      <div class="lg-row"><button class="lg-link" type="button" data-lg="login">Voltar para o login</button></div>${captchaHtml('lgCaptcha')}<button class="btn primary lg-go" type="submit">Enviar o link</button></form>`;
+    return `<h1>Redefinir senha</h1><p class="sub">Use o código de recuperação que apareceu quando a sua senha foi criada. Sem ele, um administrador do ambiente pode redefinir a senha em Minha conta.</p>
+      <form id="fEsqueci">${textoCampo('login', 'Usuário ou e-mail', 'username')}${textoCampo('codigo', 'Código de recuperação', 'off', 'placeholder="XXXX-XXXX-XXXX"')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}
+      <div class="lg-row"><button class="lg-link" type="button" data-lg="login">Voltar para o login</button></div><button class="btn primary lg-go" type="submit">Redefinir senha</button></form>`;
+  },
+  trocar() {
+    return `<h1>Crie a sua senha</h1><p class="sub">Você entrou com uma senha provisória. Escolha a sua para continuar.</p>
+      <form id="fTrocar">${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}<button class="btn primary lg-go" type="submit">Salvar e entrar</button></form>`;
+  },
+  mfa() {
+    return `<h1>Verificação em duas etapas</h1><p class="sub">Digite o código de 6 dígitos que aparece agora no aplicativo autenticador${st.sb ? '' : ', ou um dos códigos de reserva'}.</p>
+      <form id="fMfa">${textoCampo('codigo', 'Código', 'one-time-code', 'inputmode="numeric" maxlength="11"')}<button class="btn primary lg-go" type="submit">Verificar e entrar</button></form>
+      <div class="lg-row"><button class="lg-link" type="button" data-lg="cancelaMfa">Voltar para o login</button><span class="muted" style="font-size:12px">Perdeu o celular? Peça ao administrador para desligar as duas etapas da sua conta.</span></div>`;
+  },
+  mfaCadastro() {
+    return `<h1>Ative a verificação em duas etapas</h1><p class="sub">O ambiente <b>${esc(lg.emp.nome)}</b> exige um código do celular, além da senha, para proteger os dados. Leva um minuto.</p><div id="lgMfa"></div>
+      <div class="lg-row"><button class="lg-link" type="button" data-lg="recusa">Sair</button></div>`;
+  },
+  privacidade() {
+    return `<h1>Aviso de privacidade</h1><p class="sub">Antes de continuar, veja como os dados são tratados no Route VORTEX, conforme a Lei Geral de Proteção de Dados (LGPD).</p>${avisoPrivacidadeHtml()}
+      <label class="chk"><input type="checkbox" id="lgAceito"> Li e concordo com o aviso de privacidade</label>
+      <div class="lg-row"><button class="btn" type="button" data-lg="recusa">Não concordo e sair</button><button class="btn primary" type="button" data-lg="aceita">Concordo e continuar</button></div>`;
+  },
+  novaSenha() {
+    return `<h1>Crie uma nova senha</h1><form id="fNovaSenha">${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}<button class="btn primary lg-go" type="submit">Salvar nova senha</button></form>`;
+  },
+  codigo() {
+    return `<h1>Guarde o seu código de recuperação</h1><p class="sub">Ele aparece só agora e permite redefinir a senha se você a esquecer. Guarde fora deste computador.</p>
+      <div class="lg-code">${esc(lg.ctx.codigo)}</div><div class="lg-row"><button class="btn" type="button" data-copiar="${esc(lg.ctx.codigo)}">Copiar código</button><button class="btn primary" type="button" data-lg="seguir">Já guardei, continuar</button></div>`;
+  },
+  legado() {
+    const v = lg.ctx.leg;
+    if (st.sb) return `<h1>Enviar os dados deste navegador?</h1><p class="sub">Este navegador tem ${nf0.format(v.clientes)} cliente(s), ${nf0.format(v.colaboradores)} colaborador(es) e ${nf0.format(v.ambientes)} estudo(s), e o banco de <b>${esc(lg.emp.nome)}</b> está vazio.</p>
+      <div class="lg-row"><button class="btn" type="button" data-lg="naolegado">Agora não</button><button class="btn primary" type="button" data-lg="simlegado">Enviar para ${esc(lg.emp.nome)}</button></div>
+      <p class="sub" style="font-size:12.5px">Os dados continuam neste navegador. Com “Agora não”, a pergunta volta no próximo login.</p>`;
+    return `<h1>Dados salvos antes dos ambientes</h1><p class="sub">Este navegador tem ${nf0.format(v.clientes)} cliente(s), ${nf0.format(v.colaboradores)} colaborador(es) e ${nf0.format(v.ambientes)} estudo(s) salvos antes da separação por empresa. Eles pertencem a <b>${esc(lg.emp.nome)}</b>?</p>
+      <div class="lg-row"><button class="btn" type="button" data-lg="naolegado">Agora não</button><button class="btn primary" type="button" data-lg="simlegado">Trazer para ${esc(lg.emp.nome)}</button></div>
+      <p class="sub" style="font-size:12.5px">Com “Agora não”, nada é apagado: a pergunta volta no próximo login.</p>`;
+  }
+};
+function renderLogin() {
+  const e = lg.emp, comEnv = e && lg.step !== 'empresa';
+  const trocar = ['login', 'primeiro', 'esqueci'].includes(lg.step);
+  $('#loginView').innerHTML = `<div class="lg"><div class="lg-brand">${LOGO}<span class="wm"><small>ROUTE</small><b>VORTEX</b><em>Planejamento · Setorização · Roteirização</em></span></div>
+    <div class="card lg-card">${comEnv ? `<div class="lg-env"><span class="oi sg">${esc(e.sigla)}</span><b>${esc(e.nome)}</b>${trocar ? '<button class="btn sm" type="button" data-lg="empresa">Trocar de ambiente</button>' : ''}</div>` : ''}
+      <div id="lgMsg" role="alert"></div>${LG_TELAS[lg.step]()}</div>
+    <p class="lg-foot">${st.sb ? 'Acesso protegido por senha, verificação em duas etapas e registro de atividades. Os dados ficam no banco de dados da empresa.' : 'Os acessos e os dados ficam guardados neste navegador.'}</p></div>`;
+  const f = $('#loginView input:not([type=checkbox])'); if (f) f.focus();
+  montaCaptcha($('#lgCaptcha'), t => lgMsg(t));
+  if (lg.step === 'mfaCadastro') montaCadastroMfa($('#lgMfa'), () => liberar(), t => lgMsg(t));
+  if (st.sbFalhou) lgMsg('Não foi possível carregar a conexão com o banco de dados. Verifique a internet e recarregue a página.');
+  else if (!st.sb && (!window.crypto || !crypto.subtle)) lgMsg('Este endereço não permite o login com segurança. Abra o sistema por https ou por 127.0.0.1 (Live Server).');
+}
+function lgMsg(txt, cls = 'bad') { $('#lgMsg').innerHTML = txt ? `<div class="banner ${cls}">${esc(txt)}</div>` : ''; }
+async function escolherEmpresa(id) {
+  lg.emp = EMPRESAS.find(x => x.id === id); if (!lg.emp) return;
+  lg.step = st.sb || (await usuariosDe(lg.emp)).length ? 'login' : 'primeiro';
+  renderLogin();
+}
+async function entrar(u, manter) {
+  salvarSessao(lg.emp, u, manter); st.empresa = lg.emp; st.usuario = u;
+  audita('login', st.sb ? 'senha' + ((await mfaAtivo()) ? ' + duas etapas' : '') : 'login neste navegador');
+  st.avisoTentativas = lg.falhasAntes || 0; lg.falhasAntes = 0;
+  if (!st.sb) { st.usuario = { ...st.usuario, ultimoAcesso: Date.now() }; salvarUsuario(lg.emp, st.usuario).catch(() => {}); }
+  st.legadoVisto = false;
+  await liberar();
+}
+// Últimos passos antes de abrir o sistema: duas etapas obrigatória e aceite do aviso de privacidade
+async function liberar() {
+  lg.emp = st.empresa;
+  if (st.sb && st.srv === undefined) st.srv = await sbVersaoSeguranca();
+  await carregaPolitica();
+  st.mfaAtivo = await mfaAtivo();
+  if (st.politica.exige2fa && !st.mfaAtivo) { lg.step = 'mfaCadastro'; lg.ctx = {}; renderLogin(); return; }
+  if (!(await privacidadeAceita())) { lg.step = 'privacidade'; lg.ctx = {}; renderLogin(); return; }
+  if (st.legadoVisto === false) { // só no login com senha, não ao reabrir a sessão
+    st.legadoVisto = true;
+    const leg = st.sb ? await sbDadosLocais(lg.emp) : await dadosAntigos(lg.emp);
+    if (leg) { lg.step = 'legado'; lg.ctx = { leg }; renderLogin(); return; }
+  }
+  await boot();
+}
+const LG_FORMS = {
+  async fLogin(f) {
+    if (st.sb) return sbLogin(f);
+    const login = normLogin(f.get('login')), at = bloqueado(lg.emp, login); if (at) { lgMsg(msgBloqueio(at)); return; }
+    const us = await usuariosDe(lg.emp), u = us.find(x => x.login === login), manter = !!f.get('manter');
+    // Sem o usuário, faz a mesma conta: o tempo de resposta não revela quais logins existem
+    const certo = u ? await confere(f.get('senha'), u.senha) : (await derivar(String(f.get('senha')), '00', ITER_SENHA), false);
+    if (!certo) { const b = registraFalha(lg.emp, login); auditaEm(lg.emp, u || { login }, 'login_falhou', login); lgMsg(b ? msgBloqueio(b) : 'Usuário ou senha incorretos.'); return; }
+    lg.falhasAntes = limpaFalhas(lg.emp, login);
+    if (precisaRehash(u.senha)) { u.senha = await segredo(f.get('senha'), ITER_SENHA); await salvarUsuario(lg.emp, u); }
+    const seguir = async () => {
+      const u2 = (await usuariosDe(lg.emp)).find(x => x.id === u.id) || u;
+      if (u2.trocarSenha) { lg.step = 'trocar'; lg.ctx = { u: u2, manter }; renderLogin(); return; }
+      await entrar(u2, manter);
+    };
+    if (u.mfa && u.mfa.on) { lg.step = 'mfa'; lg.ctx = { u, manter, login, seguir }; renderLogin(); return; }
+    await seguir();
+  },
+  async fMfa(f) {
+    const k = 'mfa:' + (lg.ctx.login || ''), at = bloqueado(lg.emp, k); if (at) { lgMsg(msgBloqueio(at)); return; }
+    let ip;
+    try { ip = await sbIpVerificar(lg.emp.id); }
+    catch (e) { lgMsg('Não foi possível verificar o bloqueio por IP: ' + sbMensagem(e)); return; }
+    if (ip && ip.decision === 'reject') {
+      if (st.sb) await st.sb.auth.signOut({ scope: 'local' });
+      lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(ip.message || 'Acesso temporariamente bloqueado para este IP.'); return;
+    }
+    if (!(await mfaConferirLogin(f.get('codigo'), lg.ctx.u))) {
+      const b = registraFalha(lg.emp, k);
+      auditaEm(lg.emp, lg.ctx.u || { id: lg.ctx.uid, login: lg.ctx.login }, 'mfa_falhou', lg.ctx.login || '');
+      try { ip = await sbIpRegistrarFalha(lg.emp.id); }
+      catch (e) { lgMsg('Código incorreto. Não foi possível registrar a tentativa para o bloqueio por IP: ' + sbMensagem(e)); return; }
+      if (ip && ip.decision === 'reject') {
+        if (st.sb) await st.sb.auth.signOut({ scope: 'local' });
+        lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(ip.message || 'Acesso temporariamente bloqueado para este IP.'); return;
+      }
+      if (b) { if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {}); lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(msgBloqueio(b)); return; }
+      lgMsg('Código incorreto ou vencido. Digite o código que aparece agora no aplicativo.'); const i = $('#fMfa input'); if (i) i.select(); return;
+    }
+    try { await sbIpRegistrarSucesso(lg.emp.id); }
+    catch (e) { toast('Não foi possível atualizar o controle de tentativas por IP: ' + sbMensagem(e), 7000); }
+    limpaFalhas(lg.emp, k);
+    if (lg.ctx.usouReserva !== undefined) toast(`Código de reserva usado. Restam ${lg.ctx.usouReserva}; gere novos desligando e ativando as duas etapas.`, 8000);
+    await lg.ctx.seguir();
+  },
+  async fPrimeiro(f) {
+    const login = normLogin(f.get('login')), nome = f.get('nome').trim(), manter = !!f.get('manter'), erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), { login: f.get('login'), nome: f.get('nome') });
+    if (erro) { lgMsg(erro); return; }
+    if ((await usuariosDe(lg.emp)).length) { lg.step = 'login'; renderLogin(); return; }
+    const codigo = novoCodigo();
+    const u = { id: uid('u'), nome, login, papel: 'admin', senha: await segredo(f.get('senha'), ITER_SENHA), rec: await segredo(normCodigo(codigo)), criado: Date.now() };
+    await salvarUsuario(lg.emp, u);
+    lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => entrar(u, manter) }; renderLogin();
+  },
+  async fEsqueci(f) {
+    if (st.sb) return sbEsqueci(f);
+    const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { lgMsg(erro); return; }
+    const u = (await usuariosDe(lg.emp)).find(x => x.login === normLogin(f.get('login')));
+    if (!u || !(await confere(normCodigo(f.get('codigo')), u.rec))) { lgMsg('Usuário ou código de recuperação incorretos.'); return; }
+    const codigo = novoCodigo(), novo = { ...u, senha: await segredo(f.get('senha'), ITER_SENHA), rec: await segredo(normCodigo(codigo)) }; delete novo.trocarSenha;
+    await salvarUsuario(lg.emp, novo);
+    lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => { lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg('Senha redefinida. Entre com a nova senha.', 'info'); } }; renderLogin();
+  },
+  fNovaSenha: sbNovaSenha,
+  async fTrocar(f) {
+    if (st.sb) return sbTrocar(f);
+    const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { lgMsg(erro); return; }
+    const { u, manter } = lg.ctx, codigo = novoCodigo(), novo = { ...u, senha: await segredo(f.get('senha'), ITER_SENHA), rec: await segredo(normCodigo(codigo)) }; delete novo.trocarSenha;
+    await salvarUsuario(lg.emp, novo);
+    lg.step = 'codigo'; lg.ctx = { codigo, seguir: () => entrar(novo, manter) }; renderLogin();
+  }
+};
+function bindLogin() {
+  const v = $('#loginView');
+  v.addEventListener('submit', async e => {
+    e.preventDefault();
+    const b = e.target.querySelector('[type=submit]'); b.disabled = true; lgMsg('');
+    try { await LG_FORMS[e.target.id](new FormData(e.target)); }
+    catch (err) { lgMsg((err && err.message) || 'Não foi possível concluir. Tente de novo.'); }
+    finally { if (b.isConnected) b.disabled = false; }
+  });
+  v.addEventListener('click', async e => {
+    const t = e.target.closest('button'); if (!t) return;
+    const ds = t.dataset;
+    if (ds.ver !== undefined) { const i = t.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; t.textContent = ver ? 'Ocultar' : 'Mostrar'; }
+    else if (ds.copiar) copiarTexto(ds.copiar, t);
+    else if (ds.emp) await escolherEmpresa(ds.emp);
+    else if (ds.lg === 'empresa') { lg.step = 'empresa'; lg.emp = null; renderLogin(); }
+    else if (ds.lg === 'login' || ds.lg === 'esqueci') { lg.step = ds.lg; renderLogin(); }
+    else if (ds.lg === 'seguir') await lg.ctx.seguir();
+    else if (ds.lg === 'naolegado') await liberar();
+    else if (ds.lg === 'cancelaMfa') { if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {}); lg.step = 'login'; lg.ctx = {}; renderLogin(); }
+    else if (ds.lg === 'recusa') { if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {}); limparSessao(); location.reload(); }
+    else if (ds.lg === 'aceita') {
+      if (!$('#lgAceito').checked) { lgMsg('Marque “Li e concordo” para continuar.'); return; }
+      t.disabled = true; try { await registraAceite(); await liberar(); } catch (err) { t.disabled = false; lgMsg((err && err.message) || 'Não foi possível registrar o aceite. Tente de novo.'); }
+    }
+    else if (ds.lg === 'simlegado') {
+      t.disabled = true;
+      try { if (st.sb) { t.textContent = 'Enviando…'; await sbEnviarLocais(lg.emp, lg.ctx.leg.pre); } else await moverDadosAntigos(lg.emp); await liberar(); }
+      catch (err) { t.disabled = false; lgMsg('Não foi possível mover os dados: ' + ((err && err.message) || 'erro') + ' Nada foi perdido.'); }
+    }
+  });
+}
+async function copiarTexto(txt, btn) {
+  try { await navigator.clipboard.writeText(txt); btn.textContent = 'Copiado'; }
+  catch (e) { btn.textContent = 'Selecione e copie'; }
+}
+
+/* ================= Segurança e privacidade (LGPD) =================
+   Verificação em duas etapas (código de 6 dígitos de um app autenticador, padrão TOTP), aviso de privacidade com aceite
+   registrado, registro de atividades, fim da sessão por inatividade e bloqueio após tentativas erradas.
+   Com o Supabase, as duas etapas usam o MFA do próprio Supabase Auth e o banco exige a segunda etapa (migração 04).
+   Sem o Supabase, o segredo fica no navegador junto com o usuário: separa o acesso casual, mas não protege contra quem
+   tem acesso ao computador. */
+const SEG = Object.assign({ inatividadeMin: 30, tentativas: 5, bloqueioMin: 5, reautenticarMin: 5, cifrarCampos: true }, CFG.seguranca || {});
+const PRIV = Object.assign({ versao: '2026-11.2', controlador: '', encarregado: '', contato: '' }, (CFG.seguranca || {}).privacidade || {});
+st.politica = { exige2fa: false, inatividadeMin: SEG.inatividadeMin };
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function b32enc(bytes) { let bits = 0, val = 0, out = ''; for (const b of bytes) { val = ((val << 8) | b) & 0xffff; bits += 8; while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits > 0) out += B32[(val << (5 - bits)) & 31]; return out; }
+function b32dec(s) { const out = []; let bits = 0, val = 0; for (const c of String(s).toUpperCase().replace(/[^A-Z2-7]/g, '')) { val = ((val << 5) | B32.indexOf(c)) & 0xffff; bits += 5; if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; } } return new Uint8Array(out); }
+async function totpEm(secret, ctr) {
+  const key = await crypto.subtle.importKey('raw', b32dec(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const buf = new ArrayBuffer(8), dv = new DataView(buf); dv.setUint32(0, Math.floor(ctr / 2 ** 32)); dv.setUint32(4, ctr >>> 0);
+  const h = new Uint8Array(await crypto.subtle.sign('HMAC', key, buf)), o = h[h.length - 1] & 15;
+  return String((((h[o] & 127) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3]) % 1e6).padStart(6, '0');
+}
+// Aceita o código do intervalo atual e de um antes/depois (relógio do celular um pouco adiantado ou atrasado). Devolve o contador usado
+async function totpConfere(secret, code, ultimo = -1) {
+  const c = String(code || '').replace(/\D/g, ''); if (c.length !== 6) return -1;
+  const agora = Math.floor(Date.now() / 30000);
+  for (const d of [0, -1, 1]) { const ctr = agora + d; if (ctr > ultimo && (await totpEm(secret, ctr)) === c) return ctr; }
+  return -1;
+}
+const somenteDigitos = v => String(v || '').replace(/\D/g, '');
+let qrLib = null;
+function carregaQr() {
+  if (window.qrcode) return Promise.resolve(window.qrcode);
+  if (!qrLib) qrLib = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/8fed486a-qrcode.min.js'; sc.integrity = 'sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1'; sc.crossOrigin = 'anonymous'; sc.onload = () => (window.qrcode ? res(window.qrcode) : rej(new Error('QR indisponível'))); sc.onerror = () => { qrLib = null; rej(new Error('QR indisponível')); }; document.head.append(sc); });
+  return qrLib;
+}
+async function qrDeUri(uri) { try { const q = await carregaQr(); const g = q(0, 'M'); g.addData(uri); g.make(); return g.createDataURL(5, 2); } catch (e) { return ''; } }
+
+/* ----- Bloqueio depois de tentativas erradas (neste navegador; o Supabase tem o próprio limite no servidor) ----- */
+// Por conta: espera progressiva a partir do 3º erro e bloqueio no N-ésimo; por navegador: mais de 20 erros em 15 min bloqueiam tudo.
+// Com a migração 08 e os hooks ligados, o servidor também bloqueia a conta, em qualquer navegador.
+const contaFreio = (emp, login) => `${emp ? emp.id : 'x'}:${normLogin(login)}`;
+const bloqueado = (emp, login) => Seg.Freio.ate(contaFreio(emp, login));
+// Devolve até quando ficou bloqueado, só quando o bloqueio passa de 1 minuto (a espera curta aparece na próxima tentativa)
+const registraFalha = (emp, login) => { const ate = Seg.Freio.falhou(contaFreio(emp, login)); return ate - Date.now() > 60000 ? ate : 0; };
+const limpaFalhas = (emp, login) => Seg.Freio.ok(contaFreio(emp, login));
+function msgBloqueio(ate) {
+  const s = Math.ceil((ate - Date.now()) / 1000);
+  return s <= 60 ? `Muitas tentativas seguidas. Aguarde ${s} segundo${s === 1 ? '' : 's'} e tente de novo.`
+    : `Acesso bloqueado por excesso de tentativas. Tente de novo às ${new Date(ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`;
+}
+
+/* ----- Registro de atividades (quem fez o quê e quando). Com o Supabase, ninguém altera nem apaga um registro ----- */
+const AUD_MAX_LOCAL = 1500;
+const AUD_ACAO = { bd_inclusao: 'Banco: inclusão', bd_alteracao: 'Banco: alteração', bd_exclusao: 'Banco: exclusão', usuario_alterado: 'Alterou o perfil de usuário', conta_bloqueada: 'Conta bloqueada por tentativas erradas', conta_desbloqueada: 'Desbloqueou uma conta', ip_desbloqueado: 'Desbloqueou um IP', chave_criada: 'Criou a chave de criptografia', cifra_migrada: 'Cifrou dados sensíveis existentes', privacidade_revogada: 'Revogou o aceite do aviso de privacidade', titular_resposta: 'Respondeu pedido de titular (LGPD)', reautenticacao: 'Confirmou a identidade', reautenticacao_falhou: 'Confirmação de identidade recusada', sessoes_encerradas: 'Encerrou as sessões em outros dispositivos', login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)', calendario: 'Alterou o calendário', verba: 'Verba indenizatória', pedagios: 'Pedágios' };
+const audLocalColl = (e = st.empresa) => (e ? e.id : 'x') + '_auditoria';
+async function audLocalLer(e) { try { const d = (await st.base.list(audLocalColl(e))).find(x => x.id === 'log'); return (d && d.data && d.data.items) || []; } catch (err) { return []; } }
+// Com a migração 08 o próprio banco registra estas ações (com mais detalhes): o navegador não duplica
+const AUD_DO_BANCO = new Set(['usuario_incluido', 'usuario_removido', 'politica', 'privacidade', 'privacidade_revogada', 'titular_pedido', 'titular_resposta', 'conta_desbloqueada']);
+// Texto coberto pelo hash de cada registro local (o hash do anterior entra junto: cadeia)
+const audTexto = r => [r.ha || '', r.em, r.uid || '', r.usuario || '', r.email || '', r.acao, r.detalhe || '', r.agente || ''].join('|');
+let audFila = Promise.resolve();
+const audita = (acao, detalhe = '') => auditaEm(st.empresa, st.usuario, acao, detalhe);
+function auditaEm(e, u, acao, detalhe = '') {
+  u = u || {}; if (!e) return Promise.resolve();
+  const reg = { acao, detalhe: Seg.texto(String(detalhe || ''), 500, true), usuario: u.nome || '', email: u.login || '', em: Date.now() };
+  if (st.sb) {
+    if (st.audSemTabela || !u.id || (st.srv >= 8 && AUD_DO_BANCO.has(acao))) return Promise.resolve();
+    return st.sb.from('auditoria').insert({ empresa_id: e.id, user_id: u.id, usuario: reg.usuario, email: reg.email, acao, detalhe: reg.detalhe, agente: navigator.userAgent.slice(0, 200) })
+      .then(({ error }) => { if (error && /auditoria|does not exist|PGRST205|42P01/i.test((error.message || '') + error.code)) st.audSemTabela = true; }, () => {});
+  }
+  // Sem o Supabase: um registro por vez, cada um com o hash SHA-256 do anterior (adulterar ou apagar do meio quebra a cadeia)
+  audFila = audFila.then(async () => {
+    const l = await audLocalLer(e), r = { ...reg, uid: u.id || '', agente: navigator.userAgent.slice(0, 200), ha: (l[0] && l[0].h) || '' };
+    r.h = await Seg.sha256(audTexto(r));
+    l.unshift(r);
+    await st.base.set(audLocalColl(e), 'log', { items: l.slice(0, AUD_MAX_LOCAL) });
+  }).catch(() => {});
+  return audFila;
+}
+async function audLista(proprios) {
+  if (st.sb) {
+    let q = st.sb.from('auditoria').select('acao,detalhe,usuario,email,em,user_id' + (st.srv >= 8 ? ',ip,seq,hash' : '')).eq('empresa_id', st.empresa.id).order('em', { ascending: false }).limit(300);
+    if (proprios) q = q.eq('user_id', st.usuario.id);
+    const { data, error } = await q; if (error) throw error;
+    return data.map(r => ({ ...r, em: Date.parse(r.em) }));
+  }
+  const l = await audLocalLer(); return proprios ? l.filter(r => r.uid === st.usuario.id) : l;
+}
+
+/* ----- Política do ambiente: duas etapas obrigatória e minutos de inatividade ----- */
+const polColl = () => st.empresa.id + '_seguranca';
+async function carregaPolitica() {
+  const p = { exige2fa: false, inatividadeMin: SEG.inatividadeMin };
+  try {
+    if (st.sb) {
+      const { data, error } = await st.sb.from('empresas').select('exige_2fa,inatividade_min').eq('id', st.empresa.id).maybeSingle();
+      if (!error && data) { p.exige2fa = !!data.exige_2fa; if (isNum(+data.inatividade_min) && data.inatividade_min !== null) p.inatividadeMin = +data.inatividade_min; }
+      else if (error) st.polSemColuna = true;
+    } else { const d = (await st.base.list(polColl())).find(x => x.id === 'politica'); if (d && d.data) Object.assign(p, d.data); }
+  } catch (e) { /* fica o padrão */ }
+  st.politica = p; return p;
+}
+async function salvaPolitica(p) {
+  if (st.sb) { const { error } = await st.sb.from('empresas').update({ exige_2fa: !!p.exige2fa, inatividade_min: p.inatividadeMin }).eq('id', st.empresa.id); if (error) throw error; }
+  else await st.base.set(polColl(), 'politica', p);
+  st.politica = { ...st.politica, ...p }; audita('politica', `Duas etapas obrigatória: ${p.exige2fa ? 'sim' : 'não'} · inatividade: ${p.inatividadeMin || 'sem limite'} min`);
+  iniciaInatividade();
+}
+
+/* ----- Duas etapas: estado, cadastro e conferência ----- */
+async function sbFatores() { const { data, error } = await st.sb.auth.mfa.listFactors(); if (error) throw error; return { ok: (data.totp || []).filter(f => f.status === 'verified'), todos: data.all || [] }; }
+async function sbPrecisaMfa() { try { const { data } = await st.sb.auth.mfa.getAuthenticatorAssuranceLevel(); return !!data && data.nextLevel === 'aal2' && data.currentLevel !== 'aal2'; } catch (e) { return false; } }
+async function mfaAtivo() {
+  if (st.sb) { try { return (await sbFatores()).ok.length > 0; } catch (e) { return false; } }
+  return !!(st.usuario && st.usuario.mfa && st.usuario.mfa.on);
+}
+// Começa o cadastro: devolve { secret, qr (imagem), uri, factorId? }
+async function mfaIniciar() {
+  const e = st.empresa, login = (st.usuario && st.usuario.login) || '';
+  if (st.sb) {
+    const f = await sbFatores();
+    for (const x of f.todos.filter(x => x.status === 'unverified')) await st.sb.auth.mfa.unenroll({ factorId: x.id }).catch(() => {});
+    const { data, error } = await st.sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: `RRM ${e.sigla} ${new Date().toLocaleDateString('pt-BR')}`, issuer: 'Roteirizador RRM' });
+    if (error) throw error;
+    // O Supabase devolve o SVG cru depois de "data:image/svg+xml;utf-8,": codificado, um "#" do SVG não corta a imagem
+    const q = String(data.totp.qr_code || ''), svg = q.replace(/^data:image\/svg\+xml;[^,]*,/, '');
+    return { factorId: data.id, secret: data.totp.secret, uri: data.totp.uri, qr: svg.trim().startsWith('<') ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) : q || await qrDeUri(data.totp.uri) };
+  }
+  const secret = b32enc(crypto.getRandomValues(new Uint8Array(20)));
+  const uri = `otpauth://totp/${encodeURIComponent(`Roteirizador RRM (${e.sigla}):${login}`)}?secret=${secret}&issuer=${encodeURIComponent('Roteirizador RRM')}&algorithm=SHA1&digits=6&period=30`;
+  return { secret, uri, qr: await qrDeUri(uri) };
+}
+// Confirma o primeiro código. Sem o Supabase, devolve também os códigos de reserva (aparecem uma vez só)
+async function mfaConfirmar(ini, code) {
+  if (st.sb) {
+    const { error } = await st.sb.auth.mfa.challengeAndVerify({ factorId: ini.factorId, code: somenteDigitos(code) });
+    if (error) throw new Error(/invalid|expired/i.test(error.message || '') ? 'Código incorreto ou vencido. Confira a hora do celular e digite o código que aparece agora.' : sbMensagem(error));
+    st.mfaAtivo = true; audita('mfa_ativada'); return { reservas: [] };
+  }
+  const ctr = await totpConfere(ini.secret, code); if (ctr < 0) throw new Error('Código incorreto ou vencido. Confira a hora do celular e digite o código que aparece agora.');
+  const reservas = [...Array(8)].map(() => novoCodigo().slice(0, 9));
+  const hashes = []; for (const r of reservas) hashes.push(await segredo(normCodigo(r)));
+  st.usuario = { ...st.usuario, mfa: { on: true, secret: ini.secret, ult: ctr, reservas: hashes, em: Date.now() } };
+  await salvarUsuario(st.empresa, st.usuario); st.mfaAtivo = true; audita('mfa_ativada');
+  return { reservas };
+}
+async function mfaDesligar(code) {
+  if (st.sb) {
+    const f = await sbFatores(); if (!f.ok.length) return;
+    const v = await st.sb.auth.mfa.challengeAndVerify({ factorId: f.ok[0].id, code: somenteDigitos(code) });
+    if (v.error) throw new Error('Código incorreto. Digite o código que aparece agora no aplicativo.');
+    for (const x of f.ok) { const { error } = await st.sb.auth.mfa.unenroll({ factorId: x.id }); if (error) throw error; }
+    await st.sb.auth.refreshSession().catch(() => {});
+  } else {
+    if ((await totpConfere(st.usuario.mfa.secret, code)) < 0) throw new Error('Código incorreto. Digite o código que aparece agora no aplicativo.');
+    const u = { ...st.usuario }; delete u.mfa; st.usuario = u; await salvarUsuario(st.empresa, u);
+  }
+  st.mfaAtivo = false; audita('mfa_desativada');
+}
+// Segunda etapa do login. u = usuário local (sem Supabase). Aceita também um código de reserva
+async function mfaConferirLogin(code, u) {
+  if (st.sb) {
+    const f = await sbFatores(); if (!f.ok.length) return true;
+    const { error } = await st.sb.auth.mfa.challengeAndVerify({ factorId: f.ok[0].id, code: somenteDigitos(code) });
+    return !error;
+  }
+  const m = u.mfa; if (!m || !m.on) return true;
+  const ctr = await totpConfere(m.secret, code, m.ult ?? -1);
+  if (ctr >= 0) { await salvarUsuario(lg.emp, { ...u, mfa: { ...m, ult: ctr } }); return true; }
+  const n = normCodigo(code);
+  if (n.length >= 8) for (let i = 0; i < (m.reservas || []).length; i++) if (await confere(n, m.reservas[i])) {
+    const res = m.reservas.slice(); res.splice(i, 1); await salvarUsuario(lg.emp, { ...u, mfa: { ...m, reservas: res } }); lg.ctx.usouReserva = res.length; return true;
+  }
+  return false;
+}
+
+/* ----- Aviso de privacidade (LGPD): o aceite fica registrado com a versão do texto ----- */
+async function privacidadeAceita() {
+  const u = st.usuario;
+  if (st.sb) {
+    try {
+      let q = st.sb.from('consentimentos').select('versao').eq('empresa_id', st.empresa.id).eq('user_id', u.id).eq('versao', PRIV.versao);
+      if (st.srv >= 8) q = q.is('revogado_em', null);
+      const { data, error } = await q.maybeSingle(); if (error) { st.consSemTabela = true; return lerAceiteLocal(); } return !!data;
+    }
+    catch (e) { return lerAceiteLocal(); }
+  }
+  return !!(u.privacidade && u.privacidade.versao === PRIV.versao);
+}
+const chaveAceite = () => `rt1:privacidade:${st.empresa.id}:${st.usuario.id}`;
+function lerAceiteLocal() { try { return localStorage.getItem(chaveAceite()) === PRIV.versao; } catch (e) { return false; } }
+async function registraAceite() {
+  const u = st.usuario;
+  if (st.sb) {
+    if (!st.consSemTabela) { const { error } = await st.sb.from('consentimentos').upsert({ empresa_id: st.empresa.id, user_id: u.id, versao: PRIV.versao, agente: navigator.userAgent.slice(0, 200), ...(st.srv >= 8 ? { revogado_em: null } : {}) }, { onConflict: 'empresa_id,user_id,versao' }); if (error) st.consSemTabela = true; }
+    try { localStorage.setItem(chaveAceite(), PRIV.versao); } catch (e) { /* ignora */ }
+  } else { st.usuario = { ...u, privacidade: { versao: PRIV.versao, em: Date.now() } }; delete st.usuario.privacidadeRevogada; await salvarUsuario(st.empresa, st.usuario); }
+  audita('privacidade', 'Versão ' + PRIV.versao);
+}
+// Revogação do aceite (LGPD, art. 8º, § 5º): fica registrada e a sessão termina; no próximo login o aviso aparece de novo
+async function revogarAceite() {
+  if (st.sb) {
+    if (!(st.srv >= 8)) throw new Error('Rode supabase/migracao_08_seguranca_avancada.sql para registrar a revogação no banco.');
+    const { error } = await st.sb.from('consentimentos').update({ revogado_em: new Date().toISOString() }).eq('empresa_id', st.empresa.id).eq('user_id', st.usuario.id).is('revogado_em', null);
+    if (error) throw error;
+    try { localStorage.removeItem(chaveAceite()); } catch (e) { /* ignora */ }
+  } else { const u = { ...st.usuario, privacidadeRevogada: Date.now() }; delete u.privacidade; st.usuario = u; await salvarUsuario(st.empresa, u); }
+  await audita('privacidade_revogada', 'Versão ' + PRIV.versao);
+  await sair();
+}
+function avisoPrivacidadeHtml() {
+  const ctrl = PRIV.controlador || (st.empresa && st.empresa.nome) || 'a empresa do ambiente';
+  const enc = PRIV.encarregado ? `${esc(PRIV.encarregado)}${PRIV.contato ? ' · ' + esc(PRIV.contato) : ''}` : 'o administrador do ambiente, em Minha conta';
+  return `<div class="priv">
+    <p><b>Quem trata os dados:</b> ${esc(ctrl)} (controladora). Encarregado pelo tratamento de dados pessoais: ${enc}.</p>
+    <p><b>Para quê:</b> planejar setores e rotas de visita, calcular KM, tempo e custos de deslocamento e comparar cenários. Os dados não são usados para outra finalidade nem vendidos.</p>
+    <p><b>Quais dados:</b> nome e e-mail de quem usa o sistema; cadastro de clientes (código, nome, endereço e coordenadas); colaboradores (código, nome e endereço da base de saída, que pode ser residencial); valores da verba indenizatória; e o registro das atividades no sistema (quem fez o quê, quando, de qual endereço IP e navegador).</p>
+    <p><b>Base legal:</b> execução do contrato de trabalho e de prestação de serviços e legítimo interesse da empresa na organização das visitas (LGPD, art. 7º, V e IX).</p>
+    <p><b>Com quem é compartilhado:</b> o banco de dados (Supabase) guarda as informações. Para localizar endereços e calcular rotas, apenas o endereço ou as coordenadas, sem nomes, são enviados aos serviços de mapa escolhidos (OpenStreetMap/Nominatim, OSRM, Valhalla ou Google).</p>
+    <p><b>Segurança:</b> conexão criptografada (HTTPS), endereço e coordenadas da base de saída dos colaboradores e lançamentos da verba cifrados com AES-256, acesso separado por empresa, verificação em duas etapas, bloqueio depois de tentativas erradas, fim da sessão por inatividade e registro de atividades que não pode ser alterado nem apagado sem deixar rastro.</p>
+    <p><b>Por quanto tempo:</b> os cadastros ficam enquanto forem necessários para a finalidade ou para cumprir obrigação legal; o registro de atividades, por até 5 anos.</p>
+    <p><b>Seus direitos:</b> confirmar e acessar os seus dados, corrigir, pedir anonimização ou exclusão do que não for necessário, portabilidade, saber com quem são compartilhados e revogar este aceite (LGPD, art. 18). Em Configurações → Segurança e privacidade você baixa os seus dados, envia pedidos (respondidos em até 15 dias) e revoga o aceite.</p>
+    <p class="muted" style="font-size:12px">Versão ${esc(PRIV.versao)}.</p></div>`;
+}
+
+/* ----- Fim da sessão por inatividade. A atividade em qualquer aba conta para todas ----- */
+const ATV_KEY = 'rt1:atividade';
+let atvT = null, atvAviso = null, atvUlt = 0;
+function marcaAtividade() { const t = Date.now(); if (t - atvUlt < 15000) return; atvUlt = t; try { localStorage.setItem(ATV_KEY, String(t)); } catch (e) { /* ignora */ } }
+function ultimaAtividade() { try { return Math.max(atvUlt, +localStorage.getItem(ATV_KEY) || 0); } catch (e) { return atvUlt; } }
+function iniciaInatividade() {
+  clearInterval(atvT); atvT = null;
+  const min = +st.politica.inatividadeMin || 0; if (!min) return;
+  atvUlt = 0; marcaAtividade();
+  if (!iniciaInatividade.ligado) { iniciaInatividade.ligado = true; ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => addEventListener(ev, marcaAtividade, { passive: true, capture: true })); }
+  atvT = setInterval(() => {
+    const ocioso = Date.now() - ultimaAtividade(), lim = min * 60000;
+    if (ocioso >= lim) { clearInterval(atvT); atvT = null; encerrarPorInatividade(); }
+    else if (ocioso >= lim - 60000 && !atvAviso) avisoInatividade(Math.ceil((lim - ocioso) / 1000));
+    else if (atvAviso && ocioso < lim - 60000) fechaAvisoInatividade();
+  }, 5000);
+}
+function avisoInatividade(seg) {
+  const d = document.createElement('div'); d.id = 'atvAviso'; d.className = 'float'; d.setAttribute('role', 'alertdialog');
+  d.innerHTML = `<b>Sua sessão vai terminar por inatividade</b><span class="muted">em <span id="atvSeg" class="num">${seg}</span> s, para proteger os dados.</span><button class="btn sm primary" type="button">Continuar conectado</button>`;
+  document.body.append(d); atvAviso = { el: d, fim: Date.now() + seg * 1000, t: setInterval(() => { const s = $('#atvSeg'); if (s) s.textContent = Math.max(0, Math.ceil((atvAviso.fim - Date.now()) / 1000)); }, 1000) };
+  d.querySelector('button').onclick = () => { atvUlt = 0; marcaAtividade(); fechaAvisoInatividade(); };
+}
+function fechaAvisoInatividade() { if (!atvAviso) return; clearInterval(atvAviso.t); atvAviso.el.remove(); atvAviso = null; }
+async function encerrarPorInatividade() {
+  fechaAvisoInatividade();
+  audita('sessao_expirada', `${st.politica.inatividadeMin} min sem uso`);
+  try { localStorage.setItem('rt1:saiuPorInatividade', '1'); } catch (e) { /* ignora */ }
+  await sair(true);
+}
+
+/* ----- Senha forte ----- */
+const SENHAS_FRACAS = ['12345678', '123456789', '1234567890', 'senha123', 'password', 'qwerty123', 'abc12345', 'mudar123', 'admin123', '11111111', '00000000'];
+function forcaSenha(s) { s = String(s); let p = 0; if (s.length >= SENHA_MIN) p++; if (s.length >= 14) p++; if (/[a-z]/.test(s) && /[A-Z]/.test(s)) p++; if (/\d/.test(s)) p++; if (/[^A-Za-z0-9]/.test(s)) p++; return Math.min(4, p); }
+function senhaMedidorHtml() {
+  return `<div class="pw-strength" data-pw-strength data-level="0">
+    <div class="pw-strength-head"><span>Força da senha</span><b data-pw-label aria-live="polite">Digite a nova senha</b></div>
+    <div class="pw-strength-bars" role="progressbar" aria-label="Força da senha" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" aria-valuetext="Sem senha">${'<i></i>'.repeat(4)}</div>
+    <p>Use ${SENHA_MIN} ou mais caracteres, letras e números; comprimento extra e variedade aumentam a força. A validação final aplica os requisitos completos de segurança.</p>
+  </div>`;
+}
+function bindSenhaMedidor(form) {
+  if (!form) return;
+  const input = form.elements.namedItem('senha'), medidor = form.querySelector('[data-pw-strength]');
+  if (!input || !medidor) return;
+  const barra = medidor.querySelector('[role="progressbar"]'), label = medidor.querySelector('[data-pw-label]'), segmentos = [...barra.children];
+  const atualizar = () => {
+    const senha = String(input.value || ''), nivel = forcaSenha(senha);
+    const texto = !senha ? 'Digite a nova senha' : ['Muito fraca', 'Fraca', 'Razoável', 'Boa', 'Forte'][nivel];
+    medidor.dataset.level = String(nivel);
+    label.textContent = texto;
+    barra.setAttribute('aria-valuenow', String(nivel));
+    barra.setAttribute('aria-valuetext', texto);
+    segmentos.forEach((s, i) => s.classList.toggle('on', i < nivel));
+  };
+  input.addEventListener('input', atualizar);
+  form.addEventListener('reset', () => setTimeout(atualizar, 0));
+  atualizar();
+}
+
+/* ----- Tela de segurança e privacidade ----- */
+const SG = { aba: 'protecao' };
+async function segurancaForm(aba) {
+  if (aba) SG.aba = aba;
+  const admin = st.usuario.papel === 'admin';
+  st.mfaAtivo = await mfaAtivo();
+  const abas = [['protecao', 'Proteção da conta'], ...(admin ? [['politica', 'Política e acessos']] : []), ['privacidade', 'Privacidade (LGPD)'], ['auditoria', admin ? 'Auditoria' : 'Minhas atividades'], ...(admin ? [['conformidade', 'Conformidade']] : [])];
+  if (!abas.some(a => a[0] === SG.aba)) SG.aba = 'protecao';
+  openModal(`<div class="dh"><h2>Segurança e privacidade</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
+  <div class="db"><div class="seg sg-abas" role="tablist" aria-label="Seções">${abas.map(([k, t]) => `<button type="button" role="tab" data-sgaba="${k}" aria-selected="${SG.aba === k}" aria-pressed="${SG.aba === k}">${t}</button>`).join('')}</div>
+    <div id="sgCorpo" class="sg-corpo"><p class="muted">Carregando…</p></div><div id="sgMsg" role="alert"></div></div>
+  <div class="df"><button class="btn" type="button" data-act="conta">Minha conta</button><button class="btn primary" type="button" data-close>Fechar</button></div>`, 'lg');
+  $$('#modal [data-sgaba]').forEach(b => { b.onclick = () => segurancaForm(b.dataset.sgaba); });
+  const msg = (t, c = 'bad') => { const m = $('#sgMsg'); if (m) m.innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
+  const corpo = $('#sgCorpo');
+  try { await SG_ABAS[SG.aba](corpo, msg, admin); }
+  catch (e) { if (corpo.isConnected) corpo.innerHTML = `<div class="banner bad">${esc(sbMensagem(e))}</div>`; }
+}
+const sgPill = (ok, sim, nao, cls = 'warn') => `<span class="pill ${ok ? 'ok' : cls}">${esc(ok ? sim : nao)}</span>`;
+const precisaMig08 = '<div class="banner" style="font-size:12.5px">Este recurso precisa da migração <b>supabase/migracao_08_seguranca_avancada.sql</b> no Supabase.</div>';
+const SG_ABAS = {
+  async protecao(el, msg) {
+    const p = st.politica, https = location.protocol === 'https:' || location.protocol === 'app:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    const linhas = [
+      ['Conexão', sgPill(https, location.protocol === 'app:' ? 'App de Windows' : location.protocol === 'https:' ? 'Criptografada (HTTPS)' : 'Local (este computador)', 'Sem HTTPS: publique o sistema com https', 'bad')],
+      ['Dados sensíveis', st.sb ? (st.cifra ? sgPill(true, 'Cifrados com AES-256-GCM') + ' <span class="muted">endereço e coordenadas das bases de saída, Verba Indenizatória</span>' : sgPill(false, '', st.srv >= 8 ? 'Chave indisponível' + (st.cifraErro ? ': ' + st.cifraErro : '') : 'Sem criptografia: falta a migração 08')) : '<span class="pill idle">Neste navegador</span> <span class="muted">sem servidor, os dados ficam só aqui</span>'],
+      ['Senhas', st.sb ? '<span class="pill ok">Supabase Auth (bcrypt)</span>' : '<span class="pill ok">PBKDF2-SHA256, 600 mil iterações</span>'],
+      ['Tentativas erradas', `<span class="pill ok">Bloqueio após ${SEG.tentativas}</span> <span class="muted">${st.sb ? (st.srv >= 8 ? 'no servidor (com os hooks ligados) e neste navegador' : 'neste navegador e pelos limites do Supabase') : 'neste navegador'}</span>`],
+      ['Bloqueio por IP', st.sb ? (st.srv >= 9 ? '<span class="pill ok">Ativo no fluxo do aplicativo</span> <span class="muted">mais de 20 falhas em 15 min; desbloqueio progressivo</span>' : '<span class="pill warn">Disponível após a migração 09</span>') : '<span class="pill idle">Disponível somente com Supabase</span>'],
+      ['Verificação “não sou um robô”', sgPill(Seg.captcha.ativo(), 'Ligada', 'Desligada (opcional, em js/config.js)', 'idle')],
+      ['Sessão', `<span class="pill ${+p.inatividadeMin ? 'ok' : 'warn'}">${+p.inatividadeMin ? 'Encerra depois de ' + p.inatividadeMin + ' min sem uso' : 'Sem limite de inatividade'}</span>`],
+      ['Registro de atividades', st.srv >= 8 ? '<span class="pill ok">À prova de adulteração</span> <span class="muted">cadeia SHA-256 gravada pelo banco</span>' : st.sb ? '<span class="pill ok">Só inclusão</span>' : '<span class="pill ok">Cadeia SHA-256 neste navegador</span>']
+    ];
+    el.innerHTML = `<section class="acct-sec" style="border-top:0;padding-top:0"><h3>Verificação em duas etapas</h3>
+      <p class="muted" style="margin:0">Além da senha, o login pede um código de 6 dígitos gerado no celular por um aplicativo autenticador (Google Authenticator, Microsoft Authenticator, Authy ou outro).</p>
+      <div class="row">${st.mfaAtivo ? `<span class="pill ok">Ativa nesta conta</span>${p.exige2fa ? '<span class="muted" style="font-size:12.5px">Obrigatória neste ambiente: não pode ser desligada.</span>' : '<button class="btn sm danger" type="button" id="sgMfaOff">Desligar</button>'}` : `<span class="pill warn">Desligada</span><button class="btn sm primary" type="button" id="sgMfaOn">Ativar agora</button>`}</div>
+      <div id="sgMfa"></div></section>
+    <section class="acct-sec"><h3>Sessões</h3>
+      ${st.sb ? `<p class="muted" style="margin:0">Esqueceu o sistema aberto em outro computador ou celular? Encerre as outras sessões; esta continua.</p><div class="row"><button class="btn sm" type="button" id="sgOutras">Encerrar as sessões em outros dispositivos</button></div>` : '<p class="muted" style="margin:0">Sem o servidor, a sessão existe só neste navegador.</p>'}</section>
+    <section class="acct-sec"><h3>Como os seus dados estão protegidos</h3><div class="tblwrap"><table class="t sg-prot"><tbody>${linhas.map(([a, b]) => `<tr><th scope="row">${a}</th><td class="wrap">${b}</td></tr>`).join('')}</tbody></table></div></section>`;
+    const on = $('#sgMfaOn'), off = $('#sgMfaOff'), outras = $('#sgOutras');
+    if (on) on.onclick = () => { on.disabled = true; montaCadastroMfa($('#sgMfa'), () => segurancaForm(), msg); };
+    if (off) off.onclick = () => {
+      $('#sgMfa').innerHTML = `<form id="sgOff" class="row"><label class="field"><span class="lbl">Código atual do aplicativo</span><input name="c" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label><button class="btn sm danger" type="submit">Confirmar e desligar</button></form>`;
+      $('#sgOff').onsubmit = async ev => { ev.preventDefault(); try { await mfaDesligar(new FormData(ev.target).get('c')); toast('Verificação em duas etapas desligada'); segurancaForm(); } catch (e) { msg(e.message || sbMensagem(e)); } };
+    };
+    if (outras) outras.onclick = () => armButton(outras, async () => {
+      const { error } = await st.sb.auth.signOut({ scope: 'others' });
+      if (error) { msg(sbMensagem(error)); return; }
+      audita('sessoes_encerradas'); msg('Pronto: as sessões em outros dispositivos foram encerradas.', 'info');
+    }, 'Confirmar');
+  },
+  async politica(el, msg) {
+    const p = st.politica;
+    el.innerHTML = `<section class="acct-sec" style="border-top:0;padding-top:0"><h3>Política do ambiente</h3>
+      <form id="sgPol" class="stack"><label class="chk"><input type="checkbox" name="exige"${p.exige2fa ? ' checked' : ''}> Exigir a verificação em duas etapas de todos os usuários de ${esc(st.empresa.nome)}</label>
+        <label class="field" style="max-width:280px"><span class="lbl">Encerrar a sessão sem uso depois de</span><select name="inat">${[0, 10, 15, 30, 60, 120].map(m => `<option value="${m}"${+p.inatividadeMin === m ? ' selected' : ''}>${m ? m + ' minutos' : 'nunca (não recomendado)'}</option>`).join('')}</select></label>
+        ${st.sb && st.polSemColuna ? '<div class="banner" style="font-size:12.5px">O banco ainda não tem as colunas da política. Rode <b>supabase/migracao_04_seguranca.sql</b> no Supabase.</div>' : ''}
+        <div class="row"><button class="btn sm primary" type="submit">Salvar política</button></div></form></section>
+      <section class="acct-sec"><h3>Contas com tentativas erradas</h3><div id="sgBloq" class="muted">Carregando…</div></section>
+      <section class="acct-sec"><h3>IPs com tentativas erradas</h3><div id="sgIpBloq" class="muted">Carregando…</div></section>`;
+    $('#sgPol').onsubmit = async ev => {
+      ev.preventDefault(); const f = new FormData(ev.target), nova = { exige2fa: !!f.get('exige'), inatividadeMin: +f.get('inat') };
+      if (!(await confirmarIdentidade('Alterar a política de segurança'))) { segurancaForm('politica'); return; }
+      try { await salvaPolitica(nova); await segurancaForm('politica'); toast('Política salva. Quem ainda não tiver as duas etapas faz o cadastro no próximo login.', 6000); }
+      catch (e) { await segurancaForm('politica'); toast(sbMensagem(e), 6000); }
+    };
+    const box = $('#sgBloq');
+    const l = await bloqueiosLista().catch(e => { box.textContent = sbMensagem(e); return undefined; });
+    if (!box.isConnected) return;
+    if (l === null) { box.classList.remove('muted'); box.innerHTML = precisaMig08; }
+    else if (l !== undefined) {
+      box.classList.remove('muted');
+      box.innerHTML = l.length ? `<div class="tblwrap"><table class="t"><thead><tr><th>Conta</th><th class="n">Erros seguidos</th><th>Situação</th><th>Último erro</th><th></th></tr></thead><tbody>${l.map(b => `<tr><td>${esc(b.nome || b.email)}${b.email && b.email !== b.nome ? `<div class="muted" style="font-size:12px">${esc(b.email)}</div>` : ''}</td><td class="n">${nf0.format(b.falhas)}</td><td>${b.bloqueadoAte ? `<span class="pill bad">Bloqueada até ${esc(fdh(b.bloqueadoAte))}</span>` : '<span class="pill warn">Em observação</span>'}</td><td>${b.ultima ? esc(fdh(b.ultima)) : '—'}</td><td><button class="btn sm" type="button" data-desbloq="${esc(b.id)}">Desbloquear</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<span class="muted">Nenhuma conta com tentativas erradas recentes.</span>';
+      box.onclick = ev => { const b = ev.target.closest('[data-desbloq]'); if (!b) return; armButton(b, async () => { try { await desbloquear(b.dataset.desbloq); toast('Conta desbloqueada'); segurancaForm('politica'); } catch (e) { msg(sbMensagem(e)); } }, 'Confirmar'); };
+    }
+    const ipBox = $('#sgIpBloq');
+    const ips = await bloqueiosIpLista().catch(e => { if (ipBox) ipBox.textContent = sbMensagem(e); return undefined; });
+    if (ips === undefined || !ipBox || !ipBox.isConnected) return;
+    if (ips === null) {
+      ipBox.classList.remove('muted');
+      ipBox.innerHTML = st.sb ? `<div class="banner" style="font-size:12.5px">Este recurso precisa da migração <b>supabase/migracao_09_bloqueio_ip.sql</b> no Supabase.</div>` : '<span class="muted">O bloqueio por IP requer o Supabase; o login local usa apenas o limite deste navegador.</span>';
+      return;
+    }
+    ipBox.classList.remove('muted');
+    ipBox.innerHTML = ips.length ? `<div class="tblwrap"><table class="t"><thead><tr><th>IP</th><th class="n">Falhas</th><th class="n">Bloqueios</th><th>Situação</th><th>Último erro</th><th></th></tr></thead><tbody>${ips.map(b => `<tr><td>${esc(b.ip)}</td><td class="n">${nf0.format(b.falhas)}</td><td class="n">${nf0.format(b.bloqueios)}</td><td>${b.bloqueadoAte > Date.now() ? `<span class="pill bad">Bloqueado até ${esc(fdh(b.bloqueadoAte))}</span>` : '<span class="pill warn">Sem bloqueio ativo</span>'}</td><td>${b.ultima ? esc(fdh(b.ultima)) : '—'}</td><td><button class="btn sm" type="button" data-ipunblock="${esc(b.ip)}">Desbloquear</button></td></tr>`).join('')}</tbody></table></div>`
+      : '<span class="muted">Nenhum IP com tentativas erradas.</span>';
+    ipBox.onclick = ev => { const b = ev.target.closest('[data-ipunblock]'); if (!b) return; armButton(b, async () => { try { await desbloquearIp(b.dataset.ipunblock); toast('IP desbloqueado'); segurancaForm('politica'); } catch (e) { msg(sbMensagem(e)); } }, 'Confirmar'); };
+  },
+  async privacidade(el, msg) {
+    el.innerHTML = `<section class="acct-sec" style="border-top:0;padding-top:0"><h3>Aviso de privacidade</h3>
+      <details><summary>Ler o aviso de privacidade (versão ${esc(PRIV.versao)})</summary>${avisoPrivacidadeHtml()}</details>
+      <div class="row"><button class="btn sm" type="button" id="sgMeus">Baixar os meus dados</button><button class="btn sm danger" type="button" id="sgRevoga">Revogar o meu aceite</button></div>
+      <p class="muted" style="margin:0;font-size:12.5px">Sem o aceite, não é possível usar o sistema: ao revogar, a sessão termina e o aviso aparece de novo no próximo login.</p></section>
+    <section class="acct-sec"><h3>Pedidos sobre os meus dados</h3>
+      <form id="sgPedForm" class="stack"><div class="fgrid"><label class="field"><span class="lbl">Tipo de pedido</span><select name="tipo">${Object.entries(PED_TIPOS).map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select></label></div>
+        <label class="field"><span class="lbl">Descreva o pedido</span><textarea name="txt" maxlength="2000" required placeholder="Ex.: corrigir o meu nome; excluir o endereço da minha base de saída"></textarea><span class="hint">O administrador do ambiente responde em até 15 dias (LGPD, art. 19).</span></label>
+        <div class="row"><button class="btn sm primary" type="submit">Enviar pedido</button></div></form>
+      <div id="sgPedidos" class="muted">Carregando…</div></section>`;
+    $('#sgMeus').onclick = baixarMeusDados;
+    const rv = $('#sgRevoga'); rv.onclick = () => armButton(rv, async () => { try { await revogarAceite(); } catch (e) { msg(e.message || sbMensagem(e)); } }, 'Confirmar: revogar e sair');
+    $('#sgPedForm').onsubmit = async ev => {
+      ev.preventDefault(); const f = new FormData(ev.target), b = ev.target.querySelector('[type=submit]'); b.disabled = true;
+      try { await pedCriar(f.get('tipo'), f.get('txt')); toast('Pedido enviado. Acompanhe o andamento aqui.', 5000); segurancaForm('privacidade'); }
+      catch (e) { b.disabled = false; msg(e.message || sbMensagem(e)); }
+    };
+    const box = $('#sgPedidos'), l = await pedLista(false).catch(() => null);
+    if (!box.isConnected) return;
+    box.classList.remove('muted');
+    box.innerHTML = l === null ? '<span class="muted" style="font-size:12.5px">Os pedidos ficam no registro de atividades, que o administrador acompanha.</span>' : pedTabela(l, false);
+  },
+  async auditoria(el, msg, admin) {
+    el.innerHTML = `${admin ? `<section class="acct-sec" style="border-top:0;padding-top:0"><h3>Integridade do registro</h3>
+      <p class="muted" style="margin:0">Cada registro guarda o hash SHA-256 do anterior. Se alguém alterar ou apagar um registro do meio, a conferência aponta onde.</p>
+      <div class="row"><button class="btn sm" type="button" id="sgInteg">Conferir integridade</button><span id="sgIntegR"></span></div></section>` : ''}
+      <section class="acct-sec"${admin ? '' : ' style="border-top:0;padding-top:0"'}><h3>${admin ? 'Registro de atividades do ambiente' : 'Minhas atividades'}</h3><div id="sgAud" class="muted">Carregando…</div></section>`;
+    const ig = $('#sgInteg');
+    if (ig) ig.onclick = async () => {
+      ig.disabled = true; const r = $('#sgIntegR'); r.innerHTML = '<span class="muted">Conferindo…</span>';
+      try {
+        const v = await integridade();
+        r.innerHTML = !v ? precisaMig08 : v.integro ? `<span class="pill ok">Íntegro</span> <span class="muted" style="font-size:12.5px">${nf0.format(v.registros)} registros · último selo <code class="mono" title="Guarde este código: ele prova o estado do registro neste momento">${esc(String(v.ultimoHash || '').slice(0, 16))}…</code></span>`
+          : `<span class="pill bad">Problema encontrado</span> <span style="font-size:12.5px">A cadeia quebra no registro ${esc(String(v.problema))}: ele foi alterado ou há registros apagados antes dele.</span>`;
+      } catch (e) { r.innerHTML = `<span class="pill bad">${esc(sbMensagem(e))}</span>`; }
+      finally { ig.disabled = false; }
+    };
+    let l;
+    try { l = await audLista(!admin); }
+    catch (e) { const b = $('#sgAud'); if (b) b.innerHTML = st.sb ? 'O banco ainda não tem o registro de atividades. Rode <b>supabase/migracao_04_seguranca.sql</b> no Supabase.' : 'Não foi possível ler o registro.'; return; }
+    const b = $('#sgAud'); if (!b) return;
+    const comIp = admin && l.some(r => r.ip);
+    b.classList.remove('muted');
+    b.innerHTML = l.length ? `<div class="tblwrap" style="max-height:340px;overflow:auto"><table class="t"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th>${comIp ? '<th>IP</th>' : ''}</tr></thead><tbody>${l.slice(0, 300).map(r => `<tr><td>${fdh(r.em)}</td><td>${esc(r.usuario || r.email || (r.user_id === '00000000-0000-0000-0000-000000000000' ? 'Banco de dados' : '—'))}</td><td>${esc(AUD_ACAO[r.acao] || r.acao)}</td><td class="wrap">${esc(r.detalhe || '')}</td>${comIp ? `<td class="mono">${esc(r.ip || '')}</td>` : ''}</tr>`).join('')}</tbody></table></div>
+      <div class="row"><button class="btn sm" type="button" id="sgAudXls">Exportar registro (.xlsx)</button><span class="muted" style="font-size:12px">${st.sb ? 'Os registros ficam no banco e não podem ser alterados nem apagados pelo sistema.' : `Os últimos ${AUD_MAX_LOCAL} registros ficam neste navegador.`}</span></div>` : '<span class="muted">Nenhuma atividade registrada ainda.</span>';
+    const x = $('#sgAudXls');
+    if (x) x.onclick = async () => {
+      if (!(await confirmarIdentidade('Exportar o registro de atividades'))) { segurancaForm('auditoria'); return; }
+      saveFile(`atividades_${slug(st.empresa.nome)}_${dstamp()}.xlsx`, xlsxBlob([['Atividades', l.map(r => ({ Quando: fdh(r.em), Usuario: r.usuario || '', Email: r.email || '', Acao: AUD_ACAO[r.acao] || r.acao, Detalhe: r.detalhe || '', IP: r.ip || '', Hash: r.hash || r.h || '' }))]]));
+      audita('exportacao', 'Registro de atividades');
+      if (!$('#sgAud')) segurancaForm('auditoria');
+    };
+  },
+  async conformidade(el, msg) {
+    el.innerHTML = '<p class="muted">Carregando…</p>';
+    const [membros, pedidos] = await Promise.all([conformidadeLista().catch(() => undefined), pedLista(true).catch(() => null)]);
+    if (!el.isConnected) return;
+    const agora = Date.now(), abertos = (pedidos || []).filter(x => !['atendido', 'negado'].includes(x.status)), atrasados = abertos.filter(x => x.prazo < agora);
+    const kpi = (t, v, sub, cls = '') => `<div class="sg-kpi ${cls}"><span class="lbl">${t}</span><b class="num">${v}</b><span class="muted">${sub}</span></div>`;
+    const m = membros || [];
+    el.innerHTML = `<div class="sg-kpis">
+        ${kpi('Pessoas no ambiente', membros ? nf0.format(m.length) : '—', membros ? `${m.filter(x => x.papel === 'admin').length} administrador(es)` : 'precisa da migração 08')}
+        ${kpi('Com duas etapas', membros ? nf0.format(m.filter(x => x.duas_etapas).length) : '—', st.politica.exige2fa ? 'obrigatória no ambiente' : 'não obrigatória', membros && m.some(x => !x.duas_etapas) ? 'warn' : '')}
+        ${kpi('Aceite do aviso atual', membros ? nf0.format(m.filter(x => x.aceite_versao === PRIV.versao && !x.aceite_revogado).length) : '—', 'versão ' + esc(PRIV.versao))}
+        ${kpi('Pedidos em aberto', pedidos ? nf0.format(abertos.length) : '—', atrasados.length ? `${atrasados.length} fora do prazo` : 'nenhum atrasado', atrasados.length ? 'bad' : '')}
+      </div>
+      <section class="acct-sec" style="border-top:0"><h3>Pessoas do ambiente</h3>${membros ? `<div class="tblwrap"><table class="t"><thead><tr><th>Nome</th><th>Perfil</th><th>Duas etapas</th><th>Aceite do aviso</th><th>Último acesso</th></tr></thead><tbody>${m.map(x => `<tr><td>${esc(x.nome)}<div class="muted" style="font-size:12px">${esc(x.email || '')}</div></td><td>${x.papel === 'admin' ? 'Administrador' : 'Usuário'}</td><td>${sgPill(x.duas_etapas, 'Ativa', 'Desligada')}</td><td>${x.aceite_revogado ? '<span class="pill bad">Revogado</span>' : x.aceite_versao === PRIV.versao ? `<span class="pill ok">${esc(fdate(x.aceite_em))}</span>` : x.aceite_versao ? `<span class="pill warn">Versão ${esc(x.aceite_versao)}</span>` : '<span class="pill warn">Pendente</span>'}</td><td>${x.ultimo_acesso ? esc(fdh(x.ultimo_acesso)) : '—'}</td></tr>`).join('')}</tbody></table></div>` : precisaMig08}</section>
+      <section class="acct-sec"><h3>Pedidos de titulares</h3>${pedidos === null ? precisaMig08 : pedTabela(pedidos, true)}</section>
+      <section class="acct-sec"><h3>Relatório de conformidade</h3><p class="muted" style="margin:0">Planilha com o resumo dos controles, o inventário dos dados pessoais (finalidade, base legal, compartilhamento, proteção e retenção), as pessoas, os pedidos e as atividades. Serve para a auditoria da LGPD e para o encarregado (DPO).</p>
+        <div class="row"><button class="btn sm primary" type="button" id="sgRel">Gerar relatório (.xlsx)</button></div></section>`;
+    $('#sgRel').onclick = relatorioLgpd;
+    el.onclick = ev => {
+      const b = ev.target.closest('[data-pedresp]'); if (!b) return;
+      const id = isNaN(+b.dataset.pedresp) ? b.dataset.pedresp : +b.dataset.pedresp, p = (pedidos || []).find(x => x.id === id); if (!p) return;
+      const box = b.closest('td');
+      box.innerHTML = `<form class="stack sg-resp"><select name="status">${Object.entries(PED_STATUS).map(([k, [t]]) => `<option value="${k}"${p.status === k ? ' selected' : ''}>${t}</option>`).join('')}</select><textarea name="resp" maxlength="2000" placeholder="Resposta ao titular">${esc(p.resposta || '')}</textarea><div class="row"><button class="btn sm primary" type="submit">Salvar</button></div></form>`;
+      box.querySelector('form').onsubmit = async ev2 => {
+        ev2.preventDefault(); const f = new FormData(ev2.target);
+        try { await pedResponder(id, f.get('status'), f.get('resp')); toast('Pedido atualizado'); segurancaForm('conformidade'); } catch (e) { msg(sbMensagem(e)); }
+      };
+    };
+  }
+};
+/* ----- Pedidos de titulares (LGPD, art. 18): o titular abre, o administrador responde em até 15 dias ----- */
+const PED_TIPOS = { acesso: 'Acesso aos meus dados', correcao: 'Correção de dados', exclusao: 'Exclusão de dados', anonimizacao: 'Anonimização ou bloqueio', portabilidade: 'Portabilidade dos dados', informacao: 'Com quem os dados são compartilhados', oposicao: 'Oposição a um tratamento', revogacao: 'Revogação do consentimento', confirmacao: 'Confirmar se há tratamento dos meus dados' };
+const PED_STATUS = { aberto: ['Aberto', 'warn'], em_andamento: ['Em andamento', 'idle'], atendido: ['Atendido', 'ok'], negado: ['Negado', 'bad'] };
+const pedColl = () => st.empresa.id + '_pedidos';
+async function pedLista(todos) {
+  if (st.sb) {
+    if (!(st.srv >= 8)) return null;
+    let q = st.sb.from('pedidos_titular').select('*').eq('empresa_id', st.empresa.id).order('criado_em', { ascending: false }).limit(500);
+    if (!todos) q = q.eq('user_id', st.usuario.id);
+    const { data, error } = await q; if (error) throw error;
+    return data.map(x => ({ ...x, criado_em: Date.parse(x.criado_em), prazo: Date.parse(x.prazo), respondido_em: x.respondido_em ? Date.parse(x.respondido_em) : null }));
+  }
+  const d = (await st.base.list(pedColl())).find(x => x.id === 'lista'), l = (d && d.data && d.data.items) || [];
+  return todos ? l : l.filter(x => x.user_id === st.usuario.id);
+}
+async function pedCriar(tipo, descricao) {
+  const desc = Seg.texto(descricao, 2000, true).trim();
+  if (!PED_TIPOS[tipo]) throw new Error('Escolha o tipo de pedido.');
+  if (desc.length < 3) throw new Error('Descreva o pedido.');
+  if (st.sb) {
+    if (!(st.srv >= 8)) { await audita('titular_pedido', `${PED_TIPOS[tipo]}: ${desc}`); return; } // sem a migração 08, o pedido fica no registro
+    const { error } = await st.sb.from('pedidos_titular').insert({ empresa_id: st.empresa.id, user_id: st.usuario.id, tipo, descricao: desc }); if (error) throw error;
+    return;
+  }
+  const l = await pedLista(true), agora = Date.now(), id = l.reduce((m, x) => Math.max(m, +x.id || 0), 0) + 1;
+  l.unshift({ id, user_id: st.usuario.id, nome: st.usuario.nome, email: st.usuario.login, tipo, descricao: desc, status: 'aberto', resposta: null, criado_em: agora, prazo: agora + 15 * 864e5 });
+  await st.base.set(pedColl(), 'lista', { items: l });
+  audita('titular_pedido', `Pedido nº ${id} (${tipo}): ${desc}`);
+}
+async function pedResponder(id, status, resposta) {
+  if (!PED_STATUS[status]) throw new Error('Situação inválida.');
+  const r = Seg.texto(resposta || '', 2000, true).trim() || null;
+  if (st.sb) { const { error } = await st.sb.from('pedidos_titular').update({ status, resposta: r }).eq('id', id).eq('empresa_id', st.empresa.id); if (error) throw error; return; }
+  const l = await pedLista(true), x = l.find(y => y.id === id); if (!x) return;
+  Object.assign(x, { status, resposta: r, respondido_em: ['atendido', 'negado'].includes(status) ? Date.now() : null, respondido_por: st.usuario.nome });
+  await st.base.set(pedColl(), 'lista', { items: l });
+  audita('titular_resposta', `Pedido nº ${id} de ${x.nome || x.email}: ${status}`);
+}
+function pedTabela(l, admin) {
+  if (!l.length) return '<span class="muted">Nenhum pedido.</span>';
+  const agora = Date.now();
+  return `<div class="tblwrap"><table class="t"><thead><tr><th>Nº</th>${admin ? '<th>Titular</th>' : ''}<th>Pedido</th><th>Situação</th><th>Prazo</th><th>Resposta</th></tr></thead><tbody>${l.map(x => {
+    const [st_, cls] = PED_STATUS[x.status] || [x.status, 'idle'], aberto = !['atendido', 'negado'].includes(x.status), atraso = aberto && x.prazo < agora;
+    return `<tr><td class="num">${esc(x.id)}</td>${admin ? `<td>${esc(x.nome || '')}<div class="muted" style="font-size:12px">${esc(x.email || '')}</div></td>` : ''}<td class="wrap"><b>${esc(PED_TIPOS[x.tipo] || x.tipo)}</b><div class="muted" style="font-size:12.5px">${esc(x.descricao)}</div><div class="muted" style="font-size:11.5px">${esc(fdh(x.criado_em))}</div></td>
+      <td><span class="pill ${cls}">${esc(st_)}</span></td><td>${aberto ? `<span class="pill ${atraso ? 'bad' : 'idle'}">${atraso ? 'Atrasado · ' : ''}${esc(fdate(x.prazo))}</span>` : esc(x.respondido_em ? fdate(x.respondido_em) : '—')}</td>
+      <td class="wrap">${x.resposta ? esc(x.resposta) : '<span class="muted">—</span>'}${x.respondido_por ? `<div class="muted" style="font-size:11.5px">${esc(x.respondido_por)}</div>` : ''}${admin ? `<div class="row" style="margin-top:4px"><button class="btn sm" type="button" data-pedresp="${esc(x.id)}">Responder</button></div>` : ''}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+/* ----- Conformidade: pessoas do ambiente, integridade do registro, contas com tentativas erradas ----- */
+async function sbVersaoSeguranca() { try { const { data, error } = await st.sb.rpc('seguranca_versao'); return error ? 0 : +data || 0; } catch (e) { return 0; } }
+async function conformidadeLista() {
+  if (st.sb) {
+    if (!(st.srv >= 8)) return null;
+    const { data, error } = await st.sb.rpc('membros_conformidade', { e: st.empresa.id }); if (error) throw error;
+    return data.map(x => ({ ...x, ultimo_acesso: x.ultimo_acesso ? Date.parse(x.ultimo_acesso) : null, aceite_em: x.aceite_em ? Date.parse(x.aceite_em) : null }));
+  }
+  return (await usuariosDe(st.empresa)).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')).map(u => ({ user_id: u.id, nome: u.nome, email: u.login, papel: u.papel, duas_etapas: !!(u.mfa && u.mfa.on), ultimo_acesso: u.ultimoAcesso || null, aceite_versao: u.privacidade ? u.privacidade.versao : null, aceite_em: u.privacidade ? u.privacidade.em : null, aceite_revogado: !u.privacidade && !!u.privacidadeRevogada }));
+}
+async function integridade() {
+  if (st.sb) {
+    if (!(st.srv >= 8)) return null;
+    const { data, error } = await st.sb.rpc('auditoria_verificar', { e: st.empresa.id }); if (error) throw error;
+    const r = data[0]; return { registros: +r.registros, integro: r.integro, problema: r.primeiro_problema, ultimoHash: r.ultimo_hash, ultimoEm: r.ultimo_em ? Date.parse(r.ultimo_em) : null };
+  }
+  const l = (await audLocalLer()).slice().reverse(); let n = 0, integro = true, problema = null, ant = null, iniciou = false;
+  for (const r of l) {
+    if (!r.h) { if (iniciou && integro) { integro = false; problema = fdh(r.em); } continue; } // registro sem hash depois da cadeia começar
+    n++;
+    const ok = r.h === (await Seg.sha256(audTexto(r))) && (!iniciou || r.ha === ant);
+    if (!ok && integro) { integro = false; problema = fdh(r.em); }
+    ant = r.h; iniciou = true;
+  }
+  return { registros: n, integro, problema, ultimoHash: ant, ultimoEm: l.length ? l[l.length - 1].em : null };
+}
+async function bloqueiosLista() {
+  if (st.sb) {
+    if (!(st.srv >= 8)) return null;
+    const { data, error } = await st.sb.rpc('seguranca_bloqueios', { e: st.empresa.id }); if (error) throw error;
+    return data.map(b => ({ id: b.user_id, nome: b.nome, email: b.email, falhas: (b.falhas || 0) + (b.falhas_mfa || 0), bloqueadoAte: b.bloqueado_ate && Date.parse(b.bloqueado_ate) > Date.now() ? Date.parse(b.bloqueado_ate) : 0, ultima: b.ultima_falha ? Date.parse(b.ultima_falha) : 0 }));
+  }
+  return Seg.Freio.lista(st.empresa.id + ':').filter(v => (v.n || 0) > 0 || v.ate > Date.now()).map(v => ({ id: v.conta, nome: v.conta, email: '', falhas: v.n || 0, bloqueadoAte: v.ate > Date.now() ? v.ate : 0, ultima: v.ult || 0 }));
+}
+async function bloqueiosIpLista() {
+  if (!st.sb || !(st.srv >= 9)) return null;
+  const { data, error } = await st.sb.rpc('seguranca_ips_bloqueados', { e: st.empresa.id });
+  if (error) throw error;
+  return data.map(b => ({
+    ip: b.ip,
+    falhas: b.falhas || 0,
+    bloqueios: b.bloqueios || 0,
+    bloqueadoAte: b.bloqueado_ate ? Date.parse(b.bloqueado_ate) : 0,
+    ultima: b.ultima_falha ? Date.parse(b.ultima_falha) : 0
+  }));
+}
+async function desbloquearIp(ip) {
+  if (!st.sb || !(st.srv >= 9)) throw new Error('O bloqueio por IP não está disponível.');
+  const { error } = await st.sb.rpc('seguranca_ip_desbloquear', { e: st.empresa.id, alvo: ip });
+  if (error) throw error;
+}
+async function desbloquear(id) {
+  if (st.sb) { const { error } = await st.sb.rpc('seguranca_desbloquear', { e: st.empresa.id, alvo: id }); if (error) throw error; return; }
+  Seg.Freio.liberar(st.empresa.id + ':' + id); audita('conta_desbloqueada', id);
+}
+// Chave de criptografia dos campos sensíveis (migração 08). Sem ela, os dados continuam abertos como antes
+async function carregaChaveDados() {
+  st.cifra = null; st.cifraErro = '';
+  if (!(st.srv >= 8) || SEG.cifrarCampos === false || !Seg.temCripto()) return;
+  try { const { data, error } = await st.sb.rpc('chave_dados', { e: st.empresa.id }); if (error) throw error; st.cifra = await Seg.importarChave(data); }
+  catch (e) { st.cifraErro = sbMensagem(e); toast('A chave de criptografia do ambiente não carregou: ' + st.cifraErro, 8000); }
+}
+// Avisa no login se houve tentativas erradas na conta desde o último acesso (como fazem os bancos)
+async function avisoTentativas() {
+  let n = st.avisoTentativas || 0, quando = null; st.avisoTentativas = 0;
+  if (st.sb && st.srv >= 8) { try { const { data } = await st.sb.rpc('minhas_tentativas'); if (data && data[0]) { n = Math.max(n, data[0].falhas || 0); quando = data[0].ultima; } } catch (e) { /* segue */ } }
+  if (n > 0) toast(`Atenção: ${n} tentativa(s) com senha ou código errado na sua conta desde o último acesso${quando ? ' (a última em ' + fdh(Date.parse(quando)) + ')' : ''}. Se não foi você, troque a senha em Minha conta.`, 12000);
+}
+
+/* ----- Confirmação de identidade antes de ações sensíveis (backup, política, remover pessoas…). Vale por alguns minutos ----- */
+let reautAte = 0;
+function confirmarIdentidade(motivo) {
+  if (Date.now() < reautAte) return Promise.resolve(true);
+  const mfa = !!st.mfaAtivo, comCap = !!st.sb && !mfa && Seg.captcha.ativo();
+  return new Promise(res => {
+    let fim = false; const acaba = v => { if (!fim) { fim = true; obs.disconnect(); res(v); } };
+    openModal(`<div class="dh"><h2>Confirme que é você</h2></div>
+      <form class="db stack" id="raForm"><p class="muted" style="margin:0"><b>${esc(motivo)}</b> é uma ação sensível. ${mfa ? 'Digite o código que aparece agora no aplicativo autenticador.' : 'Digite a sua senha para continuar.'}</p>
+        ${mfa ? textoCampo('codigo', 'Código do aplicativo', 'one-time-code', 'inputmode="numeric" maxlength="7"') : senhaCampo('senha', 'Senha', 'current-password')}
+        ${comCap ? '<div class="rvx-captcha" id="raCaptcha"></div>' : ''}<div id="raMsg" role="alert"></div></form>
+      <div class="df"><button class="btn" type="button" id="raNao">Cancelar</button><button class="btn primary" type="submit" form="raForm">Confirmar</button></div>`, 'sm');
+    const m = $('#modal'), obs = new MutationObserver(() => { if (m.hidden || !$('#raForm')) acaba(false); });
+    obs.observe(m, { childList: true, attributes: true, attributeFilter: ['hidden'] });
+    const erro = t => { const x = $('#raMsg'); if (x) x.innerHTML = `<div class="banner bad">${esc(t)}</div>`; };
+    if (comCap) montaCaptcha($('#raCaptcha'), erro);
+    $$('#raForm [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+    $('#raNao').onclick = () => { acaba(false); closeModal(); };
+    $('#raForm').onsubmit = async ev => {
+      ev.preventDefault();
+      const f = new FormData(ev.target), b = $('#modal .df .primary'), k = 'reaut:' + (st.usuario.login || st.usuario.id), at = bloqueado(st.empresa, k);
+      if (at) { erro(msgBloqueio(at)); return; }
+      b.disabled = true;
+      try {
+        let ok;
+        if (mfa) ok = await mfaConferirLogin(f.get('codigo'), st.usuario);
+        else if (st.sb) {
+          const cap = $('#raCaptcha'), tok = Seg.captcha.token(cap);
+          if (tok === '') { erro('Conclua a verificação de segurança.'); return; }
+          const { error } = await st.sb.auth.signInWithPassword({ email: st.usuario.login, password: f.get('senha'), options: tok ? { captchaToken: tok } : undefined });
+          Seg.captcha.reiniciar(cap);
+          if (error && !/invalid login/i.test(error.message || '')) { erro(sbMensagem(error)); return; }
+          ok = !error;
+        } else ok = await confere(f.get('senha'), st.usuario.senha);
+        if (!ok) {
+          const bl = registraFalha(st.empresa, k); audita('reautenticacao_falhou', motivo);
+          if (bl) { erro(msgBloqueio(bl) + ' Por segurança, a sessão vai terminar.'); setTimeout(() => sair(), 2500); return; }
+          erro(mfa ? 'Código incorreto ou vencido. Digite o código que aparece agora.' : 'Senha incorreta.'); return;
+        }
+        limpaFalhas(st.empresa, k); reautAte = Date.now() + Math.max(1, +SEG.reautenticarMin || 5) * 60000;
+        audita('reautenticacao', motivo); acaba(true); closeModal();
+      } finally { if (b.isConnected) b.disabled = false; }
+    };
+  });
+}
+
+/* ----- Relatório de conformidade LGPD (administrador) ----- */
+async function relatorioLgpd() {
+  if (!window.XLSX) { toast('O gerador de planilhas não carregou'); return; }
+  if (!(await confirmarIdentidade('Gerar o relatório de conformidade LGPD'))) { segurancaForm('conformidade'); return; }
+  toast('Montando o relatório…', 4000);
+  const e = st.empresa, p = st.politica, agora = Date.now();
+  const [membros, pedidos, ativ, integ] = await Promise.all([conformidadeLista().catch(() => null), pedLista(true).catch(() => null), audLista(false).catch(() => []), integridade().catch(() => null)]);
+  const nCol = st.col ? st.col.size : 0, nCli = st.cli ? st.cli.size : 0, abertos = (pedidos || []).filter(x => !['atendido', 'negado'].includes(x.status));
+  const nVerba = (window.VerbaMod && window.VerbaMod.qtd) ? window.VerbaMod.qtd() : '';
+  const prot = st.cifra ? 'cifrado com AES-256-GCM (chave do ambiente no Supabase Vault)' : 'acesso separado por ambiente (RLS)';
+  const resumo = [
+    ['Ambiente', e.nome], ['Gerado em', fdh(agora)], ['Gerado por', `${st.usuario.nome} <${st.usuario.login}>`],
+    ['Controlador', PRIV.controlador || e.nome], ['Encarregado (DPO)', PRIV.encarregado ? PRIV.encarregado + (PRIV.contato ? ' · ' + PRIV.contato : '') : 'não informado (js/config.js → seguranca.privacidade)'],
+    ['Versão do aviso de privacidade', PRIV.versao], ['Onde ficam os dados', st.sb ? 'Banco de dados Supabase da empresa' : 'Neste navegador'],
+    ['Duas etapas obrigatória', p.exige2fa ? 'Sim' : 'Não'], ['Fim da sessão por inatividade', +p.inatividadeMin ? p.inatividadeMin + ' min' : 'Desligado'],
+    ['Bloqueio por tentativas erradas', `${SEG.tentativas} tentativas · ${st.srv >= 8 ? 'servidor (hooks) e navegador' : 'navegador'}`],
+    ['Criptografia dos campos sensíveis', st.cifra ? 'Ligada (AES-256-GCM)' : st.sb ? 'Desligada (falta a migração 08 ou a chave)' : 'Não se aplica (dados no navegador)'],
+    ['Integridade do registro de atividades', integ ? `${integ.integro ? 'Íntegro' : 'PROBLEMA no registro ' + integ.problema} · ${integ.registros} registros` : 'não conferida'],
+    ['Último selo do registro (SHA-256)', integ && integ.ultimoHash ? integ.ultimoHash : '—'],
+    ['Pessoas no ambiente', membros ? membros.length : '—'], ['Pessoas com duas etapas', membros ? membros.filter(x => x.duas_etapas).length : '—'],
+    ['Aceites válidos da versão atual', membros ? membros.filter(x => x.aceite_versao === PRIV.versao && !x.aceite_revogado).length : '—'],
+    ['Pedidos de titulares em aberto', pedidos ? abertos.length : '—'], ['Pedidos fora do prazo de 15 dias', pedidos ? abertos.filter(x => x.prazo < agora).length : '—']
+  ].map(([Item, Valor]) => ({ Item, Valor: String(Valor) }));
+  const compart = st.sb ? 'Supabase (operador, banco de dados)' : 'nenhum (fica no navegador)';
+  const inventario = [
+    { Categoria: 'Pessoas que usam o sistema', 'Dados pessoais': 'nome, e-mail, perfil, duas etapas, aceites', Quantidade: membros ? membros.length : '', Finalidade: 'controle de acesso e segurança', 'Base legal (LGPD)': 'execução de contrato (art. 7º, V)', Compartilhamento: compart, 'Proteção': 'senha com hash, duas etapas, acesso por ambiente', 'Retenção': 'enquanto tiver acesso ao ambiente' },
+    { Categoria: 'Colaboradores', 'Dados pessoais': 'código, nome, função, endereço e coordenadas da base de saída (pode ser residencial)', Quantidade: nCol, Finalidade: 'planejar setores e rotas, calcular KM, tempo e verba', 'Base legal (LGPD)': 'execução do contrato de trabalho (art. 7º, V) e legítimo interesse (art. 7º, IX)', Compartilhamento: compart + '; serviços de mapa recebem só endereço ou coordenadas, sem nome', 'Proteção': 'endereço e coordenadas ' + prot, 'Retenção': 'enquanto durar o vínculo e os prazos legais' },
+    { Categoria: 'Clientes', 'Dados pessoais': 'código, nome, endereço e coordenadas (pessoas físicas, quando houver)', Quantidade: nCli, Finalidade: 'roteirização das visitas', 'Base legal (LGPD)': 'legítimo interesse (art. 7º, IX) e execução de contrato (art. 7º, V)', Compartilhamento: compart + '; serviços de mapa recebem só endereço ou coordenadas', 'Proteção': 'acesso separado por ambiente', 'Retenção': 'enquanto houver relação comercial' },
+    { Categoria: 'Verba indenizatória', 'Dados pessoais': 'valores por vendedor, reembolsos, descontos, motivos e comprovantes', Quantidade: nVerba, Finalidade: 'cálculo e pagamento da verba', 'Base legal (LGPD)': 'execução do contrato de trabalho (art. 7º, V) e obrigação legal (art. 7º, II)', Compartilhamento: compart, 'Proteção': 'lançamentos ' + prot + '; só o administrador altera', 'Retenção': 'prazos trabalhista e fiscal' },
+    { Categoria: 'Registro de atividades', 'Dados pessoais': 'quem fez o quê, quando, endereço IP e navegador', Quantidade: ativ.length, Finalidade: 'segurança e prestação de contas (art. 6º, X e art. 37)', 'Base legal (LGPD)': 'legítimo interesse (art. 7º, IX) e exercício regular de direitos (art. 7º, VI)', Compartilhamento: compart, 'Proteção': 'só inclusão; cadeia de hashes SHA-256', 'Retenção': 'até 5 anos' },
+    { Categoria: 'Aceites e pedidos de titulares', 'Dados pessoais': 'versão aceita, data, navegador; pedidos e respostas', Quantidade: pedidos ? pedidos.length : '', Finalidade: 'comprovar o aceite e atender os direitos do titular (art. 18)', 'Base legal (LGPD)': 'cumprimento de obrigação legal (art. 7º, II)', Compartilhamento: compart, 'Proteção': 'datas do servidor; só o administrador responde', 'Retenção': 'até 5 anos' }
+  ];
+  const sheets = [['Resumo', resumo], ['Inventário de dados', inventario]];
+  if (membros) sheets.push(['Pessoas', membros.map(x => ({ Nome: x.nome, Email: x.email || '', Perfil: x.papel === 'admin' ? 'Administrador' : 'Usuário', 'Duas etapas': x.duas_etapas ? 'Ativa' : 'Desligada', 'Aceite (versão)': x.aceite_versao || '', 'Aceite (data)': x.aceite_em ? fdh(x.aceite_em) : '', Revogado: x.aceite_revogado ? 'Sim' : 'Não', 'Último acesso': x.ultimo_acesso ? fdh(x.ultimo_acesso) : '' }))]);
+  if (pedidos) sheets.push(['Pedidos de titulares', pedidos.map(x => ({ 'Nº': x.id, Titular: x.nome || '', Email: x.email || '', Tipo: PED_TIPOS[x.tipo] || x.tipo, Pedido: x.descricao, 'Situação': (PED_STATUS[x.status] || [x.status])[0], Aberto: fdh(x.criado_em), Prazo: fdate(x.prazo), Resposta: x.resposta || '', 'Respondido em': x.respondido_em ? fdh(x.respondido_em) : '', 'Respondido por': x.respondido_por || '' }))]);
+  sheets.push(['Atividades', ativ.map(r => ({ Quando: fdh(r.em), Usuario: r.usuario || '', Email: r.email || '', Acao: AUD_ACAO[r.acao] || r.acao, Detalhe: r.detalhe || '', IP: r.ip || '', Hash: r.hash || r.h || '' }))]);
+  saveFile(`conformidade_lgpd_${slug(e.nome)}_${dstamp()}.xlsx`, xlsxBlob(sheets));
+  audita('exportacao', 'Relatório de conformidade LGPD');
+  segurancaForm('conformidade');
+}
+
+// Cadastro das duas etapas, usado em Segurança e no login quando o ambiente exige
+async function montaCadastroMfa(box, fim, msg) {
+  box.innerHTML = '<p class="muted">Preparando…</p>';
+  let ini; try { ini = await mfaIniciar(); } catch (e) { box.innerHTML = ''; msg(sbMensagem(e)); return; }
+  box.innerHTML = `<div class="mfa-cad"><ol class="mfa-passos"><li>Abra o aplicativo autenticador no celular e escolha adicionar conta.</li><li>Leia o QR code ao lado${ini.qr ? '' : ' (indisponível agora)'} ou digite a chave.</li><li>Digite abaixo o código de 6 dígitos que aparecer.</li></ol>
+    <div class="mfa-qr">${ini.qr ? `<img src="${esc(ini.qr)}" alt="QR code para o aplicativo autenticador" width="168" height="168">` : ''}<div class="lbl">Chave</div><code class="mfa-key">${esc(ini.secret.match(/.{1,4}/g).join(' '))}</code></div></div>
+    <form id="mfaCad" class="row"><label class="field"><span class="lbl">Código do aplicativo</span><input name="c" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label><button class="btn primary" type="submit">Confirmar e ativar</button></form>`;
+  const inp = box.querySelector('input'); inp.focus();
+  box.querySelector('#mfaCad').onsubmit = async ev => {
+    ev.preventDefault(); const b = ev.target.querySelector('button'); b.disabled = true;
+    try {
+      const r = await mfaConfirmar(ini, inp.value);
+      if (r.reservas.length) { box.innerHTML = `<div class="banner info">Duas etapas ativadas. Guarde estes códigos de reserva fora do computador: cada um vale uma vez, se você perder o celular.</div><div class="lg-code mfa-res">${r.reservas.map(esc).join('<br>')}</div><div class="row"><button class="btn" type="button" id="mfaCop">Copiar códigos</button><button class="btn primary" type="button" id="mfaFim">Já guardei, continuar</button></div>`; $('#mfaCop').onclick = e => copiarTexto(r.reservas.join('\n'), e.target); $('#mfaFim').onclick = fim; }
+      else { toast('Verificação em duas etapas ativada'); fim(); }
+    } catch (e) { b.disabled = false; msg(e.message || sbMensagem(e)); inp.select(); }
+  };
+}
+// Baixa o que o sistema guarda sobre a própria pessoa (LGPD, art. 18, II)
+async function baixarMeusDados() {
+  const u = st.usuario, out = { geradoEm: new Date().toISOString(), ambiente: { id: st.empresa.id, nome: st.empresa.nome }, conta: { id: u.id, nome: u.nome, login: u.login, papel: u.papel, criado: u.criado ? new Date(u.criado).toISOString() : undefined, duasEtapas: !!st.mfaAtivo }, aceitesPrivacidade: [], atividades: [] };
+  try {
+    if (st.sb) { const { data } = await st.sb.from('consentimentos').select('versao,aceito_em').eq('empresa_id', st.empresa.id).eq('user_id', u.id); out.aceitesPrivacidade = data || []; }
+    else if (u.privacidade) out.aceitesPrivacidade = [{ versao: u.privacidade.versao, aceito_em: new Date(u.privacidade.em).toISOString() }];
+  } catch (e) { /* segue sem */ }
+  try { out.atividades = (await audLista(true)).map(r => ({ em: new Date(r.em).toISOString(), acao: AUD_ACAO[r.acao] || r.acao, detalhe: r.detalhe || '', ip: r.ip || undefined })); } catch (e) { /* segue sem */ }
+  try { const ps = await pedLista(false); if (ps) out.pedidos = ps.map(x => ({ numero: x.id, tipo: PED_TIPOS[x.tipo] || x.tipo, pedido: x.descricao, situacao: (PED_STATUS[x.status] || [x.status])[0], aberto: new Date(x.criado_em).toISOString(), resposta: x.resposta || undefined })); } catch (e) { /* segue sem */ }
+  const col = [...(st.col ? st.col.values() : [])].find(c => normLogin(c.email || '') === normLogin(u.login));
+  if (col) out.cadastroDeColaborador = col;
+  saveFile(`meus_dados_${slug(u.nome || 'usuario')}_${dstamp()}.json`, new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
+  audita('titular_exportou');
+}
+
+/* ----- Minha conta ----- */
+function renderAcct() {
+  const e = st.empresa, u = st.usuario, b = $('#acctBtn');
+  b.innerHTML = `<span class="sg">${esc(e.sigla)}</span><span class="an">${esc(e.nome)}</span>`;
+  b.title = `${e.nome} · ${u.nome}`;
+}
+function mostraSegredo(titulo, texto, valor) {
+  openModal(`<div class="dh"><h2>${esc(titulo)}</h2></div><div class="db"><p class="muted" style="margin:0">${esc(texto)}</p><div class="lg-code">${esc(valor)}</div></div>
+    <div class="df"><button class="btn" type="button" id="sgCopia">Copiar</button><button class="btn primary" type="button" id="sgFim">Continuar</button></div>`, 'sm');
+  $('#sgCopia').onclick = e => copiarTexto(valor, e.target);
+  $('#sgFim').onclick = () => { closeModal(); if (st.view !== 'conta') contaForm(); };
+}
+/* ----- Minha conta com Supabase: as contas ficam no Supabase Auth, o sistema só vincula ao ambiente ----- */
+function renderContaPage() {
+  if (st.sb) renderContaPageSb(); else renderContaPageLocal();
+}
+function voltarConta() {
+  const origem = st.accountReturn;
+  st.accountReturn = null;
+  if (origem && origem.screen === 'home') { setScreen('home', origem.homeSec); return; }
+  setView(origem && origem.view && origem.view !== 'conta' ? origem.view : 'mapa');
+}
+function contaForm() {
+  if (st.view === 'conta' && st.screen === 'planner') return;
+  st.accountReturn = { screen: st.screen, view: st.view, homeSec: st.homeSec };
+  setView('conta');
+}
+function renderContaPageSb() {
+  const e = st.empresa, u = st.usuario, admin = u.papel === 'admin', mfa = !!st.mfaAtivo;
+  const nome = esc(u.nome), iniciais = (u.nome.trim().split(/\s+/).slice(0, 2).map(x => x.charAt(0)).join('') || 'U').toUpperCase();
+  $('#pageView').innerHTML = `<div class="page account-page">
+    <div class="ph account-heading"><div><h1>Minha conta</h1><p>Informações pessoais e segurança do seu perfil.</p></div><button class="btn" type="button" data-act="contaVoltar">Voltar</button></div>
+    <section class="account-profile card"><div class="account-avatar" aria-hidden="true">${esc(iniciais)}</div><div class="account-profile-info"><div class="row"><h2>${nome}</h2><span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span></div><p>${esc(u.login)}</p><div class="account-meta"><span>Ambiente: <b>${esc(e.nome)}</b></span><span>Verificação em duas etapas: <b>${mfa ? 'Ativada' : 'Desativada'}</b></span></div></div></section>
+    <div id="ctMsg" role="alert"></div>
+    <div class="account-grid">
+      <section class="card account-card"><div class="ch"><div><h2>Alterar senha</h2><p>Atualize sua senha de acesso.</p></div></div><div class="cb">
+        <form id="ctSenha"><div class="fgrid">${mfa ? `<label class="field"><span class="lbl">Código do aplicativo (2 etapas)</span><input type="text" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label>` : senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div>${senhaMedidorHtml()}${mfa ? '' : captchaHtml('ctCaptcha')}<div class="row"><button class="btn primary" type="submit">Salvar senha</button></div></form>
+      </div></section>
+      <section class="card account-card"><div class="ch"><div><h2>Segurança e privacidade</h2><p>Gerencie a proteção da conta e seus dados.</p></div></div><div class="cb account-security"><p>Verificação em duas etapas: <span class="pill ${mfa ? 'ok' : 'warn'}">${mfa ? 'Ativada' : 'Desativada'}</span></p><button class="btn" type="button" data-act="seguranca">Abrir segurança e privacidade</button></div></section>
+      ${admin ? `<section class="card account-card account-admin"><div class="ch"><div><h2>Usuários do ambiente</h2><p>Gerencie os acessos vinculados a este ambiente.</p></div></div><div class="cb">
+        <div id="ctUsuarios" class="muted">Carregando…</div>
+        <form id="ctNovo"><h3>Incluir usuário</h3><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off" maxlength="120"></label><label class="field"><span class="lbl">E-mail</span><input type="email" name="email" required autocomplete="off" maxlength="320"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"><span class="hint">Usada só se a pessoa ainda não tiver conta</span></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div>${senhaMedidorHtml()}${captchaHtml('ctNovoCaptcha')}<div class="row"><button class="btn primary" type="submit">Incluir usuário</button></div></form>
+      </div></section>` : ''}
+    </div>
+    <div class="account-actions"><button class="btn danger" type="button" id="ctSair">Sair e trocar de ambiente</button></div>
+  </div>`;
+  const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
+  $$('#pageView [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  bindSenhaMedidor($('#ctSenha')); bindSenhaMedidor($('#ctNovo'));
+  $('#ctSair').onclick = sair;
+  montaCaptcha($('#ctCaptcha'), t => msg(t)); montaCaptcha($('#ctNovoCaptcha'), t => msg(t));
+  $('#ctSenha').onsubmit = async ev => {
+    ev.preventDefault(); const f = new FormData(ev.target);
+    const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { msg(erro); return; }
+    // Com as duas etapas, a confirmação é o código do aplicativo: entrar de novo com a senha rebaixaria a sessão para uma etapa só
+    const kf = 'reaut:' + (st.usuario.login || st.usuario.id), at = bloqueado(e, kf); if (at) { msg(msgBloqueio(at)); return; }
+    if (mfa) { if (!(await mfaConferirLogin(f.get('codigo')))) { registraFalha(e, kf); msg('Código incorreto ou vencido. Digite o código que aparece agora no aplicativo.'); return; } }
+    else {
+      const cap = $('#ctCaptcha'), tok = Seg.captcha.token(cap); if (tok === '') { msg('Conclua a verificação de segurança.'); return; }
+      const ent = await st.sb.auth.signInWithPassword({ email: st.usuario.login, password: f.get('atual'), options: tok ? { captchaToken: tok } : undefined });
+      Seg.captcha.reiniciar(cap);
+      if (ent.error) { const inv = /invalid login/i.test(ent.error.message); if (inv) registraFalha(e, kf); msg(inv ? 'A senha atual está incorreta.' : sbMensagem(ent.error)); return; }
+    }
+    limpaFalhas(e, kf);
+    const { error } = await st.sb.auth.updateUser({ password: f.get('senha') });
+    if (error) { msg(sbMensagem(error)); return; }
+    await st.sb.auth.signOut({ scope: 'others' }).catch(() => {}); // senha nova: quem estava com a antiga em outro aparelho sai
+    ev.target.reset(); msg('Senha alterada. As sessões abertas em outros dispositivos foram encerradas.', 'info'); audita('senha');
+  };
+  if (admin) {
+    listaMembros(msg);
+    $('#ctNovo').onsubmit = async ev => {
+      ev.preventDefault(); const f = new FormData(ev.target), email = String(f.get('email')).trim(), b = ev.target.querySelector('[type=submit]');
+      if (String(f.get('senha')).length < SENHA_MIN) { msg(`A senha provisória precisa ter ao menos ${SENHA_MIN} caracteres.`); return; }
+      b.disabled = true;
+      try {
+        const vincula = async () => { const { data, error } = await st.sb.rpc('adicionar_membro', { e: e.id, mail: email, nome_membro: Seg.texto(String(f.get('nome')).trim(), 120), papel_membro: f.get('papel') === 'admin' ? 'admin' : 'usuario' }); if (error) throw error; return data; };
+        if ((await vincula()) === 'ok') { renderPage(); toast('Essa pessoa já tinha conta: foi incluída neste ambiente com a senha atual dela.', 6000); return; }
+        // Cliente separado: criar a conta não pode trocar a sessão de quem está logado
+        const temp = supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'rt1-temp' } });
+        const capN = $('#ctNovoCaptcha'), tokN = Seg.captcha.token(capN); if (tokN === '') throw new Error('Conclua a verificação de segurança para criar a conta.');
+        const { error } = await temp.auth.signUp({ email, password: f.get('senha'), options: { data: { trocar_senha: true }, ...(tokN ? { captchaToken: tokN } : {}) } });
+        Seg.captcha.reiniciar(capN);
+        if (error) throw error;
+        if ((await vincula()) !== 'ok') throw new Error('A conta foi criada, mas não pôde ser incluída no ambiente. Tente de novo.');
+        renderPage(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 6000); audita('usuario_incluido', email);
+      } catch (err) { msg(sbMensagem(err)); }
+      finally { b.disabled = false; }
+    };
+  }
+}
+async function listaMembros(msg) {
+  const e = st.empresa, { data, error } = await st.sb.from('membros_empresa').select('user_id,nome,papel,email').eq('empresa_id', e.id).order('nome');
+  const el = $('#ctUsuarios'); if (!el) return;
+  if (error) { el.textContent = 'Não foi possível carregar os usuários.'; return; }
+  el.classList.remove('muted');
+  el.innerHTML = `<div style="overflow-x:auto"><table class="t"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th></th></tr></thead><tbody>${data.map(u => `<tr><td>${esc(u.nome)}${u.user_id === st.usuario.id ? ' <span class="pill ok">você</span>' : ''}</td><td>${esc(u.email || '—')}</td><td>${u.papel === 'admin' ? 'Administrador' : 'Usuário'}</td><td>${u.user_id === st.usuario.id ? '' : `<button class="btn sm" type="button" data-ureset="${esc(u.user_id)}"${u.email ? '' : ' disabled'}>Enviar redefinição</button> <button class="btn sm danger" type="button" data-udel="${esc(u.user_id)}">Tirar do ambiente</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+  el.onclick = ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    const u = data.find(x => x.user_id === (b.dataset.ureset || b.dataset.udel)); if (!u) return;
+    if (b.dataset.ureset) armButton(b, async () => {
+      const cap = $('#ctNovoCaptcha'), tok = Seg.captcha.token(cap);
+      if (tok === '') { msg('Para enviar o link, conclua antes a verificação de segurança (no fim da tela) e clique de novo.'); return; }
+      const { error: er } = await st.sb.auth.resetPasswordForEmail(u.email, { redirectTo: urlRetorno(), ...(tok ? { captchaToken: tok } : {}) });
+      Seg.captcha.reiniciar(cap);
+      msg(er ? sbMensagem(er) : `Link de nova senha enviado para ${u.email}.`, er ? 'bad' : 'info');
+    }, 'Confirmar');
+    else armButton(b, async () => {
+      if (!(await confirmarIdentidade(`Tirar ${u.nome} do ambiente`))) { contaForm(); return; }
+      const { error: er } = await st.sb.from('membros_empresa').delete().eq('empresa_id', e.id).eq('user_id', u.user_id);
+      renderPage();
+      if (er) { toast(sbMensagem(er), 7000); return; }
+      toast(`${u.nome} saiu do ambiente. A conta continua existindo no Supabase.`, 6000); audita('usuario_removido', u.email || u.nome);
+    }, 'Confirmar');
+  };
+}
+function renderContaPageLocal() {
+  const e = st.empresa, u = st.usuario, admin = u.papel === 'admin';
+  const iniciais = (u.nome.trim().split(/\s+/).slice(0, 2).map(x => x.charAt(0)).join('') || 'U').toUpperCase();
+  $('#pageView').innerHTML = `<div class="page account-page">
+    <div class="ph account-heading"><div><h1>Minha conta</h1><p>Informações pessoais e segurança do seu perfil.</p></div><button class="btn" type="button" data-act="contaVoltar">Voltar</button></div>
+    <section class="account-profile card"><div class="account-avatar" aria-hidden="true">${esc(iniciais)}</div><div class="account-profile-info"><div class="row"><h2>${esc(u.nome)}</h2><span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span></div><p>${esc(u.login)}</p><div class="account-meta"><span>Ambiente: <b>${esc(e.nome)}</b></span><span>Verificação em duas etapas: <b>Disponível nas configurações de segurança</b></span></div></div></section>
+    <div id="ctMsg" role="alert"></div>
+    <div class="account-grid">
+      <section class="card account-card"><div class="ch"><div><h2>Alterar senha</h2><p>Atualize sua senha de acesso.</p></div></div><div class="cb">
+        <form id="ctSenha"><div class="fgrid">${senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div>${senhaMedidorHtml()}<div class="row"><button class="btn primary" type="submit">Salvar senha</button></div></form>
+      </div></section>
+      <section class="card account-card"><div class="ch"><div><h2>Código de recuperação</h2><p>Redefina sua senha caso não consiga entrar.</p></div></div><div class="cb account-security"><p>Gerar um novo código invalida o anterior. O código completo será exibido apenas uma vez.</p><button class="btn" type="button" id="ctCodigo">Gerar novo código</button><hr><h3>Segurança e privacidade</h3><button class="btn" type="button" data-act="seguranca">Abrir segurança e privacidade</button></div></section>
+      ${admin ? `<section class="card account-card account-admin"><div class="ch"><div><h2>Usuários do ambiente</h2><p>Gerencie os acessos vinculados a este ambiente.</p></div></div><div class="cb">
+        <div id="ctUsuarios" class="muted">Carregando…</div>
+        <form id="ctNovo"><h3>Incluir usuário</h3><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off" maxlength="120"></label><label class="field"><span class="lbl">Usuário ou e-mail</span><input type="text" name="login" required autocomplete="off" maxlength="320"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div>${senhaMedidorHtml()}<div class="row"><button class="btn primary" type="submit">Criar usuário</button><span class="muted" style="font-size:12px">A pessoa troca a senha no primeiro login.</span></div></form>
+      </div></section>` : ''}
+    </div>
+    <div class="account-actions"><button class="btn danger" type="button" id="ctSair">Sair e trocar de ambiente</button></div>
+  </div>`;
+  const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
+  $$('#pageView [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  bindSenhaMedidor($('#ctSenha')); bindSenhaMedidor($('#ctNovo'));
+  $('#ctSair').onclick = sair;
+  $('#ctSenha').onsubmit = async ev => {
+    ev.preventDefault(); const f = new FormData(ev.target);
+    const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { msg(erro); return; }
+    const kf = 'reaut:' + st.usuario.login, at = bloqueado(e, kf); if (at) { msg(msgBloqueio(at)); return; }
+    if (!(await confere(f.get('atual'), st.usuario.senha))) { registraFalha(e, kf); msg('A senha atual está incorreta.'); return; }
+    limpaFalhas(e, kf);
+    st.usuario = { ...st.usuario, senha: await segredo(f.get('senha'), ITER_SENHA) };
+    await salvarUsuario(e, st.usuario); ev.target.reset(); msg('Senha alterada.', 'info'); audita('senha');
+  };
+  $('#ctCodigo').onclick = async () => {
+    const codigo = novoCodigo(); st.usuario = { ...st.usuario, rec: await segredo(normCodigo(codigo)) };
+    await salvarUsuario(e, st.usuario);
+    mostraSegredo('Novo código de recuperação', 'Ele aparece só agora. O código anterior deixou de valer.', codigo);
+  };
+  if (admin) {
+    listaUsuarios(msg);
+    $('#ctNovo').onsubmit = async ev => {
+      ev.preventDefault(); const f = new FormData(ev.target), login = normLogin(f.get('login'));
+      if (String(f.get('senha')).length < SENHA_MIN) { msg(`A senha provisória precisa ter ao menos ${SENHA_MIN} caracteres.`); return; }
+      if ((await usuariosDe(e)).some(x => x.login === login)) { msg('Já existe um usuário com esse login neste ambiente.'); return; }
+      await salvarUsuario(e, { id: uid('u'), nome: Seg.texto(f.get('nome').trim(), 120), login, papel: f.get('papel'), senha: await segredo(f.get('senha'), ITER_SENHA), trocarSenha: true, criado: Date.now() });
+      renderPage(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 5000); audita('usuario_incluido', login);
+    };
+  }
+}
+async function listaUsuarios(msg) {
+  const e = st.empresa, us = (await usuariosDe(e)).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+  const el = $('#ctUsuarios'); if (!el) return;
+  el.classList.remove('muted');
+  el.innerHTML = `<div style="overflow-x:auto"><table class="t"><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th></th></tr></thead><tbody>${us.map(u => `<tr><td>${esc(u.nome)}${u.id === st.usuario.id ? ' <span class="pill ok">você</span>' : ''}${u.trocarSenha ? ' <span class="pill warn">senha provisória</span>' : ''}</td><td>${esc(u.login)}</td><td>${u.papel === 'admin' ? 'Administrador' : 'Usuário'}</td><td>${u.id === st.usuario.id ? '' : `<button class="btn sm" type="button" data-ureset="${esc(u.id)}">Redefinir senha</button> <button class="btn sm danger" type="button" data-udel="${esc(u.id)}">Excluir</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+  el.onclick = ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    const u = us.find(x => x.id === (b.dataset.ureset || b.dataset.udel)); if (!u) return;
+    if (b.dataset.ureset) armButton(b, async () => {
+      if (!(await confirmarIdentidade(`Redefinir a senha de ${u.nome}`))) { contaForm(); return; }
+      const prov = novoCodigo(), novo = { ...u, senha: await segredo(prov, ITER_SENHA), trocarSenha: true }; delete novo.rec;
+      await salvarUsuario(e, novo);
+      mostraSegredo(`Senha provisória de ${u.nome}`, 'Passe esta senha para a pessoa. Ela escolhe a própria senha no próximo login.', prov);
+    }, 'Confirmar');
+    else armButton(b, async () => {
+      if (!(await confirmarIdentidade(`Excluir o usuário ${u.nome}`))) { contaForm(); return; }
+      await st.base.del(colUsuarios(e), u.id); renderPage(); toast(`Usuário ${u.nome} excluído.`, 5000); audita('usuario_removido', u.login);
+    }, 'Confirmar exclusão');
+  };
+}
+async function sair(porInatividade) {
+  for (const s of Save.stores) { clearTimeout(s.t); s.t = null; if (s.dirty.size) await s.flush(); }
+  if (Save.err) {
+    toast((porInatividade ? 'A sessão não foi encerrada porque há alterações que não foram salvas: ' : 'Há alterações que não foram salvas: ') + (Save.err.message || 'erro'), 8000);
+    if (porInatividade) iniciaInatividade();
+    return;
+  }
+  if (!porInatividade) await Promise.race([audita('logout'), sleep(1500)]);
+  if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {});
+  limparSessao(); location.reload();
+}
+
+/* ================= Início ================= */
+async function init() {
+  let db = null, user = null;
+  if (window.claude && typeof window.claude.use === 'function') {
+    try { [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } catch (e) { db = null; }
+  }
+  st.base = db ? CloudBackend(db) : LocalBackend;
+  const recuperacao = /type=recovery/.test(location.hash), linkVencido = /error_description=/.test(location.hash);
+  if (sbConfigurado()) { if (window.supabase) st.sb = criaSupabase(); else st.sbFalhou = true; }
+  if (user && user.can) { try { const c = await user.can('data.write'); if (c === false) st.ro = true; } catch (e) { /* ok */ } }
+  bindLogin();
+  if (sbConfigurado()) {
+    if (st.sb) {
+      const { data: { session } } = await st.sb.auth.getSession();
+      st.srv = await sbVersaoSeguranca();
+      if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+      if (recuperacao && session) { lg.step = 'novaSenha'; renderLogin(); return; }
+      const ses = lerSessao(), emp = ses && EMPRESAS.find(x => x.id === ses.emp);
+      if (session && emp) {
+        let u = null; try { u = await sbMembro(emp, session.user); } catch (e) { /* vai para o login */ }
+        if (u && !u.trocarSenha) {
+          st.empresa = emp; st.usuario = u; lg.emp = emp;
+          if (await sbPrecisaMfa()) { lg.step = 'mfa'; lg.ctx = { login: u.login, seguir: () => liberar() }; renderLogin(); return; }
+          await liberar(); return;
+        }
+      }
+      if (session) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {});
+    }
+    limparSessao(); renderLogin(); avisoSaida();
+    if (linkVencido) lgMsg('Este link de senha já venceu ou foi usado. Peça um novo em “Esqueci minha senha”.');
+    return;
+  }
+  const ses = lerSessao(), emp = ses && EMPRESAS.find(x => x.id === ses.emp);
+  if (emp) {
+    let u = null; try { u = (await usuariosDe(emp)).find(x => x.id === ses.uid); } catch (e) { /* vai para o login */ }
+    if (u && !u.trocarSenha) { st.empresa = emp; st.usuario = u; await liberar(); return; }
+  }
+  limparSessao(); renderLogin(); avisoSaida();
+}
+function avisoSaida() { try { if (localStorage.getItem('rt1:saiuPorInatividade')) { localStorage.removeItem('rt1:saiuPorInatividade'); lgMsg('A sua sessão terminou por inatividade, para proteger os dados. Entre de novo.', 'info'); } } catch (e) { /* ignora */ } }
+async function boot() {
+  const e = st.empresa;
+  Object.assign(DEF_P, e.padroes || {}); if (e.pontoMar) Object.assign(SEA, e.pontoMar);
+  // Itens de um estudo dependem do estudo e dos setores já gravados
+  const ambPronto = async () => { const a = st.amb; if (!a) return; clearTimeout(a.t); a.t = null; if (a.dirty.size) await a.flush(); while (a.busy) await sleep(30); };
+  st.backend = st.sb ? SupabaseBackend(st.sb, e.id, ambPronto) : { kind: st.base.kind, list: c => st.base.list(e.id + '_' + c), set: (c, i, d) => st.base.set(e.id + '_' + c, i, d), del: (c, i) => st.base.del(e.id + '_' + c, i) };
+  loadUI();
+  document.title = 'Route VORTEX · ' + e.nome;
+  document.body.classList.remove('screen-login');
+  renderAcct();
+  bindEvents();
+  initMap();
+  probeRoads();
+  applyPanels();
+  if (st.sb) await carregaChaveDados(); // antes de carregar os dados: colaboradores e verba podem estar cifrados
+  st.cli = new BucketStore('clientes'); st.col = new BucketStore('colaboradores'); st.amb = new BucketStore('ambientes'); st.imp = new BucketStore('importacoes');
+  try { await Promise.all([st.cli.load(), st.col.load(), st.amb.load()]); }
+  catch (e2) { toast('Não foi possível carregar os dados salvos: ' + (e2.message || e2.code || e2)); }
+  try { await st.imp.load(); } catch (e2) { /* o histórico de importações não impede o uso do sistema */ }
+  const ids = [...st.amb.values()].sort((a, b) => (b.alterado || 0) - (a.alterado || 0)).map(a => a.id);
+  const first = ids.includes(st.lastAmb) ? st.lastAmb : ids[0];
+  if (innerWidth < 900) st.panelL = false;
+  if (innerWidth >= 1100) st.panelR = true;
+  applyPanels();
+  await openAmb(first || null, false);
+  setScreen('home', 'hub');
+  $('#loading').hidden = true;
+  iniciaInatividade();
+  avisoTentativas();
+  // Os módulos carregam os próprios dados em segundo plano; o início se atualiza quando chegam
+  for (const M of [window.RotasMod, window.CalMod, window.VerbaMod, window.PedMod]) if (M) M.iniciar().then(() => { if (st.screen === 'home') renderHome(); }).catch(() => {});
+  addEventListener('beforeunload', ev => {
+    for (const s of Save.stores) if (s.dirty.size) s.flush();
+    if (geoQ.busy) { ev.preventDefault(); ev.returnValue = ''; } // a busca de coordenadas para se a página fechar
+    if (st.sb && [...Save.stores].some(s => s.dirty.size || s.busy || s.t)) { ev.preventDefault(); ev.returnValue = ''; } // gravação no banco em andamento
+  });
+}
+/* Funções internas usadas pelos módulos em arquivos separados (js/rotas.js) */
+window.RRM = {
+  st, $, $$, esc, toast, openModal, closeModal, armButton, ICON, ICON_MOD, nf0, nf1, fkm, fhm, fpct, ocPill, E, P, DEF_P, BucketStore, buildRoutes, sumRoutes,
+  DIA_C, DIA_L, COR_DIA, COR_SEM, isNum, uid, clone, norm, numBR, parseDias, parseSemanas, hasXY, hbars, vcols, kcard, saveFile, xlsxBlob, slug, dstamp, fdate, fdh,
+  tokens, isDark, BASES, PinMarker, setScreen, renderHome, enterStudy, openImport, downloadModelo, audita, migalha, roadRoute, realFromLegs, decodePoly, sleep,
+  get map() { return map; }
+};
+// Começa depois de todos os scripts da página (js/rotas.js vem depois deste arquivo)
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else setTimeout(init, 0);
+})();

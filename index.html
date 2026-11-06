@@ -7,10 +7,11 @@
     <meta name="description" content="Route VORTEX · Planejamento, setorização e roteirização" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230B1426'/%3E%3Cg transform='translate(32 32) scale(1.02) translate(-36 -32)'%3E%3Cg fill='none' stroke-linecap='round' stroke-width='5.4'%3E%3Cpath stroke='%2322D3EE' d='M32 32a12 12 0 0 1 24 0'/%3E%3Cpath stroke='%233B82F6' d='M32 32a12 12 0 0 1 24 0' transform='rotate(120 32 32)'/%3E%3Cpath stroke='%23E8F1FF' d='M32 32a12 12 0 0 1 24 0' transform='rotate(240 32 32)'/%3E%3C/g%3E%3Cg stroke-width='2.6' fill='%230B1426'%3E%3Ccircle stroke='%2322D3EE' cx='56' cy='32' r='3.4'/%3E%3Ccircle stroke='%233B82F6' cx='56' cy='32' r='3.4' transform='rotate(120 32 32)'/%3E%3Ccircle stroke='%23E8F1FF' cx='56' cy='32' r='3.4' transform='rotate(240 32 32)'/%3E%3C/g%3E%3Ccircle fill='%23F97316' stroke='%230B1426' cx='32' cy='32' r='5.6' stroke-width='3'/%3E%3C/g%3E%3C/svg%3E" />
     <meta name="theme-color" content="#0B1426" />
-    <!-- Política de conteúdo: só scripts deste site e dos CDNs usados; nenhum script embutido roda. Ver README → Segurança -->
+    <!-- Política de conteúdo: só scripts deste site, dos CDNs usados (com verificação de integridade) e do CAPTCHA, se ligado;
+         nenhum script embutido roda. Ver README → Segurança -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://maps.googleapis.com https://*.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss://*.supabase.co; worker-src 'self' blob:; frame-src https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://maps.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://js.hcaptcha.com https://*.hcaptcha.com 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.hcaptcha.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss://*.supabase.co; worker-src 'self' blob:; frame-src https://*.google.com https://challenges.cloudflare.com https://*.hcaptcha.com; object-src 'none'; base-uri 'self'; form-action 'self'"
     />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="claude:viewport-fit-sides" content="cover" />
@@ -43,15 +44,6 @@
         >
           <svg class="vx" viewBox="9 5 54 54" aria-hidden="true" focusable="false"><g fill="none" stroke-linecap="round" stroke-width="4.8"><path class="vx-2" d="M32 32a12 12 0 0 1 24 0"/><path class="vx-3" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path class="vx-1" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g><g class="vx-n" stroke-width="2.3"><circle class="vx-2" cx="56" cy="32" r="3.2"/><circle class="vx-3" cx="56" cy="32" r="3.2" transform="rotate(120 32 32)"/><circle class="vx-1" cx="56" cy="32" r="3.2" transform="rotate(240 32 32)"/></g><circle class="vx-h" cx="32" cy="32" r="5.2" stroke-width="2.8"/></svg><span class="wm"><small>ROUTE</small><b>VORTEX</b></span>
         </button>
-        <nav class="tabs" id="tabs" role="tablist" aria-label="Seções">
-          <button class="tab" role="tab" data-view="mapa" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Mapa</span></button>
-          <button class="tab" role="tab" data-view="roteiros" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/><circle cx="18" cy="5" r="2.5"/></svg><span>Roteiros</span></button>
-          <button class="tab" role="tab" data-view="estudos" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4"/></svg><span>Estudos</span></button>
-          <button class="tab" role="tab" data-view="clientes" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg><span>Clientes</span></button>
-          <button class="tab" role="tab" data-view="colaboradores" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5A6.5 6.5 0 0 1 21.5 20"/></svg><span>Colaboradores</span></button>
-          <button class="tab" role="tab" data-view="importar" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Importação</span></button>
-          <button class="tab" role="tab" data-view="config" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg><span>Configurações</span></button>
-        </nav>
         <div class="amb-pick">
           <select id="ambSel" title="Estudo aberto" aria-label="Estudo aberto">
             <option>Carregando…</option>
@@ -69,6 +61,19 @@
           aria-label="Minha conta"
         ></button>
       </header>
+      <nav class="desktop-nav" aria-label="Navegação principal">
+        <div class="nav-caption"><span class="nav-caption-mark" aria-hidden="true"></span><span>MÓDULOS</span></div>
+        <div class="tabs" id="tabs" role="tablist" aria-label="Seções">
+          <button class="tab" role="tab" data-view="mapa" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Mapa</span></button>
+          <button class="tab" role="tab" data-view="roteiros" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/><circle cx="18" cy="5" r="2.5"/></svg><span>Roteiros</span></button>
+          <button class="tab" role="tab" data-view="estudos" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4"/></svg><span>Estudos</span></button>
+          <button class="tab" role="tab" data-view="clientes" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg><span>Clientes</span></button>
+          <button class="tab" role="tab" data-view="colaboradores" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5A6.5 6.5 0 0 1 21.5 20"/></svg><span>Colaboradores</span></button>
+          <button class="tab" role="tab" data-view="importar" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Importação</span></button>
+          <button class="tab" role="tab" data-view="config" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg><span>Configurações</span></button>
+          <button class="tab" role="tab" data-view="conta" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg><span>Minha conta</span></button>
+        </div>
+      </nav>
       <main>
         <section id="homeView" aria-label="Página inicial"></section>
         <section id="mapView">
@@ -141,11 +146,13 @@
     <div id="geoBar" hidden role="status" aria-live="polite"></div>
     <div id="tip" hidden role="tooltip"></div>
     <div id="ctx" class="float" hidden role="menu" aria-label="Opções da seleção"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet.gridlayer.googlemutant@0.16.0/dist/Leaflet.GoogleMutant.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
+    <!-- integrity (SRI): o navegador só executa o arquivo do CDN se ele for exatamente o esperado -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.gridlayer.googlemutant@0.16.0/dist/Leaflet.GoogleMutant.js" integrity="sha384-NVeApJLhFaaKalRqZ2xBNeRECGMKMkF5VMTDJtXWk2g0Tq+5Jo1N7CZjhL3gQSFW" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
     <script src="js/config.js"></script>
+    <script src="js/seguranca.js"></script>
     <script src="js/engine.js"></script>
     <script src="js/app.js"></script>
     <script src="js/rotas.js"></script>

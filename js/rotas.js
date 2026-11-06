@@ -16,7 +16,7 @@ const nf2 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFr
 const brl = v => 'R$ ' + nf2.format(v || 0);
 const novoFiltro = () => ({ cid: new Set(), rg: new Set(), vend: new Set(), eq: new Set(), sg: new Set(), d: new Set(), w: new Set(), tempo: '', q: '' });
 const RS = {
-  bases: null, carregando: null, linhas: new Map(), memo: new Map(), poly: new Map(), estudos: new Map(),
+  bases: null, carregando: null, erro: null, linhas: new Map(), memo: new Map(), poly: new Map(), estudos: new Map(),
   aba: 'geral', base: '', tab: 'vend', abertos: new Set(), aberto: '', f: novoFiltro(),
   cor: 'vend', verLinhas: true, verRegioes: false, verBases: true, hist: { de: '', ate: '', met: 'km' },
   cmp: { a: null, b: null }, nomes: new Map(), ultimo: null, maps: [], job: null, ligado: false
@@ -49,9 +49,18 @@ function parsePeriodo(v) {
 }
 
 /* ---------- Dados ---------- */
-async function iniciar() {
+async function iniciar(tentarNovamente = false) {
   if (RS.bases) return;
-  if (!RS.carregando) RS.carregando = (async () => { const b = new R.BucketStore('rotasbase'); try { await b.load(); } catch (e) { /* segue vazio */ } RS.bases = b; })();
+  if (RS.erro && !tentarNovamente) throw RS.erro;
+  if (!RS.carregando) {
+    const b = new R.BucketStore('rotasbase');
+    st.rotasSemTabela = false;
+    RS.carregando = (async () => {
+      try { await b.load(); RS.bases = b; RS.erro = null; }
+      catch (e) { RS.erro = e; throw e; }
+      finally { RS.carregando = null; }
+    })();
+  }
   await RS.carregando;
 }
 const params = () => ({ ...DEF, ...((RS.bases && RS.bases.get(PARAM_ID)) || {}).p });
@@ -642,7 +651,16 @@ async function render(el = $('#homeView')) {
   if (!el || st.screen !== 'home' || st.homeSec !== 'rotas') return;
   const seq = ++renderSeq, keep = el.scrollTop;
   limpar(); liga(el);
-  if (!RS.bases) { el.innerHTML = `<div class="page home">${R.migalha('Rotas')}<p class="muted">Carregando as bases de rotas…</p></div>`; await iniciar(); if (seq !== renderSeq) return; }
+  if (!RS.bases) {
+    el.innerHTML = `<div class="page home">${R.migalha('Rotas')}<p class="muted">Carregando as bases de rotas…</p></div>`;
+    try { await iniciar(); }
+    catch (e) {
+      if (seq !== renderSeq) return;
+      el.innerHTML = `<div class="page home">${R.migalha('Rotas')}<div class="banner bad">Não foi possível consultar as bases de Rotas. Verifique a conexão e tente novamente. <button class="btn sm" type="button" data-ra="retry">Tentar novamente</button></div></div>`;
+      return;
+    }
+    if (seq !== renderSeq) return;
+  }
   const lista = basesList(), fl = fontesLista(), p = params();
   if (!fl.some(f => f.id === RS.base)) RS.base = (lista[0] && lista[0].id) || (fl[0] && fl[0].id) || '';
   const topo = `${R.migalha('Rotas')}<div class="ph"><div><h1>Rotas</h1><p>As rotas em uso mês a mês e os estudos do Planejamento: KM, tempo e custo por vendedor, mapa com pinos e regiões, histórico e comparação.</p></div>
@@ -709,6 +727,7 @@ function liga(el) {
     if (ds.rhm) { RS.hist.met = ds.rhm; render(); return; }
     const a = ds.ra, F = RS.ultimo && RS.ultimo.b.id === RS.base ? RS.ultimo : null, b = F && F.b;
     if (a === 'cmptroca') { const x = RS.cmp.a; RS.cmp.a = RS.cmp.b; RS.cmp.b = x; render(); return; }
+    if (a === 'retry') { iniciar(true).then(render).catch(e => { toast('Não foi possível consultar as bases: ' + (e.message || e.code || e)); render(); }); return; }
     if (a === 'importa') R.openImport('rotas');
     else if (a === 'modelo') R.downloadModelo('rotas');
     else if (a === 'param') paramForm();
@@ -749,11 +768,13 @@ function liga(el) {
 }
 
 function resumoHub() {
+  if (RS.erro) return { bases: 0, estudos: st.amb ? st.amb.size : 0, ultimo: '', km: '—', erro: true };
   if (!RS.bases) return null;
   const l = basesList(), b = l[0];
-  if (!b) return { bases: 0, ultimo: '', km: '—' };
+  if (st.rotasSemTabela) return { bases: 0, estudos: st.amb ? st.amb.size : 0, ultimo: '', km: '—', semTabela: true };
+  if (!b) return { bases: 0, estudos: st.amb ? st.amb.size : 0, ultimo: '', km: '—' };
   const a = agrega(recsResumo(b, novoFiltro()), fatorMes(b), semanasCiclo(b), b.res && b.res.cliV);
-  return { bases: l.length, ultimo: fmtPer(b.periodo), km: fkm(a.kmMes) };
+  return { bases: l.length, estudos: st.amb ? st.amb.size : 0, ultimo: fmtPer(b.periodo), km: fkm(a.kmMes) };
 }
 
 // Usado pela Verba Indenizatória: as mesmas fontes, rotas e nomes

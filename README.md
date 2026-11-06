@@ -1,7 +1,18 @@
 # Roteirizador RRM
 
-Sistema web de planejamento territorial, setorização e roteirização, inspirado no Omnitracs Roadnet / Territory Planner.
+Sistema de planejamento territorial, setorização e roteirização (Route VORTEX), inspirado no Omnitracs Roadnet / Territory Planner.
 Roda no navegador e guarda os dados no Supabase, sem servidor próprio para instalar.
+
+O projeto tem estas entregas, todas a partir dos mesmos arquivos:
+
+| Entrega | Arquivo | Para quê |
+|---|---|---|
+| **Web (oficial)** | `index.html` + `css/` + `js/` | Versão principal, aberta no navegador (Live Server, `npm start` ou hospedada) |
+| **Arquivo único** | `dist/roteirizador.html` | A mesma versão web num arquivo só, gerado por `npm run build` |
+| **Desktop (Windows)** | `desktop/` → `Roteirizador-RRM-Setup.exe` | Espelho da versão web numa janela própria, com instalador e atualização automática |
+| **Landing de download** | `landing/index.html` | Página simples com o botão para baixar o instalador |
+
+Regra de ouro: **toda mudança é feita na versão web oficial** (`index.html`, `css/`, `js/`). O arquivo único e o desktop são gerados a partir dela, sem código próprio de interface.
 
 ## Como rodar no VS Code (recomendado)
 
@@ -87,6 +98,8 @@ O sistema grava no Supabase: clientes, colaboradores, estudos, setores, roteiros
 
 Em um projeto novo, rode `supabase/schema.sql` no **SQL Editor**, depois `supabase/migracao_04_seguranca.sql`, `supabase/migracao_05_rotas.sql`, `supabase/migracao_06_calendario_verba.sql` e `supabase/migracao_07_pedagios.sql`, crie o usuário em **Authentication → Users** e dê acesso com o comando que está no fim do `schema.sql`. Quem já tinha o schema roda também, nesta ordem, `migracao_02_usuarios.sql`, `migracao_03_importacoes.sql` (histórico de importações), `migracao_04_seguranca.sql` (duas etapas, privacidade e registro de atividades) , `migracao_05_rotas.sql` (módulo Rotas), `migracao_06_calendario_verba.sql` (Calendário e Verba Indenizatória) e `migracao_07_pedagios.sql` (Pedágios). Todas podem rodar mais de uma vez. Para carregar um backup direto por SQL, use `python ferramentas/backup_para_sql.py backup.json`.
 
+Para ativar o bloqueio por IP, rode também `supabase/migracao_08_seguranca_avancada.sql` e depois `supabase/migracao_09_bloqueio_ip.sql`. O login do aplicativo bloqueia o IP após mais de 20 falhas em 15 minutos, com bloqueio progressivo limitado a 24 horas; as tentativas ficam por ambiente e são removidas após 90 dias. Administradores com MFA podem consultar e desbloquear IPs em **Segurança e privacidade → Política e acessos**. O recurso usa o IP recebido pelo Supabase e protege os logins feitos pelo aplicativo; mantenha também os limites e a proteção contra abuso configurados no Supabase Auth.
+
 ## Rotas
 
 O módulo **Rotas** guarda os roteiros em uso, por período (mês/ano), para acompanhar KM, tempo e custo e comparar com os estudos do Planejamento.
@@ -163,7 +176,8 @@ Fica em **Configurações → Segurança e privacidade** (também em **Minha con
 | Caminho | O que é |
 |---|---|
 | `index.html` | Página principal (estrutura das telas) |
-| `css/style.css` | Visual: cores, tema claro/escuro, layout do mapa e painéis |
+| `css/style.css` | Visual: os 4 temas (Escuro, Claro, Monocromático, Vertical) e o Automático, layout do mapa e painéis. No fim do arquivo fica a **camada de design enterprise** (tipografia, controles, cartões, tabelas, painéis em vidro, diálogos e Início) |
+| `js/tema.js` | Troca de tema (botão na barra superior e Configurações → Aparência), guardada neste dispositivo |
 | `js/config.js` | **Configurações**: ambientes de login, chave do Google e servidores de rotas (OSRM e Valhalla) |
 | `js/engine.js` | Motor de cálculo: setorização (k-means balanceado), distribuição em dias/semanas pela frequência, sequência (vizinho mais próximo + 2-opt + Or-opt), métricas de KM e tempo |
 | `js/app.js` | Aplicação: bases, estudos, mapa (Leaflet), pinos de GPS, laço, régua, seleção, importação/exportação Excel, roteirização pelas ruas (OSRM), Google opcional, login, duas etapas, privacidade e registro de atividades |
@@ -180,8 +194,10 @@ Fica em **Configurações → Segurança e privacidade** (também em **Minha con
 | `supabase/migracao_07_pedagios.sql` | Tabela das praças de pedágio |
 | `ferramentas/backup_para_sql.py` | Converte um backup do sistema em SQL para carregar no Supabase |
 | `dist/roteirizador.html` | Versão em arquivo único, pronta para enviar ou hospedar |
+| `desktop/` | App de Windows (Electron): `main.js` (janela, menu, atualização), `preload.js`, `scripts/` (cópia da web, bibliotecas, ícone) e `package.json` (instalador) |
+| `landing/` | Página de download do instalador (`index.html` + `icon.png`) |
 
-Bibliotecas usadas (carregadas por CDN, nada para instalar): Leaflet 1.9.4 (mapa), SheetJS 0.18.5 (Excel), Leaflet.GoogleMutant 0.16.0 (Google opcional). Fontes: IBM Plex (Google Fonts).
+Bibliotecas usadas (carregadas por CDN na web, nada para instalar): Leaflet 1.9.4 (mapa), SheetJS 0.18.5 (Excel), Leaflet.GoogleMutant 0.16.0 (Google opcional), Supabase JS 2.118.0 (banco) e qrcode-generator 1.4.4 (duas etapas). Fontes: Inter, Space Grotesk e IBM Plex Mono (Google Fonts). No desktop, todas vão embutidas no instalador.
 
 ## Serviços externos
 
@@ -204,20 +220,86 @@ No Supabase, por ambiente (veja acima). Sem o Supabase configurado, ficam no nav
 - Hospedar (Vercel, Netlify, servidor da empresa) para a equipe acessar por um link.
 - Servidores OSRM e Valhalla próprios com o mapa do Sudeste, para roteirizar estudos grandes sem limite de consultas.
 
+## Interface e temas
+
+A interface tem 4 temas da marca, mais o Automático, que segue o tema claro ou escuro do sistema operacional:
+
+| Tema | Fundo | Destaque |
+|---|---|---|
+| Escuro · Navy Vortex (padrão) | `#0B1426` | ciano `#22D3EE` e azul `#3B82F6` |
+| Claro | `#F5F8FC` | azul `#2563EB` |
+| Monocromático | azul `#1D4ED8` | branco |
+| Vertical · Noite | `#111D35` | azul `#3B82F6` e ciano `#22D3EE` |
+
+Troque pelo botão de tema na barra superior ou em **Configurações → Aparência**. A escolha fica no dispositivo (chave `rvx:tema`). O laranja `#F97316` do centro do vórtice é o mesmo em todos.
+
+O visual enterprise está numa camada separada no fim de `css/style.css`. Ela só usa as variáveis de cada tema (`--bg`, `--surface`, `--ink`, `--accent`…), então um ajuste de cor no tema vale para a interface toda. Para mudar uma cor, edite as variáveis do tema no começo do arquivo, não a camada.
+
 ## Versão para Windows (desktop)
 
-A pasta `desktop/` gera o aplicativo de Windows com Electron. Ele não tem interface própria: usa os mesmos `index.html`, `css/` e `js/` da versão web, copiados para `desktop/web/` a cada execução. Qualquer mudança na versão web vale para o desktop no próximo build. O app conversa com o mesmo Supabase, então os dados são os mesmos.
+A pasta `desktop/` gera o aplicativo de Windows com Electron. Ele é um **espelho da versão web oficial**: não tem interface própria e usa os mesmos `index.html`, `css/` e `js/`. A cada execução ou build, esses arquivos são copiados para `desktop/web/`. Mudou na web, muda no desktop no próximo build. O app usa o mesmo Supabase, então os usuários e os dados são os mesmos da web.
 
-- **Testar sem instalar:** `npm run desktop:instalar` (só na primeira vez) e depois `npm run desktop:start`.
-- **Gerar o instalador:** `npm run desktop:build`. O arquivo sai em `desktop/dist/Roteirizador-RRM-Setup.exe` (Windows 10/11, 64 bits). O app só roda no Windows.
-- **Publicar para a landing page:** `npm run desktop:publicar` envia o .exe para o GitHub Releases do repositório (precisa da variável `GH_TOKEN` com um token do GitHub). Antes, aumente `version` em `desktop/package.json`.
-- **Ícone:** `desktop/build/icon.png`. Para gerar de novo a partir do logo: `npm --prefix desktop run icone`.
+### Como funciona
+
+- **Cópia da web** (`scripts/copiar-web.js`): copia `index.html`, `css/` e `js/` e **embute as bibliotecas e as fontes** que a web carrega de CDN (Leaflet, SheetJS, Supabase, QR code e Google Fonts). Elas são baixadas uma vez para `desktop/vendor/` (cache), e o `index.html` copiado passa a apontar para `web/vendor/`. Assim o app abre sem depender dos CDNs. Mapa de fundo, rotas, busca de endereços e banco continuam pela internet. Se não houver internet no primeiro build, o app segue usando os CDNs, como a web.
+- **Janela** (`main.js`): a interface é servida pelo endereço interno `app://rrm/`, que mantém o login e os dados locais entre aberturas. Só existe uma janela (abrir o atalho de novo traz a que já está aberta). Tamanho, posição, zoom e a barra de menus são lembrados. Links externos abrem no navegador padrão, e arquivos exportados vão para **Downloads** com a janela de "Salvar como".
+- **Menu** em português:
+  - **Arquivo:** recarregar, pasta de downloads, sair.
+  - **Editar:** desfazer, copiar, colar e afins.
+  - **Exibir:** zoom, tela cheia, mostrar ou ocultar a barra de menus, ferramentas de desenvolvedor.
+  - **Ajuda:** verificar atualizações, página de download, pasta de dados, Sobre.
+- **Atualização automática** (`electron-updater`): o app instalado verifica o GitHub Releases ao abrir e a cada 6 horas. A versão nova é baixada em segundo plano. Ela é instalada ao reiniciar, quando o app pergunta, ou ao fechar. Os dados não são afetados.
+- **Ponte com a web** (`preload.js`): a interface recebe só `window.rrmDesktop`, com `desktop`, `plataforma`, `versaoElectron`, `versao()`, `verificarAtualizacao()` e `sobre()`. O app não dá à página acesso a arquivos nem ao sistema.
+- **Segurança:** `contextIsolation` e `sandbox` ligados, sem `nodeIntegration`. Todas as permissões são negadas, exceto área de transferência e tela cheia. A navegação fica restrita ao endereço interno.
+- **Tela de erro:** se os arquivos da interface faltarem ou não carregarem, o app mostra uma orientação em vez de uma janela em branco.
+
+### Como executar (sem instalar)
+
+Precisa do Node.js 18 ou mais novo. Na pasta do projeto:
+
+```
+npm run desktop:instalar   # só na primeira vez: instala o Electron e o electron-builder
+npm run desktop:start      # copia a web, embute as bibliotecas, gera o ícone (se faltar) e abre o app
+```
+
+### Como compilar o instalador
+
+```
+npm run desktop:build
+```
+
+O resultado sai em `desktop/dist/`:
+
+- `Roteirizador-RRM-Setup.exe`: o instalador (Windows 10/11, 64 bits, cerca de 120 MB).
+- `latest.yml` e `Roteirizador-RRM-Setup.exe.blockmap`: usados pela atualização automática.
+
+O instalador não pede administrador, deixa escolher a pasta e cria atalhos **Route VORTEX** na área de trabalho e no menu Iniciar. O app só roda no Windows.
+
+> Se o build parar com `EBUSY: resource busy or locked` em `default_app.asar`, outro programa está lendo a pasta `desktop/dist` (antivírus, indexação ou o próprio editor). Feche o app, se estiver aberto, e rode de novo. Se não resolver, gere em outra pasta: dentro de `desktop/`, `npx electron-builder --win nsis --x64 --config.directories.output=C:/rrm-build`.
+
+### Como publicar uma versão nova
+
+1. Aumente `version` em `desktop/package.json` (ex.: `1.1.0` → `1.2.0`).
+2. Defina a variável `GH_TOKEN` com um token do GitHub com acesso ao repositório.
+3. Rode `npm run desktop:publicar`. O build é feito e o instalador vai para o GitHub Releases (`Ramon-chok/roteirizador`).
+
+A landing page passa a baixar a versão nova, e os apps já instalados se atualizam sozinhos.
+
+### Detalhes
+
+- **Ícone:** `desktop/build/icon.png`, gerado a partir do logo na primeira execução. Para gerar de novo depois de mudar o logo, apague o arquivo ou rode `npm --prefix desktop run icone`.
+- **Nome técnico:** o `productName` continua "Roteirizador RRM" de propósito. É ele que define a pasta de dados do Windows (`%APPDATA%\Roteirizador RRM`), e trocá-lo faria quem já usa o app perder o login e os dados locais. O nome visível (janela, atalhos, Sobre) é **Route VORTEX**.
 - **Esqueci minha senha no desktop:** preencha `urlWeb` em `js/config.js` com o endereço da versão web. O link do e-mail abre nela, porque o endereço interno do app (`app://rrm`) não abre a partir de um e-mail.
 - **Chave do Google:** se a chave tiver restrição por site, inclua `app://rrm/*` na lista de sites permitidos para os mapas do Google funcionarem no desktop.
-- **Aviso do Windows:** o instalador não é assinado digitalmente, então o Windows mostra "O Windows protegeu o computador" (clicar em **Mais informações → Executar assim mesmo**). Para tirar o aviso, é preciso um certificado de assinatura de código.
+- **Aviso do Windows:** o instalador não é assinado digitalmente, então o Windows mostra "O Windows protegeu o computador" (é preciso clicar em **Mais informações → Executar assim mesmo**). Para tirar o aviso, é preciso um certificado de assinatura de código, configurável em `build.win` no `package.json`.
+- **Testar pelo terminal do VS Code:** o terminal define `ELECTRON_RUN_AS_NODE`, que faz o Electron rodar como Node. Os scripts já removem essa variável (`scripts/rodar-electron.js`). Para abrir pelo terminal o executável de `desktop/dist/win-unpacked`, remova a variável antes.
 
-Atalhos no app: `F5` recarrega, `F11` tela cheia, `Ctrl` `+`/`-`/`0` zoom, `F12` ferramentas de desenvolvedor.
+Atalhos no app: `F5` recarrega, `Shift+F5` recarrega sem cache, `F11` tela cheia, `Ctrl` `+`/`-`/`0` zoom, `F12` ferramentas de desenvolvedor, `Alt` mostra o menu quando ele está oculto.
 
 ## Landing page de download
 
-`landing/index.html` é uma página estática com o botão de download do .exe. Hospede a pasta `landing/` em qualquer lugar (GitHub Pages, Netlify, o mesmo servidor da versão web). Por padrão o botão baixa a última versão do GitHub Releases. Para hospedar o .exe junto da página, copie o arquivo para `landing/` e troque `DOWNLOAD` no fim do arquivo por `'Roteirizador-RRM-Setup.exe'`. Fora do Windows, a página avisa que o app é só para Windows.
+`landing/index.html` é uma página estática e simples, só para baixar o app. Ela tem o nome do sistema, o botão **Baixar para Windows**, a versão e o tamanho da última versão publicada (lidos do GitHub) e os 3 passos da instalação. Fora do Windows, avisa que o app é só para Windows.
+
+- **Hospedar:** envie a pasta `landing/` (com `index.html` e `icon.png`) para qualquer lugar, como GitHub Pages, Netlify ou o mesmo servidor da versão web.
+- **De onde vem o download:** por padrão, a última versão do GitHub Releases (variável `DOWNLOAD`, no fim do arquivo). Para hospedar o `.exe` junto da página, copie `desktop/dist/Roteirizador-RRM-Setup.exe` para `landing/` e troque `DOWNLOAD` por `'Roteirizador-RRM-Setup.exe'`.
+- **Link para a versão web:** preencha `WEB` no fim do arquivo com o endereço da web, para aparecer o botão "Usar a versão web" no topo.

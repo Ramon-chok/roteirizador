@@ -19,8 +19,14 @@ window.RT_CONFIG = {
     inatividadeMin: 30, // encerra a sessão depois de tantos minutos sem uso (0 = nunca)
     tentativas: 5, // senhas ou códigos errados seguidos antes de bloquear o login neste navegador
     bloqueioMin: 5, // duração do primeiro bloqueio; dobra a cada novo bloqueio
+    reautenticarMin: 5, // backup, restauração, política, remover pessoas e exportar dados pessoais pedem a senha (ou o código) de novo depois de tantos minutos
+    verificarSenhaVazada: true, // senha nova é conferida na base de vazamentos (Have I Been Pwned): só os 5 primeiros caracteres do hash saem do computador
+    cifrarCampos: true, // com a migração 08: endereço e coordenadas das bases de saída e a Verba Indenizatória ficam cifrados (AES-256-GCM) no banco
+    // Verificação "não sou um robô" no login, na redefinição de senha e na criação de contas (opcional).
+    // provedor: 'turnstile' (Cloudflare) ou 'hcaptcha'. Ligue o mesmo provedor no Supabase em Authentication → Attack Protection.
+    captcha: { provedor: '', siteKey: '' },
     privacidade: {
-      versao: '2026-11', // troque a versão quando mudar o texto do aviso: todos aceitam de novo no próximo login
+      versao: '2026-11.2', // troque a versão quando mudar o texto do aviso: todos aceitam de novo no próximo login
       controlador: '', // razão social da empresa responsável pelos dados. Vazio = nome do ambiente
       encarregado: '', // nome do encarregado (DPO)
       contato: '' // e-mail ou telefone do encarregado
