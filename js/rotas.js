@@ -541,7 +541,7 @@ function rotasDeEstudo(d) {
     const set = (a.setores || {})[r.s] || {}, v = set.colab || 's:' + r.s;
     if (!set.colab) RS.nomes.set(v, set.nome || 'Setor');
     const col = set.colab && st.col.get(set.colab), base = col && hasXY(col) ? { lat: col.lat, lng: col.lng } : null;
-    const ls = r.stops.map(s => ({ s, v, d: [r.d], w: [r.w] }));
+    const ls = r.stops.map(s => ({ s: R.soldDe(s), v, d: [r.d], w: [r.w] })); // visita extra "SOLD~2" conta como o cliente SOLD
     out.set(r.k, { k: r.k, v, w: r.w, d: r.d, ls, ord: ls.map(l => ({ l, ...info(l) })).filter(x => x.ok), base, m: r.m, sig: r.sig });
   }
   d.rotasRt = out; return out;

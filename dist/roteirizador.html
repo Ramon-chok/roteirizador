@@ -24,7 +24,7 @@
 /* Route VORTEX — identidade visual
    Paleta: Navy Vortex #0B1426 · Noite #111D35 · Ciano Rota #22D3EE · Azul Fluxo #3B82F6 · Laranja Hub #F97316 · Gelo #E8F1FF · Neblina #94A3B8
    Tipografia: Space Grotesk (marca, títulos e números de destaque) · Inter (interface, tabelas e textos)
-   Temas (js/tema.js grava a escolha): dark = Escuro (Navy Vortex) · light = Claro · mono = Monocromático · vertical = Noite · sem atributo = automático
+   Temas (js/tema.js grava a escolha): dark = Escuro (Navy Vortex) · black = Preto e branco · light = Claro · mono = Monocromático · vertical = Noite · sem atributo = automático
    Layout: barra superior fina + área de trabalho que ocupa toda a tela; mapa em tela cheia com gavetas sobrepostas */
 :root {
   /* Claro (também é a base quando o tema é automático e o sistema está claro) */
@@ -89,6 +89,17 @@
   --vx-1: #E8F1FF; --vx-2: #22D3EE; --vx-3: #3B82F6; --vx-hub: #F97316; --vx-kicker: #22D3EE; --vx-word: #E8F1FF;
   --top-bg: #111D35;
   --glow: radial-gradient(1100px 520px at 50% -18%, rgba(34,211,238,.12), transparent 62%);
+}
+/* Preto e branco · superfícies quase pretas e acentos em escala de cinza */
+:root[data-theme="black"] {
+  --bg: #000000; --surface: #090909; --surface-2: #151515; --ink: #F5F5F5; --muted: #A3A3A3;
+  --line: #292929; --line-strong: #454545; --accent: #F5F5F5; --accent-ink: #000000; --accent-soft: #1D1D1D; --accent-2: #C4C4C4;
+  --route: #D4D4D4; --ok: #D4D4D4; --ok-soft: #202020; --warn: #B8B8B8; --warn-soft: #242424; --bad: #FFFFFF; --bad-soft: #303030;
+  --sel: #FFFFFF; --shadow: 0 1px 2px rgba(0,0,0,.7), 0 12px 32px rgba(0,0,0,.65); --map-bg: #050505; color-scheme: dark;
+  --lasso: #FFFFFF; --cmp-a: #E5E5E5; --cmp-b: #737373; --feriado: #BDBDBD;
+  --vx-1: #F5F5F5; --vx-2: #C4C4C4; --vx-3: #858585; --vx-hub: #FFFFFF; --vx-kicker: #C4C4C4; --vx-word: #F5F5F5;
+  --top-bg: #000000;
+  --glow: none;
 }
 /* Monocromático: azul e branco */
 :root[data-theme="mono"] {
@@ -173,7 +184,7 @@ main { position: relative; flex: 1; min-height: 0; }
 /* ---------- Mapa ---------- */
 #mapView { position: absolute; inset: 0; }
 #map { position: absolute; inset: 0; background: var(--map-bg); }
-body.immersive .top { display: none; }
+body.immersive .top, body.immersive .desktop-nav { display: none; }
 body.tool-lasso #map, body.tool-rect #map { touch-action: none; }
 body.tool-lasso #map .leaflet-container, body.tool-lasso #map, body.tool-rect #map, body.tool-ruler #map, body.tool-place #map, body.tool-place #map .leaflet-interactive { cursor: crosshair; }
 
@@ -412,7 +423,7 @@ table.t input[type=checkbox] { accent-color: var(--accent); }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 2000; background: var(--bg); }
 
 /* ---------- Página inicial ---------- */
-body.screen-home .amb-pick, body.screen-home .tabs { display: none; }
+body.screen-home .amb-pick, body.screen-home .desktop-nav { display: none; }
 body:not(.screen-home) #openPlanner { display: none; }
 body.screen-home #openPlanner { margin-left: auto; }
 #openPlanner { min-height: 24px; padding: 1px 10px; font-size: 12px; }
@@ -543,7 +554,6 @@ body:not(.screen-home) .acct .an { display: none; }
 }
 @media (max-width: 640px) {
   .top { flex-wrap: wrap; gap: 8px; }
-  .tabs { order: 3; flex-basis: 100%; }
   .amb-pick { flex: 1; } .amb-pick select { max-width: none; width: 100%; }
   .drawer { width: calc(100% - 20px); left: 10px !important; right: 10px !important; top: 56px; bottom: 60px; }
   #toolbar { top: auto; bottom: 64px; left: 50%; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 20px); }
@@ -772,7 +782,7 @@ table.t tr.perd td { color: var(--feriado); background: color-mix(in srgb, var(-
 @media (max-width: 1000px) { .ext-g { grid-template-columns: 1fr; } }
 @media print {
   body.imprime-extrato { overflow: visible; background: #fff; }
-  body.imprime-extrato .top, body.imprime-extrato .crumb, body.imprime-extrato .ph, body.imprime-extrato .rt-abas, body.imprime-extrato .verba > .card:first-of-type, body.imprime-extrato .no-print, body.imprime-extrato .banner, body.imprime-extrato #toast { display: none !important; }
+  body.imprime-extrato .top, body.imprime-extrato .desktop-nav, body.imprime-extrato .crumb, body.imprime-extrato .ph, body.imprime-extrato .rt-abas, body.imprime-extrato .verba > .card:first-of-type, body.imprime-extrato .no-print, body.imprime-extrato .banner, body.imprime-extrato #toast { display: none !important; }
   body.imprime-extrato #app, body.imprime-extrato main, body.imprime-extrato #homeView { position: static; height: auto; overflow: visible; display: block; }
 }
 .ms b.longo { font: 600 14px/1.3 var(--f-body); max-width: 300px; }
@@ -1024,8 +1034,8 @@ button.pd-it:hover { border-color: var(--line-strong); background: var(--surface
 /* =====================================================================
    Camada de design enterprise (Route VORTEX 2.0)
    Fica por último e só refina o visual: tipografia, superfícies, elevação, controles,
-   tabelas, painéis do mapa, diálogos e Início. Vale para os 4 temas (Escuro, Claro,
-   Monocromático, Vertical) e o Automático, porque usa só as variáveis de cada tema.
+   tabelas, painéis do mapa, diálogos e Início. Vale para os temas Escuro, Preto e branco,
+   Claro, Monocromático, Vertical e Automático, porque usa as variáveis de cada tema.
    ===================================================================== */
 :root {
   --ent-r-sm: 8px; --ent-r: 12px; --ent-r-lg: 16px;
@@ -1037,7 +1047,7 @@ button.pd-it:hover { border-color: var(--line-strong); background: var(--surface
   --ent-hover: color-mix(in srgb, var(--accent) 7%, var(--surface));
   --ent-sel: color-mix(in srgb, var(--accent) 14%, var(--surface));
 }
-:root[data-theme="dark"], :root[data-theme="vertical"], :root[data-theme="mono"] {
+:root[data-theme="dark"], :root[data-theme="vertical"], :root[data-theme="mono"], :root[data-theme="black"] {
   --ent-e1: 0 1px 2px rgba(0, 0, 0, .35);
   --ent-e2: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px rgba(0, 0, 0, .34);
   --ent-e3: 0 2px 8px rgba(0, 0, 0, .4), 0 28px 72px rgba(0, 0, 0, .55);
@@ -1066,6 +1076,18 @@ table.t th { text-transform: none; letter-spacing: 0; font-size: 12px; font-weig
 .top { min-height: 54px; padding-block: 7px; gap: 12px; background: color-mix(in srgb, var(--top-bg) 86%, transparent); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); box-shadow: 0 1px 0 var(--line); border-bottom: 0; position: relative; z-index: 1500; }
 .brand { padding: 4px 8px; border-radius: 10px; }
 .tabs { gap: 2px; padding: 3px; border-radius: 11px; background: color-mix(in srgb, var(--surface-2) 70%, transparent); border: 1px solid var(--line); flex: 0 1 auto; margin-inline: 6px; }
+.desktop-nav { display: flex; align-items: center; gap: 14px; flex: none; min-height: 56px; padding: 8px max(16px, env(safe-area-inset-left, 0px)); position: relative; z-index: 1400; background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 88%, var(--bg))); border-bottom: 1px solid var(--line); box-shadow: 0 5px 16px color-mix(in srgb, #000 9%, transparent); }
+.nav-caption { display: flex; align-items: center; gap: 9px; flex: none; min-width: 100px; padding-right: 14px; border-right: 1px solid var(--line); color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .16em; }
+.nav-caption-mark { width: 3px; height: 24px; flex: none; border-radius: 99px; background: linear-gradient(180deg, var(--accent), var(--accent-2)); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 32%, transparent); }
+.desktop-nav .tabs { flex: 1 1 auto; min-width: 0; gap: 5px; margin: 0; padding: 0; overflow-x: auto; border: 0; border-radius: 0; background: transparent; }
+.desktop-nav .tab { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; height: 38px; padding: 0 13px; border: 1px solid transparent; border-radius: 10px; color: var(--muted); font-size: 12.5px; font-weight: 550; transition: background .16s, color .16s, border-color .16s, transform .16s; }
+.desktop-nav .tab:hover { transform: translateY(-1px); border-color: var(--line); background: var(--surface-2); color: var(--ink); }
+.desktop-nav .tab[aria-selected="true"] { background: var(--accent-soft); color: var(--ink); border-color: color-mix(in srgb, var(--accent) 28%, var(--line)); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 650; }
+.desktop-nav .tab[aria-selected="true"]::before { content: ""; width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent); }
+.desktop-nav .tab svg { display: block; width: 16px; height: 16px; opacity: .8; }
+.desktop-nav .tab[aria-selected="true"] svg { color: var(--accent); opacity: 1; }
+@media (max-width: 1100px) { .nav-caption { display: none; } .desktop-nav { padding-inline: 10px; } }
+@media (max-width: 640px) { .desktop-nav { min-height: 48px; padding: 6px 8px; } .desktop-nav .tabs { gap: 3px; } .desktop-nav .tab { height: 34px; padding-inline: 10px; } }
 .tab { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
 .tab:hover { color: var(--ink); background: color-mix(in srgb, var(--surface) 80%, transparent); }
 .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--ent-e1), inset 0 0 0 1px var(--line); font-weight: 600; }
@@ -1220,6 +1242,41 @@ table.t tr.on td { background: var(--ent-sel); }
 .rvx-captcha { min-height: 65px; margin: 4px 0 10px; }
 @media (max-width: 640px) { .sg-abas button { flex-basis: 45%; } }
 
+/* ---------- Minha conta ---------- */
+.account-page { max-width: 1080px; }
+.account-heading { align-items: center; }
+.account-profile { display: flex; align-items: center; gap: 18px; padding: 22px; background: radial-gradient(700px 240px at 100% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%), var(--surface); }
+.account-avatar { display: grid; place-items: center; width: 64px; height: 64px; flex: 0 0 64px; border-radius: 20px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface-2)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)); font-size: 21px; font-weight: 700; }
+.account-profile-info { min-width: 0; }
+.account-profile-info > .row { justify-content: flex-start; gap: 10px; }
+.account-profile-info h2 { margin: 0; font-size: 20px; font-weight: 650; }
+.account-profile-info > p { margin: 4px 0 10px; color: var(--muted); overflow-wrap: anywhere; }
+.account-meta { display: flex; flex-wrap: wrap; gap: 5px 20px; color: var(--muted); font-size: 12.5px; }
+.account-meta b { color: var(--ink); font-weight: 600; }
+.account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.account-card > .ch { align-items: flex-start; }
+.account-card > .ch p { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+.account-card form { display: flex; flex-direction: column; gap: 14px; }
+.account-card form h3, .account-security h3 { margin: 8px 0 0; font-size: 14px; }
+.account-admin { grid-column: 1 / -1; }
+.account-admin #ctUsuarios { margin-bottom: 16px; }
+.account-security { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.account-security p { margin: 0; color: var(--muted); }
+.account-security hr { width: 100%; margin: 2px 0; border: 0; border-top: 1px solid var(--line); }
+.account-actions { display: flex; justify-content: flex-end; }
+.pw-strength { display: flex; flex-direction: column; gap: 7px; }
+.pw-strength-head { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px; }
+.pw-strength-head b { color: var(--ink); font-weight: 650; }
+.pw-strength-bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.pw-strength-bars i { height: 5px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--line); }
+.pw-strength[data-level="1"] .pw-strength-bars i.on { background: var(--bad); border-color: var(--bad); }
+.pw-strength[data-level="2"] .pw-strength-bars i.on { background: var(--warn); border-color: var(--warn); }
+.pw-strength[data-level="3"] .pw-strength-bars i.on { background: var(--accent); border-color: var(--accent); }
+.pw-strength[data-level="4"] .pw-strength-bars i.on { background: var(--ok); border-color: var(--ok); }
+.pw-strength > p { margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+@media (max-width: 760px) { .account-grid { grid-template-columns: 1fr; } .account-admin { grid-column: auto; } }
+@media (max-width: 480px) { .account-profile { align-items: flex-start; padding: 16px; } .account-avatar { width: 50px; height: 50px; flex-basis: 50px; border-radius: 15px; } .account-profile-info h2 { font-size: 17px; } .account-meta { flex-direction: column; gap: 3px; } }
+
 </style>
     <script>
 /* Route VORTEX — temas visuais do aplicativo.
@@ -1232,6 +1289,7 @@ table.t tr.on td { background: var(--ent-sel); }
   var PADRAO = 'dark';
   var TEMAS = [
     { id: 'dark', nome: 'Escuro', desc: 'Navy Vortex', cores: ['#0B1426', '#22D3EE', '#3B82F6', '#F97316'] },
+    { id: 'black', nome: 'Preto e branco', desc: 'Preto absoluto e cinza', cores: ['#000000', '#F5F5F5', '#A3A3A3', '#292929'] },
     { id: 'light', nome: 'Claro', desc: 'Fundo claro', cores: ['#F5F8FC', '#0B1426', '#2563EB', '#F97316'] },
     { id: 'mono', nome: 'Monocromático', desc: 'Azul e branco', cores: ['#1D4ED8', '#FFFFFF', '#FFFFFF', '#FFFFFF'] },
     { id: 'vertical', nome: 'Vertical', desc: 'Noite', cores: ['#111D35', '#E8F1FF', '#3B82F6', '#22D3EE'] },
@@ -1337,15 +1395,6 @@ table.t tr.on td { background: var(--ent-sel); }
         >
           <svg class="vx" viewBox="9 5 54 54" aria-hidden="true" focusable="false"><g fill="none" stroke-linecap="round" stroke-width="4.8"><path class="vx-2" d="M32 32a12 12 0 0 1 24 0"/><path class="vx-3" d="M32 32a12 12 0 0 1 24 0" transform="rotate(120 32 32)"/><path class="vx-1" d="M32 32a12 12 0 0 1 24 0" transform="rotate(240 32 32)"/></g><g class="vx-n" stroke-width="2.3"><circle class="vx-2" cx="56" cy="32" r="3.2"/><circle class="vx-3" cx="56" cy="32" r="3.2" transform="rotate(120 32 32)"/><circle class="vx-1" cx="56" cy="32" r="3.2" transform="rotate(240 32 32)"/></g><circle class="vx-h" cx="32" cy="32" r="5.2" stroke-width="2.8"/></svg><span class="wm"><small>ROUTE</small><b>VORTEX</b></span>
         </button>
-        <nav class="tabs" id="tabs" role="tablist" aria-label="Seções">
-          <button class="tab" role="tab" data-view="mapa" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Mapa</span></button>
-          <button class="tab" role="tab" data-view="roteiros" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/><circle cx="18" cy="5" r="2.5"/></svg><span>Roteiros</span></button>
-          <button class="tab" role="tab" data-view="estudos" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4"/></svg><span>Estudos</span></button>
-          <button class="tab" role="tab" data-view="clientes" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg><span>Clientes</span></button>
-          <button class="tab" role="tab" data-view="colaboradores" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5A6.5 6.5 0 0 1 21.5 20"/></svg><span>Colaboradores</span></button>
-          <button class="tab" role="tab" data-view="importar" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Importação</span></button>
-          <button class="tab" role="tab" data-view="config" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg><span>Configurações</span></button>
-        </nav>
         <div class="amb-pick">
           <select id="ambSel" title="Estudo aberto" aria-label="Estudo aberto">
             <option>Carregando…</option>
@@ -1363,6 +1412,19 @@ table.t tr.on td { background: var(--ent-sel); }
           aria-label="Minha conta"
         ></button>
       </header>
+      <nav class="desktop-nav" aria-label="Navegação principal">
+        <div class="nav-caption"><span class="nav-caption-mark" aria-hidden="true"></span><span>MÓDULOS</span></div>
+        <div class="tabs" id="tabs" role="tablist" aria-label="Seções">
+          <button class="tab" role="tab" data-view="mapa" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Mapa</span></button>
+          <button class="tab" role="tab" data-view="roteiros" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/><circle cx="18" cy="5" r="2.5"/></svg><span>Roteiros</span></button>
+          <button class="tab" role="tab" data-view="estudos" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4"/></svg><span>Estudos</span></button>
+          <button class="tab" role="tab" data-view="clientes" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg><span>Clientes</span></button>
+          <button class="tab" role="tab" data-view="colaboradores" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5A6.5 6.5 0 0 1 21.5 20"/></svg><span>Colaboradores</span></button>
+          <button class="tab" role="tab" data-view="importar" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Importação</span></button>
+          <button class="tab" role="tab" data-view="config" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg><span>Configurações</span></button>
+          <button class="tab" role="tab" data-view="conta" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg><span>Minha conta</span></button>
+        </div>
+      </nav>
       <main>
         <section id="homeView" aria-label="Página inicial"></section>
         <section id="mapView">
@@ -2418,6 +2480,10 @@ class BucketStore {
   async destroy() { this.map.clear(); this.dirty.clear(); for (let i = 0; i < NB; i++) { try { await withRetry(() => st.backend.del(this.coll, 'b' + String(i).padStart(2, '0'))); } catch (e) { /* ignora */ } } Save.stores.delete(this); }
   detach() { Save.stores.delete(this); }
 }
+/* Cadastro de clientes: a chave de uma visita extra ("SOLD~2") devolve o cliente "SOLD" */
+class ClienteStore extends BucketStore {
+  get(k) { const c = this.map.get(k); return c !== undefined || !ehVisExtra(k) ? c : this.map.get(soldDe(k)); }
+}
 
 /* ================= Estado ================= */
 const st = {
@@ -2431,7 +2497,8 @@ const st = {
   panelL: true, panelR: false, mk: new Map(), ruler: { pts: [], active: false },
   undo: [], redo: [], baseKind: 'auto', tileOk: 0, tileErr: 0, autoResequence: true,
   pg: { clientes: { q: '', page: 0, cidade: '', semCoord: false, noEstudo: '', chk: new Set() }, colaboradores: { q: '', chk: new Set() }, roteiros: { mode: 'grade', setor: '', chk: new Set() }, imp: { tipo: '', n: 15 } },
-  cmp: null, g: 'idle', gMsg: '', geo: null, pathCache: new Map(), road: 'idle', vh: 'idle', roadMsg: '', autoRoad: true, bgBusy: false, roadFail: new Set()
+  cmp: null, g: 'idle', gMsg: '', geo: null, pathCache: new Map(), road: 'idle', vh: 'idle', roadMsg: '', autoRoad: true, bgBusy: false, roadFail: new Set(),
+  accountReturn: null
 };
 const uiKey = () => 'rt1:' + st.empresa.id + '_ui';
 function loadUI() { try { const v = JSON.parse(localStorage.getItem(uiKey()) || '{}'); Object.assign(st, { colorBy: v.colorBy || 'setor', baseKind: v.baseKind || 'auto', pinos: v.pinos !== false }); if (v.view) st.view = v.view; st.lastAmb = v.amb; } catch (e) { /* ignora */ } }
@@ -2442,6 +2509,16 @@ const P = (a = amb()) => ({ ...DEF_P, ...((a && a.params) || {}) });
 const setorOf = (id, a = amb()) => (a && a.setores ? a.setores[id] : null);
 function colabOfSetor(id, a = amb()) { const s = setorOf(id, a); return s && s.colab ? st.col.get(s.colab) : null; }
 function baseOf(id, a = amb()) { const c = colabOfSetor(id, a); return c && isNum(c.lat) && isNum(c.lng) ? { lat: c.lat, lng: c.lng } : null; }
+/* Um cliente pode ser visitado por mais de um setor no mesmo estudo (ex.: vendedor A nas semanas 1,3 e vendedor B nas 2,4).
+   A 1ª atribuição usa o SOLD como chave do item; as seguintes usam "SOLD~2", "SOLD~3"… e apontam para o mesmo cadastro
+   (st.cli.get resolve essas chaves). Quem grava ou exclui no cadastro usa soldDe(chave). */
+const VIS_RE = /~\d+$/;
+const soldDe = k => String(k ?? '').replace(VIS_RE, '');
+const ehVisExtra = k => VIS_RE.test(String(k ?? ''));
+const VIS_MAX = 30; // limite de setores por cliente no mesmo estudo
+function chavesDoCliente(sold, items = st.itens && st.itens.map) { if (!items) return []; const out = items.has(sold) ? [sold] : []; for (let i = 2; i <= VIS_MAX; i++) { const k = `${sold}~${i}`; if (items.has(k)) out.push(k); } return out; }
+function excluiItensDoCliente(sold, touched) { if (!st.itens) return; for (const k of chavesDoCliente(sold)) { if (touched) sdKeys(st.itens.get(k)).forEach(x => touched.add(x)); st.itens.del(k); } }
+function contaClientes(items) { let n = 0; for (const k of items.keys()) if (!ehVisExtra(k)) n++; return n; }
 function cliPt(sold) { const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) return null; return { sold, lat: c.lat, lng: c.lng, t: isNum(c.t) ? c.t : P().tPadrao, f: c.f || 4 }; }
 function sortedSetores(a = amb()) { if (!a) return []; return Object.entries(a.setores || {}).sort((x, y) => String(x[1].nome).localeCompare(String(y[1].nome), 'pt-BR', { numeric: true })); }
 function itemKeys(it, a = amb()) { if (!it || !it.s || !setorOf(it.s, a)) return []; const W = P(a).semanas, out = []; for (const w of it.w || []) if (w <= W) for (const d of it.d || []) out.push(`${it.s}|${w}|${d}`); return out; }
@@ -2572,6 +2649,7 @@ function armButton(btn, fn, txt = 'Confirmar') {
 
 function setScreen(s, sec) {
   if (sec) st.homeSec = sec;
+  if (s === 'home' && st.view === 'conta') st.accountReturn = null;
   if (s !== 'home' || st.homeSec !== 'rotas') { const R = window.RotasMod; if (R) R.limpar(); }
   if ((s !== 'home' || st.homeSec !== 'ped') && window.PedMod) window.PedMod.limpar();
   st.screen = s;
@@ -2584,6 +2662,7 @@ function enterPlanner(v = 'mapa') { setView(v); if (v === 'mapa') setTimeout(fit
 async function enterStudy(id) { if (id === '__cur') id = st.cur; if (id && id !== st.cur) await openAmb(id, false); enterPlanner('mapa'); }
 function setView(v) {
   if (st.screen !== 'planner') setScreen('planner');
+  if (st.view === 'conta' && v !== 'conta') st.accountReturn = null;
   st.view = v; saveUI(); document.body.classList.toggle('view-map', v === 'mapa');
   $$('#tabs .tab').forEach(b => { const on = b.dataset.view === v; b.setAttribute('aria-selected', String(on)); if (on) b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); });
   $('#mapView').hidden = v !== 'mapa';
@@ -3179,7 +3258,7 @@ function endPlace() { st.placing = null; document.body.classList.remove('tool-pl
 function placeClient(sold, ll, how, nivel) {
   const c = st.cli.get(sold); if (!c) return;
   const n = { ...c, lat: +(+ll.lat).toFixed(6), lng: +(+ll.lng).toFixed(6), geo: how || 'manual', geoNivel: nivel || 'exato' }; delete n.geoPend;
-  st.cli.put(sold, n); rebuild(); renderAll();
+  st.cli.put(c.sold, n); rebuild(); renderAll();
 }
 function afterPlace(sold) {
   const c = st.cli.get(sold), next = seaList()[0];
@@ -3913,9 +3992,10 @@ function selOp(op) {
   if (op === 'editar') { cliForm(st.cli.get(sel[0]), false); return; }
   if (op === 'delbase') {
     const touched = new Set();
-    for (const x of sel) { if (st.itens && st.itens.has(x)) { sdKeys(st.itens.get(x)).forEach(k => touched.add(k)); st.itens.del(x); } st.cli.del(x); }
+    const solds = new Set(sel.map(soldDe));
+    for (const x of solds) { excluiItensDoCliente(x, touched); st.cli.del(x); }
     if (st.itens) resequence(touched);
-    st.sel.clear(); rebuild(); renderAll(); renderToolbar(); toast(`${sel.length} cliente(s) excluídos da base`); return;
+    st.sel.clear(); rebuild(); renderAll(); renderToolbar(); toast(`${solds.size} cliente(s) excluídos da base`); return;
   }
   if (op === 'include') { pushUndo('Incluir no estudo'); let n = 0; for (const s of sel) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); return; }
   if (!inS.length) return;
@@ -3986,6 +4066,7 @@ function renderPage() {
   else if (v === 'colaboradores') el.innerHTML = pageColabs();
   else if (v === 'importar') el.innerHTML = pageImportar();
   else if (v === 'config') el.innerHTML = pageConfig();
+  else if (v === 'conta') renderContaPage();
   el.scrollTop = keepScroll;
 }
 
@@ -4050,7 +4131,7 @@ function ambStats(a, items, routes) {
   const t = sumRoutes([...routes.values()]);
   let nSet = 0; for (const it of items.values()) if (it.s && a.setores && a.setores[it.s]) nSet++;
   const max = Math.max(0, ...[...routes.values()].map(r => r.m.ocup));
-  return { clientes: items.size, setorizados: nSet, setores: Object.keys(a.setores || {}).length, rotas: routes.size, km: t.km, horas: t.total, oc: t.ocMed, ocMax: max };
+  return { clientes: contaClientes(items), setorizados: nSet, setores: Object.keys(a.setores || {}).length, rotas: routes.size, km: t.km, horas: t.total, oc: t.ocMed, ocMax: max };
 }
 function pageEstudos() {
   const list = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0));
@@ -4578,6 +4659,13 @@ async function runImport() {
     const byName = new Map(Object.entries(a.setores).map(([id, s]) => [norm(s.nome), id]));
     const pendCli = new Map(a.pend.cli.map(p => [p.sold, p])), pendCol = new Map(a.pend.col.map(p => [p.codigo, p]));
     let n = 0, nCriados = 0, semDia = 0, nFreq = 0, nCoord = 0; const novos = new Set(), geoSet = new Set(), vistos = new Set();
+    // Um cliente pode vir em linhas de setores/vendedores diferentes (ex.: um nas semanas 1,3 e outro nas 2,4):
+    // cada setor ganha a sua visita (chave SOLD, SOLD~2, SOLD~3…). Linhas do mesmo cliente no mesmo setor somam dias e semanas.
+    const chavesExist = new Map(); // SOLD → chaves que o cliente já tinha no estudo
+    for (const k of st.itens.map.keys()) { const s = soldDe(k); if (!chavesExist.has(s)) chavesExist.set(s, []); chavesExist.get(s).push(k); }
+    const chaveImp = new Map(), usadas = new Map(); // "SOLD|setor" → chave usada nesta planilha; SOLD → chaves usadas
+    const novaChave = (sold, usa) => { if (!st.itens.has(sold) && !usa.has(sold)) return sold; for (let i = 2; i <= VIS_MAX; i++) { const k = `${sold}~${i}`; if (!st.itens.has(k) && !usa.has(k)) return k; } return null; };
+    let nMulti = 0;
     for (const r of wz.rows) {
       const sold = String(cell(r, 'sold')).trim(); if (!sold) continue;
       const ad = {}; for (const k of ['endereco', 'bairro', 'cidade', 'uf', 'cep']) if (wz.map[k] >= 0) { const v = String(cell(r, k)).trim(); if (v) ad[k] = k === 'uf' ? v.toUpperCase() : v; }
@@ -4599,10 +4687,19 @@ async function runImport() {
       let sid = byName.get(norm(setorNome));
       if (!sid) { sid = uid('s'); const i = Object.keys(a.setores).length; a.setores[sid] = { nome: setorNome, cor: E.PALETA[i % E.PALETA.length], colab: colab || '' }; byName.set(norm(setorNome), sid); }
       else if (colab && !a.setores[sid].colab) a.setores[sid].colab = colab;
-      const ex = st.itens.get(sold) || { s: '', d: [], w: [], q: {} };
+      // na 1ª linha do cliente neste setor, dias e semanas são substituídos; nas seguintes do mesmo setor, somados
+      let key = chaveImp.get(sold + '|' + sid); const soma = !!key;
+      if (!key) {
+        const usa = usadas.get(sold) || new Set(); usadas.set(sold, usa);
+        const livres = (chavesExist.get(sold) || []).filter(k => !usa.has(k) && st.itens.has(k));
+        key = livres.find(k => st.itens.get(k).s === sid) || livres.sort((x, y) => ehVisExtra(x) - ehVisExtra(y))[0] || novaChave(sold, usa);
+        if (!key) continue;
+        if (usa.size === 1) nMulti++;
+        usa.add(key); chaveImp.set(sold + '|' + sid, key);
+      }
+      vistos.add(sold);
+      const ex = st.itens.get(key) || { s: '', d: [], w: [], q: {} };
       const it = clone(ex); it.s = sid;
-      // na 1ª linha do cliente nesta planilha, dias e semanas são substituídos; nas seguintes, somados
-      const soma = ex.s === sid && vistos.has(sold); vistos.add(sold);
       // Dia: 2 segunda … 6 sexta; 7 ou vazio = sábado. Semana: cada algarismo é uma semana (1, 1,3, 2,4, 1234…)
       const diaTxt = String(cell(r, 'dia') ?? '').trim();
       const ds = wz.map.dia >= 0 && !diaTxt ? [6] : parseDias(diaTxt); const ws = parseSemanas(cell(r, 'semana'), W);
@@ -4611,12 +4708,18 @@ async function runImport() {
       else if (!(it.w || []).length) { const c = st.cli.get(sold); it.w = weeksByFreq((c && c.f) || 4, W, {}); }
       const sq = numBR(cell(r, 'seq')); if (isNum(sq)) ds.forEach(d => { it.q = { ...(it.q || {}), [d]: sq }; });
       if (!it.d.length) semDia++;
-      st.itens.put(sold, it); n++;
+      st.itens.put(key, it); n++;
     }
-    // frequência do cliente = semanas × dias do roteiro, em visitas por mês (1 semana = mensal, 2 = quinzenal, 4 = semanal)
+    // Visitas que o cliente tinha em setores que não vieram na planilha saem; a 1ª visita restante fica na chave SOLD
+    for (const [sold, usa] of usadas) {
+      for (const k of chavesExist.get(sold) || []) if (!usa.has(k)) st.itens.del(k);
+      if (!st.itens.has(sold)) { const k = [...usa].find(x => st.itens.has(x)); if (k) { st.itens.put(sold, st.itens.get(k)); st.itens.del(k); } }
+    }
+    // frequência do cliente = semanas × dias do roteiro, somadas as visitas de todos os setores, em visitas por mês
     for (const sold of vistos) {
-      const it = st.itens.get(sold), c = st.cli.get(sold); if (!it || !c || !(it.w || []).length) continue;
-      const f = Math.round(it.w.length * (4 / W) * (it.d || []).length);
+      const c = st.cli.get(sold); if (!c) continue;
+      let f = 0; for (const k of new Set([sold, ...(usadas.get(sold) || [])])) { const it = k === sold || ehVisExtra(k) ? st.itens.get(k) : null; if (!it) continue; if ((it.w || []).length) f += it.w.length * (4 / W) * (it.d || []).length; }
+      f = Math.round(f);
       if (f > 0 && f !== c.f) { st.cli.put(sold, { ...c, f }); if (!novos.has(sold)) nFreq++; }
     }
     geoSet.forEach(s => toGeo.push(['cli', s]));
@@ -4626,6 +4729,7 @@ async function runImport() {
     // sequência para dias sem coluna de sequência
     if (wz.map.seq === undefined || wz.map.seq < 0) { const sd = new Set(); for (const it of st.itens.values()) sdKeys(it).forEach(k => sd.add(k)); resequence(sd); }
     lines.push(['info', `${n} linha(s) aplicadas ao estudo “${esc(a.nome)}” em ${Object.keys(a.setores).length} setor(es).`]);
+    if (nMulti) lines.push(['info', `${nMulti} cliente(s) são visitados por mais de um setor/vendedor (ex.: um nas semanas 1,3 e outro nas 2,4) e aparecem no mapa de cada um.`]);
     if (nCriados) lines.push(['info', `${nCriados} cliente(s) que não estavam na base foram cadastrados com o endereço ou a coordenada da planilha.`]);
     if (nCoord) lines.push(['info', `${nCoord} cliente(s) da base que estavam sem coordenada receberam a latitude/longitude da planilha.`]);
     if (nFreq) lines.push(['info', `Frequência atualizada na base em ${nFreq} cliente(s), conforme as semanas e os dias do roteiro.`]);
@@ -4742,11 +4846,11 @@ async function doExport(kind) {
     const visitas = [], rotas = [], setores = [];
     for (const r of sortedRoutes([...st.routes.values()])) {
       const s = setorOf(r.s), c = colabOfSetor(r.s);
-      r.stops.forEach((sold, i) => { const cl = st.cli.get(sold) || {}; visitas.push({ 'SOLD cliente': sold, 'SOLD vendedor': s.colab || '', Dia: r.d === 7 ? 1 : r.d + 1, Semana: r.w, 'Endereço': cl.endereco || '', Bairro: cl.bairro || '', Cidade: cl.cidade || '', UF: cl.uf || '', CEP: cl.cep || '', 'Nome do cliente': cl.nome || '', 'Sequência': i + 1, Setor: s.nome, 'Nome do vendedor': c ? c.nome : '', Latitude: cl.lat ?? '', Longitude: cl.lng ?? '', 'Visitas por mês': cl.f || '', 'Atendimento (min)': cl.t || P().tPadrao, 'Dia da semana': DIA_L[r.d] }); });
+      r.stops.forEach((sold, i) => { const cl = st.cli.get(sold) || {}; visitas.push({ 'SOLD cliente': soldDe(sold), 'SOLD vendedor': s.colab || '', Dia: r.d === 7 ? 1 : r.d + 1, Semana: r.w, 'Endereço': cl.endereco || '', Bairro: cl.bairro || '', Cidade: cl.cidade || '', UF: cl.uf || '', CEP: cl.cep || '', 'Nome do cliente': cl.nome || '', 'Sequência': i + 1, Setor: s.nome, 'Nome do vendedor': c ? c.nome : '', Latitude: cl.lat ?? '', Longitude: cl.lng ?? '', 'Visitas por mês': cl.f || '', 'Atendimento (min)': cl.t || P().tPadrao, 'Dia da semana': DIA_L[r.d] }); });
       rotas.push({ Setor: s.nome, Colaborador: c ? c.nome : '', Semana: r.w, Dia: DIA_L[r.d], Visitas: r.m.n, 'KM ida': +r.m.kmIda.toFixed(2), 'KM entre visitas': +r.m.kmEntre.toFixed(2), 'KM volta': +r.m.kmVolta.toFixed(2), 'KM total': +r.m.km.toFixed(2), 'Deslocamento (min)': Math.round(r.m.tDesl), 'Atendimento (min)': Math.round(r.m.tAtend), 'Total (min)': Math.round(r.m.total), 'Ocupação da jornada': +r.m.ocup.toFixed(3), 'Fonte do KM': r.m.real ? (r.m.src === 'google' ? 'Google (ruas)' : r.m.src === 'valhalla' ? 'Ruas (Valhalla / OpenStreetMap)' : 'Ruas (OSRM / OpenStreetMap)') : 'Estimado (linha reta × fator)', 'Formato da rota': r.m.real ? rotaTxt(r.m.o) : '', 'Sem alternativa': r.m.real ? rotaAviso(r.m) : '' });
     }
     for (const [id, s] of sortedSetores()) { const rs = [...st.routes.values()].filter(r => r.s === id); const sm = sumRoutes(rs); const c = colabOfSetor(id); let n = 0; for (const it of st.itens.values()) if (it.s === id) n++; setores.push({ Setor: s.nome, Colaborador: s.colab || '', 'Nome do colaborador': c ? c.nome : '', Clientes: n, Rotas: rs.length, 'Visitas no ciclo': sm.n, 'KM no ciclo': +sm.km.toFixed(1), 'Horas no ciclo': +(sm.total / 60).toFixed(2), 'Ocupação média': +sm.ocMed.toFixed(3) }); }
-    const sem = []; for (const [sold, it] of st.itens.map) if (!itemKeys(it).length) { const cl = st.cli.get(sold) || {}; sem.push({ SOLD: sold, Cliente: cl.nome || '', Setor: (setorOf(it.s) || {}).nome || '', 'Situação': it.s ? 'Sem dia/semana' : 'Sem setor' }); }
+    const sem = []; for (const [sold, it] of st.itens.map) if (!itemKeys(it).length) { const cl = st.cli.get(sold) || {}; sem.push({ SOLD: soldDe(sold), Cliente: cl.nome || '', Setor: (setorOf(it.s) || {}).nome || '', 'Situação': it.s ? 'Sem dia/semana' : 'Sem setor' }); }
     const sh = [['Roteiro', visitas], ['Resumo das rotas', rotas], ['Setores', setores]]; if (sem.length) sh.push(['Não roteirizados', sem]);
     saveFile(`roteiro_${slug(a.nome)}_${dstamp()}.xlsx`, xlsxBlob(sh));
   }
@@ -4840,11 +4944,12 @@ function runAutoSet() {
   const colabs = cods.map(c => st.col.get(c)).filter(Boolean);
   pushUndo('Setorização automática');
   if (esc_ === 'encaixe') return encaixar();
-  const cls = [...st.itens.map.keys()].map(cliPt).filter(Boolean);
+  // a setorização automática refaz tudo com um setor por cliente: as visitas extras (SOLD~2…) saem
+  const cls = [...st.itens.map.keys()].filter(k => !ehVisExtra(k)).map(cliPt).filter(Boolean);
   if (!cls.length) { toast('O estudo não tem clientes com coordenadas'); st.undo.pop(); return; }
   const res = E.buildStudy(cls, colabs, k, P(), { by, seed: (Date.now() % 997) + 1 });
   // mantém clientes sem coordenada como "sem setor"
-  const m = new Map(); for (const sold of st.itens.map.keys()) m.set(sold, res.itens.get(sold) || { s: '', d: [], w: [], q: {} });
+  const m = new Map(); for (const sold of st.itens.map.keys()) if (!ehVisExtra(sold)) m.set(sold, res.itens.get(sold) || { s: '', d: [], w: [], q: {} });
   touchAmb(x => { x.setores = res.setores; }); if (st.geo) st.geo.replaceAll(new Map()); st.pathCache.clear();
   st.itens.replaceAll(m); st.hidden.clear(); st.hiddenSet.clear();
   rebuild(); renderAll(); toastU(`${Object.keys(res.setores).length} setores criados e roteirizados`);
@@ -5341,7 +5446,7 @@ function pageConfig() {
 
 /* ================= Eventos ================= */
 function bindEvents() {
-  $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) setView(b.dataset.view); });
+  $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) { if (b.dataset.view === 'conta') contaForm(); else setView(b.dataset.view); } });
   $('#goHome').onclick = () => setScreen('home', 'hub');
   $('#openPlanner').onclick = openPlannerChooser;
   $('#acctBtn').onclick = contaForm;
@@ -5471,7 +5576,7 @@ function bindEvents() {
     else if (ds.cpage) { st.pg.clientes.page += +ds.cpage; renderPage(); $('#pageView').scrollTop = 0; }
     else if (ds.d && t.closest('#pDias')) { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); const ds2 = $$('#pDias button[aria-pressed="true"]').map(x => +x.dataset.d); if (!ds2.length) { t.setAttribute('aria-pressed', 'true'); toast('Mantenha ao menos um dia'); return; } touchAmb(a => { a.params = { ...P(), dias: ds2 }; }); rebuild(); renderPage(); }
     else if (ds.sdel) armButton(t, () => excluirSetor(ds.sdel), 'Confirmar');
-    else if (ds.delcli) armButton(t, () => { audita('exclusao', 'Cliente ' + ds.delcli); st.cli.del(ds.delcli); if (st.itens) st.itens.del(ds.delcli); closeModal(); rebuild(); renderAll(); toast('Cliente excluído da base'); }, 'Confirmar exclusão');
+    else if (ds.delcli) armButton(t, () => { audita('exclusao', 'Cliente ' + ds.delcli); st.cli.del(ds.delcli); excluiItensDoCliente(ds.delcli); closeModal(); rebuild(); renderAll(); toast('Cliente excluído da base'); }, 'Confirmar exclusão');
     else if (ds.delcol) armButton(t, () => { audita('exclusao', 'Colaborador ' + ds.delcol); st.col.del(ds.delcol); closeModal(); rebuild(); renderAll(); toast('Colaborador excluído'); }, 'Confirmar exclusão');
     else if (ds.act) pageAct(ds.act, t);
   });
@@ -5559,7 +5664,8 @@ function pageAct(act, btn) {
     case 'abrirsetor': { const sid = btn.dataset.sid; enterStudy(btn.dataset.fid).then(() => { if (sid) soloSetor(sid); }); break; }
     case 'seguranca': segurancaForm(); break;
     case 'listagens': openListagens(); break;
-    case 'conta': contaForm(); break;
+    case 'conta': if (btn && btn.closest('#modal')) closeModal(); contaForm(); break;
+    case 'contaVoltar': voltarConta(); break;
     case 'mapabase': closeModal(); setVisao('base'); enterPlanner('mapa'); break;
     case 'clibase': {
       const pc = pg.clientes; st.baseF.cidades.clear(); st.baseF.soldes.clear();
@@ -5598,7 +5704,7 @@ function pageAct(act, btn) {
     case 'chkall': { const pc = pg.clientes; const q = pc.q.trim().toLowerCase(); for (const c of st.cli.values()) { if (q && !(c.sold + ' ' + (c.nome || '') + ' ' + (c.endereco || '') + ' ' + (c.bairro || '')).toLowerCase().includes(q)) continue; if (pc.cidade && c.cidade !== pc.cidade) continue; if (pc.semCoord && isNum(c.lat) && isNum(c.lng)) continue; if (pc.noEstudo === 'sim' && !(st.itens && st.itens.has(c.sold))) continue; if (pc.noEstudo === 'nao' && st.itens && st.itens.has(c.sold)) continue; pc.chk.add(c.sold); } renderPage(); break; }
     case 'chknone': pg.clientes.chk.clear(); renderPage(); break;
     case 'cliIncl': { pushUndo('Incluir clientes'); let n = 0; for (const s of pg.clientes.chk) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); break; }
-    case 'cliDel': armButton(btn, () => { audita('exclusao', `${pg.clientes.chk.size} cliente(s) da base`); for (const s of pg.clientes.chk) { st.cli.del(s); if (st.itens) st.itens.del(s); } const n = pg.clientes.chk.size; pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) excluídos da base`); }, 'Confirmar exclusão'); break;
+    case 'cliDel': armButton(btn, () => { audita('exclusao', `${pg.clientes.chk.size} cliente(s) da base`); for (const s of pg.clientes.chk) { st.cli.del(s); excluiItensDoCliente(s); } const n = pg.clientes.chk.size; pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) excluídos da base`); }, 'Confirmar exclusão'); break;
     case 'geo': geoAgain(); break;
     case 'adj': adjustForm(); break;
     case 'gosea': goSea(); break;
@@ -5750,7 +5856,7 @@ const ICON_MOD = {
 function renderHub(el) {
   const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   const nome = String((st.usuario && st.usuario.nome) || '').split(' ')[0];
-  const cur = amb(), R = window.RotasMod ? window.RotasMod.resumoHub() : null, C = window.CalMod ? window.CalMod.resumoHub() : null, V = window.VerbaMod ? window.VerbaMod.resumoHub() : null, PD = window.PedMod ? window.PedMod.resumoHub() : null;
+  const cur = amb(), rotasMod = window.RotasMod, R = rotasMod ? rotasMod.resumoHub() : null, C = window.CalMod ? window.CalMod.resumoHub() : null, V = window.VerbaMod ? window.VerbaMod.resumoHub() : null, PD = window.PedMod ? window.PedMod.resumoHub() : null;
   const stat = (v, l) => `<span class="ms"><b class="num${String(v).length > 12 ? ' longo' : ''}">${v}</b><span>${l}</span></span>`;
   const mod = (k, titulo, desc, stats, extra = '', cls = '') => `<article class="mod ${cls}"><button type="button" class="mod-go" data-hub="${k}" aria-label="Abrir ${esc(titulo)}"></button>
     <div class="mod-h"><span class="mod-i">${ICON_MOD[k]}</span><div><h2>${titulo}</h2><p>${desc}</p></div></div>
@@ -5762,7 +5868,7 @@ function renderHub(el) {
     <nav class="mods" aria-label="Módulos">
       ${mod('plan', 'Planejamento', 'Estudos, setores e roteirização no mapa, com KM, tempo e comparação de cenários.', stat(nf0.format(st.amb.size), 'estudos') + stat(nf0.format(st.cli.size), 'clientes') + stat(nf0.format(st.col.size), 'colaboradores'),
         `<button class="btn sm primary" type="button" data-act="plannerOpen">Abrir Planner</button>${cur ? `<button class="btn sm" type="button" data-enter="${esc(cur.id)}">Continuar: ${esc(cur.nome)}</button>` : ''}`)}
-      ${mod('rotas', 'Rotas', 'Bases de roteiros por mês e ano: tabela, mapa com pinos e regiões, filtros e comparação com os estudos.', R ? stat(nf0.format(R.bases), R.bases === 1 ? 'base' : 'bases') + stat(R.ultimo || '—', 'último período') + stat(R.km, 'KM/mês') : stat('—', 'carregando'),
+      ${mod('rotas', 'Rotas', 'Bases importadas por mês e ano e estudos do Planejamento, com tabela, mapa, filtros e comparação.', R ? (R.erro ? stat('—', 'indisponível') : R.semTabela ? stat('—', 'migração pendente') + stat(nf0.format(R.estudos), 'estudos no Planner') : stat(nf0.format(R.bases), R.bases === 1 ? 'base importada' : 'bases importadas') + stat(nf0.format(R.estudos), 'estudos no Planner') + stat(R.ultimo || '—', 'último período') + stat(R.km, 'KM/mês')) : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="rotas">Abrir Rotas</button><button class="btn sm" type="button" data-act="rotasImport"${st.ro ? ' disabled' : ''}>Importar base</button>`)}
       ${mod('ped', 'Pedágios', 'Praças de pedágio com local e valores, mapa com as rotas de um estudo ou base e relatório de quem paga, quanto e onde.', PD ? stat(nf0.format(PD.n), PD.n === 1 ? 'praça cadastrada' : 'praças cadastradas') + stat(PD.media, `tarifa média · ${esc(PD.cat.toLowerCase())}`) + stat(nf0.format(PD.semValor), 'sem valor') : stat('—', 'carregando'),
         `<button class="btn sm primary" type="button" data-hub="ped">Abrir Pedágios</button>`)}
@@ -5775,6 +5881,11 @@ function renderHub(el) {
     </nav>
   </div>`;
   el.scrollTop = 0;
+  if (!R && rotasMod) rotasMod.iniciar().then(() => {
+    if (st.screen === 'home' && st.homeSec === 'hub') renderHub(el);
+  }).catch(() => {
+    if (st.screen === 'home' && st.homeSec === 'hub') renderHub(el);
+  });
 }
 
 function renderPlanejamento(el) {
@@ -5909,19 +6020,51 @@ const sbMensagem = e => {
   if (/not authorized/i.test(m)) return 'O Supabase não envia e-mail para este endereço sem um servidor de e-mail próprio. Crie a conta em Authentication → Users e inclua de novo aqui.';
   return m || 'Não foi possível concluir. Tente de novo.';
 };
+async function sbIpVerificar(e) {
+  if (!st.sb || !(st.srv >= 9)) return null;
+  const { data, error } = await st.sb.rpc('seguranca_ip_verificar', { e });
+  if (error) throw error;
+  return data;
+}
+async function sbIpRegistrarFalha(e) {
+  if (!st.sb || !(st.srv >= 9)) return null;
+  const { data, error } = await st.sb.rpc('seguranca_ip_falha', { e });
+  if (error) throw error;
+  return data;
+}
+async function sbIpRegistrarSucesso(e) {
+  if (!st.sb || !(st.srv >= 9)) return;
+  const { error } = await st.sb.rpc('seguranca_ip_sucesso', { e });
+  if (error) throw error;
+}
 async function sbLogin(f) {
   const email = Seg.texto(String(f.get('login')).trim(), 320), manter = !!f.get('manter');
   const at = bloqueado(lg.emp, email); if (at) { lgMsg(msgBloqueio(at)); return; }
+  let ip;
+  try { ip = await sbIpVerificar(lg.emp.id); }
+  catch (e) { lgMsg('Não foi possível verificar o bloqueio por IP: ' + sbMensagem(e)); return; }
+  if (ip && ip.decision === 'reject') { lgMsg(ip.message || 'Acesso temporariamente bloqueado para este IP.'); return; }
   const cap = $('#lgCaptcha'), captchaToken = Seg.captcha.token(cap);
   if (captchaToken === '') { lgMsg('Conclua a verificação de segurança antes de entrar.'); return; }
   sbManter = manter;
   try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignora */ }
   const { data, error } = await st.sb.auth.signInWithPassword({ email, password: f.get('senha'), options: captchaToken ? { captchaToken } : undefined });
   Seg.captcha.reiniciar(cap); // cada desafio vale para uma tentativa
-  if (error) { const b = /invalid login/i.test(error.message || '') ? registraFalha(lg.emp, email) : 0; lgMsg(b ? msgBloqueio(b) : sbMensagem(error)); return; }
+  if (error) {
+    const falhaSenha = /invalid login/i.test(error.message || '');
+    const b = falhaSenha ? registraFalha(lg.emp, email) : 0;
+    if (falhaSenha) {
+      try { ip = await sbIpRegistrarFalha(lg.emp.id); }
+      catch (e) { lgMsg('Senha incorreta. Não foi possível registrar a tentativa para o bloqueio por IP: ' + sbMensagem(e)); return; }
+      if (ip && ip.decision === 'reject') { lgMsg(ip.message || (b ? msgBloqueio(b) : 'Acesso temporariamente bloqueado para este IP.')); return; }
+    }
+    lgMsg(b ? msgBloqueio(b) : sbMensagem(error)); return;
+  }
   lg.falhasAntes = limpaFalhas(lg.emp, email);
   const seguir = () => sbPosLogin(data.user, manter);
   if (await sbPrecisaMfa()) { lg.step = 'mfa'; lg.ctx = { manter, login: email, uid: data.user.id, seguir }; renderLogin(); return; }
+  try { await sbIpRegistrarSucesso(lg.emp.id); }
+  catch (e) { toast('Não foi possível atualizar o controle de tentativas por IP: ' + sbMensagem(e), 7000); }
   await seguir();
 }
 async function sbPosLogin(user, manter) {
@@ -6175,12 +6318,27 @@ const LG_FORMS = {
   },
   async fMfa(f) {
     const k = 'mfa:' + (lg.ctx.login || ''), at = bloqueado(lg.emp, k); if (at) { lgMsg(msgBloqueio(at)); return; }
+    let ip;
+    try { ip = await sbIpVerificar(lg.emp.id); }
+    catch (e) { lgMsg('Não foi possível verificar o bloqueio por IP: ' + sbMensagem(e)); return; }
+    if (ip && ip.decision === 'reject') {
+      if (st.sb) await st.sb.auth.signOut({ scope: 'local' });
+      lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(ip.message || 'Acesso temporariamente bloqueado para este IP.'); return;
+    }
     if (!(await mfaConferirLogin(f.get('codigo'), lg.ctx.u))) {
       const b = registraFalha(lg.emp, k);
       auditaEm(lg.emp, lg.ctx.u || { id: lg.ctx.uid, login: lg.ctx.login }, 'mfa_falhou', lg.ctx.login || '');
+      try { ip = await sbIpRegistrarFalha(lg.emp.id); }
+      catch (e) { lgMsg('Código incorreto. Não foi possível registrar a tentativa para o bloqueio por IP: ' + sbMensagem(e)); return; }
+      if (ip && ip.decision === 'reject') {
+        if (st.sb) await st.sb.auth.signOut({ scope: 'local' });
+        lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(ip.message || 'Acesso temporariamente bloqueado para este IP.'); return;
+      }
       if (b) { if (st.sb) await st.sb.auth.signOut({ scope: 'local' }).catch(() => {}); lg.step = 'login'; lg.ctx = {}; renderLogin(); lgMsg(msgBloqueio(b)); return; }
       lgMsg('Código incorreto ou vencido. Digite o código que aparece agora no aplicativo.'); const i = $('#fMfa input'); if (i) i.select(); return;
     }
+    try { await sbIpRegistrarSucesso(lg.emp.id); }
+    catch (e) { toast('Não foi possível atualizar o controle de tentativas por IP: ' + sbMensagem(e), 7000); }
     limpaFalhas(lg.emp, k);
     if (lg.ctx.usouReserva !== undefined) toast(`Código de reserva usado. Restam ${lg.ctx.usouReserva}; gere novos desligando e ativando as duas etapas.`, 8000);
     await lg.ctx.seguir();
@@ -6299,7 +6457,7 @@ function msgBloqueio(ate) {
 
 /* ----- Registro de atividades (quem fez o quê e quando). Com o Supabase, ninguém altera nem apaga um registro ----- */
 const AUD_MAX_LOCAL = 1500;
-const AUD_ACAO = { bd_inclusao: 'Banco: inclusão', bd_alteracao: 'Banco: alteração', bd_exclusao: 'Banco: exclusão', usuario_alterado: 'Alterou o perfil de usuário', conta_bloqueada: 'Conta bloqueada por tentativas erradas', conta_desbloqueada: 'Desbloqueou uma conta', chave_criada: 'Criou a chave de criptografia', cifra_migrada: 'Cifrou dados sensíveis existentes', privacidade_revogada: 'Revogou o aceite do aviso de privacidade', titular_resposta: 'Respondeu pedido de titular (LGPD)', reautenticacao: 'Confirmou a identidade', reautenticacao_falhou: 'Confirmação de identidade recusada', sessoes_encerradas: 'Encerrou as sessões em outros dispositivos', login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)', calendario: 'Alterou o calendário', verba: 'Verba indenizatória', pedagios: 'Pedágios' };
+const AUD_ACAO = { bd_inclusao: 'Banco: inclusão', bd_alteracao: 'Banco: alteração', bd_exclusao: 'Banco: exclusão', usuario_alterado: 'Alterou o perfil de usuário', conta_bloqueada: 'Conta bloqueada por tentativas erradas', conta_desbloqueada: 'Desbloqueou uma conta', ip_desbloqueado: 'Desbloqueou um IP', chave_criada: 'Criou a chave de criptografia', cifra_migrada: 'Cifrou dados sensíveis existentes', privacidade_revogada: 'Revogou o aceite do aviso de privacidade', titular_resposta: 'Respondeu pedido de titular (LGPD)', reautenticacao: 'Confirmou a identidade', reautenticacao_falhou: 'Confirmação de identidade recusada', sessoes_encerradas: 'Encerrou as sessões em outros dispositivos', login: 'Entrou no sistema', logout: 'Saiu do sistema', sessao_expirada: 'Sessão encerrada por inatividade', login_falhou: 'Tentativa de login recusada', mfa_ativada: 'Ativou a verificação em duas etapas', mfa_desativada: 'Desligou a verificação em duas etapas', mfa_falhou: 'Código de verificação recusado', politica: 'Alterou a política de segurança', privacidade: 'Aceitou o aviso de privacidade', senha: 'Alterou a senha', exportacao: 'Exportou dados', backup: 'Exportou backup', restauracao: 'Restaurou backup', importacao: 'Importou planilha', exclusao: 'Excluiu dados', usuario_incluido: 'Incluiu usuário', usuario_removido: 'Removeu usuário', titular_exportou: 'Baixou os próprios dados (LGPD)', titular_pedido: 'Enviou pedido de titular (LGPD)', calendario: 'Alterou o calendário', verba: 'Verba indenizatória', pedagios: 'Pedágios' };
 const audLocalColl = (e = st.empresa) => (e ? e.id : 'x') + '_auditoria';
 async function audLocalLer(e) { try { const d = (await st.base.list(audLocalColl(e))).find(x => x.id === 'log'); return (d && d.data && d.data.items) || []; } catch (err) { return []; } }
 // Com a migração 08 o próprio banco registra estas ações (com mais detalhes): o navegador não duplica
@@ -6505,6 +6663,31 @@ async function encerrarPorInatividade() {
 /* ----- Senha forte ----- */
 const SENHAS_FRACAS = ['12345678', '123456789', '1234567890', 'senha123', 'password', 'qwerty123', 'abc12345', 'mudar123', 'admin123', '11111111', '00000000'];
 function forcaSenha(s) { s = String(s); let p = 0; if (s.length >= SENHA_MIN) p++; if (s.length >= 14) p++; if (/[a-z]/.test(s) && /[A-Z]/.test(s)) p++; if (/\d/.test(s)) p++; if (/[^A-Za-z0-9]/.test(s)) p++; return Math.min(4, p); }
+function senhaMedidorHtml() {
+  return `<div class="pw-strength" data-pw-strength data-level="0">
+    <div class="pw-strength-head"><span>Força da senha</span><b data-pw-label aria-live="polite">Digite a nova senha</b></div>
+    <div class="pw-strength-bars" role="progressbar" aria-label="Força da senha" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" aria-valuetext="Sem senha">${'<i></i>'.repeat(4)}</div>
+    <p>Use ${SENHA_MIN} ou mais caracteres, letras e números; comprimento extra e variedade aumentam a força. A validação final aplica os requisitos completos de segurança.</p>
+  </div>`;
+}
+function bindSenhaMedidor(form) {
+  if (!form) return;
+  const input = form.elements.namedItem('senha'), medidor = form.querySelector('[data-pw-strength]');
+  if (!input || !medidor) return;
+  const barra = medidor.querySelector('[role="progressbar"]'), label = medidor.querySelector('[data-pw-label]'), segmentos = [...barra.children];
+  const atualizar = () => {
+    const senha = String(input.value || ''), nivel = forcaSenha(senha);
+    const texto = !senha ? 'Digite a nova senha' : ['Muito fraca', 'Fraca', 'Razoável', 'Boa', 'Forte'][nivel];
+    medidor.dataset.level = String(nivel);
+    label.textContent = texto;
+    barra.setAttribute('aria-valuenow', String(nivel));
+    barra.setAttribute('aria-valuetext', texto);
+    segmentos.forEach((s, i) => s.classList.toggle('on', i < nivel));
+  };
+  input.addEventListener('input', atualizar);
+  form.addEventListener('reset', () => setTimeout(atualizar, 0));
+  atualizar();
+}
 
 /* ----- Tela de segurança e privacidade ----- */
 const SG = { aba: 'protecao' };
@@ -6534,6 +6717,7 @@ const SG_ABAS = {
       ['Dados sensíveis', st.sb ? (st.cifra ? sgPill(true, 'Cifrados com AES-256-GCM') + ' <span class="muted">endereço e coordenadas das bases de saída, Verba Indenizatória</span>' : sgPill(false, '', st.srv >= 8 ? 'Chave indisponível' + (st.cifraErro ? ': ' + st.cifraErro : '') : 'Sem criptografia: falta a migração 08')) : '<span class="pill idle">Neste navegador</span> <span class="muted">sem servidor, os dados ficam só aqui</span>'],
       ['Senhas', st.sb ? '<span class="pill ok">Supabase Auth (bcrypt)</span>' : '<span class="pill ok">PBKDF2-SHA256, 600 mil iterações</span>'],
       ['Tentativas erradas', `<span class="pill ok">Bloqueio após ${SEG.tentativas}</span> <span class="muted">${st.sb ? (st.srv >= 8 ? 'no servidor (com os hooks ligados) e neste navegador' : 'neste navegador e pelos limites do Supabase') : 'neste navegador'}</span>`],
+      ['Bloqueio por IP', st.sb ? (st.srv >= 9 ? '<span class="pill ok">Ativo no fluxo do aplicativo</span> <span class="muted">mais de 20 falhas em 15 min; desbloqueio progressivo</span>' : '<span class="pill warn">Disponível após a migração 09</span>') : '<span class="pill idle">Disponível somente com Supabase</span>'],
       ['Verificação “não sou um robô”', sgPill(Seg.captcha.ativo(), 'Ligada', 'Desligada (opcional, em js/config.js)', 'idle')],
       ['Sessão', `<span class="pill ${+p.inatividadeMin ? 'ok' : 'warn'}">${+p.inatividadeMin ? 'Encerra depois de ' + p.inatividadeMin + ' min sem uso' : 'Sem limite de inatividade'}</span>`],
       ['Registro de atividades', st.srv >= 8 ? '<span class="pill ok">À prova de adulteração</span> <span class="muted">cadeia SHA-256 gravada pelo banco</span>' : st.sb ? '<span class="pill ok">Só inclusão</span>' : '<span class="pill ok">Cadeia SHA-256 neste navegador</span>']
@@ -6564,7 +6748,8 @@ const SG_ABAS = {
         <label class="field" style="max-width:280px"><span class="lbl">Encerrar a sessão sem uso depois de</span><select name="inat">${[0, 10, 15, 30, 60, 120].map(m => `<option value="${m}"${+p.inatividadeMin === m ? ' selected' : ''}>${m ? m + ' minutos' : 'nunca (não recomendado)'}</option>`).join('')}</select></label>
         ${st.sb && st.polSemColuna ? '<div class="banner" style="font-size:12.5px">O banco ainda não tem as colunas da política. Rode <b>supabase/migracao_04_seguranca.sql</b> no Supabase.</div>' : ''}
         <div class="row"><button class="btn sm primary" type="submit">Salvar política</button></div></form></section>
-      <section class="acct-sec"><h3>Contas com tentativas erradas</h3><div id="sgBloq" class="muted">Carregando…</div></section>`;
+      <section class="acct-sec"><h3>Contas com tentativas erradas</h3><div id="sgBloq" class="muted">Carregando…</div></section>
+      <section class="acct-sec"><h3>IPs com tentativas erradas</h3><div id="sgIpBloq" class="muted">Carregando…</div></section>`;
     $('#sgPol').onsubmit = async ev => {
       ev.preventDefault(); const f = new FormData(ev.target), nova = { exige2fa: !!f.get('exige'), inatividadeMin: +f.get('inat') };
       if (!(await confirmarIdentidade('Alterar a política de segurança'))) { segurancaForm('politica'); return; }
@@ -6573,12 +6758,26 @@ const SG_ABAS = {
     };
     const box = $('#sgBloq');
     const l = await bloqueiosLista().catch(e => { box.textContent = sbMensagem(e); return undefined; });
-    if (l === undefined || !box.isConnected) return;
-    if (l === null) { box.classList.remove('muted'); box.innerHTML = precisaMig08; return; }
-    box.classList.remove('muted');
-    box.innerHTML = l.length ? `<div class="tblwrap"><table class="t"><thead><tr><th>Conta</th><th class="n">Erros seguidos</th><th>Situação</th><th>Último erro</th><th></th></tr></thead><tbody>${l.map(b => `<tr><td>${esc(b.nome || b.email)}${b.email && b.email !== b.nome ? `<div class="muted" style="font-size:12px">${esc(b.email)}</div>` : ''}</td><td class="n">${nf0.format(b.falhas)}</td><td>${b.bloqueadoAte ? `<span class="pill bad">Bloqueada até ${esc(fdh(b.bloqueadoAte))}</span>` : '<span class="pill warn">Em observação</span>'}</td><td>${b.ultima ? esc(fdh(b.ultima)) : '—'}</td><td><button class="btn sm" type="button" data-desbloq="${esc(b.id)}">Desbloquear</button></td></tr>`).join('')}</tbody></table></div>`
-      : '<span class="muted">Nenhuma conta com tentativas erradas recentes.</span>';
-    box.onclick = ev => { const b = ev.target.closest('[data-desbloq]'); if (!b) return; armButton(b, async () => { try { await desbloquear(b.dataset.desbloq); toast('Conta desbloqueada'); segurancaForm('politica'); } catch (e) { msg(sbMensagem(e)); } }, 'Confirmar'); };
+    if (!box.isConnected) return;
+    if (l === null) { box.classList.remove('muted'); box.innerHTML = precisaMig08; }
+    else if (l !== undefined) {
+      box.classList.remove('muted');
+      box.innerHTML = l.length ? `<div class="tblwrap"><table class="t"><thead><tr><th>Conta</th><th class="n">Erros seguidos</th><th>Situação</th><th>Último erro</th><th></th></tr></thead><tbody>${l.map(b => `<tr><td>${esc(b.nome || b.email)}${b.email && b.email !== b.nome ? `<div class="muted" style="font-size:12px">${esc(b.email)}</div>` : ''}</td><td class="n">${nf0.format(b.falhas)}</td><td>${b.bloqueadoAte ? `<span class="pill bad">Bloqueada até ${esc(fdh(b.bloqueadoAte))}</span>` : '<span class="pill warn">Em observação</span>'}</td><td>${b.ultima ? esc(fdh(b.ultima)) : '—'}</td><td><button class="btn sm" type="button" data-desbloq="${esc(b.id)}">Desbloquear</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<span class="muted">Nenhuma conta com tentativas erradas recentes.</span>';
+      box.onclick = ev => { const b = ev.target.closest('[data-desbloq]'); if (!b) return; armButton(b, async () => { try { await desbloquear(b.dataset.desbloq); toast('Conta desbloqueada'); segurancaForm('politica'); } catch (e) { msg(sbMensagem(e)); } }, 'Confirmar'); };
+    }
+    const ipBox = $('#sgIpBloq');
+    const ips = await bloqueiosIpLista().catch(e => { if (ipBox) ipBox.textContent = sbMensagem(e); return undefined; });
+    if (ips === undefined || !ipBox || !ipBox.isConnected) return;
+    if (ips === null) {
+      ipBox.classList.remove('muted');
+      ipBox.innerHTML = st.sb ? `<div class="banner" style="font-size:12.5px">Este recurso precisa da migração <b>supabase/migracao_09_bloqueio_ip.sql</b> no Supabase.</div>` : '<span class="muted">O bloqueio por IP requer o Supabase; o login local usa apenas o limite deste navegador.</span>';
+      return;
+    }
+    ipBox.classList.remove('muted');
+    ipBox.innerHTML = ips.length ? `<div class="tblwrap"><table class="t"><thead><tr><th>IP</th><th class="n">Falhas</th><th class="n">Bloqueios</th><th>Situação</th><th>Último erro</th><th></th></tr></thead><tbody>${ips.map(b => `<tr><td>${esc(b.ip)}</td><td class="n">${nf0.format(b.falhas)}</td><td class="n">${nf0.format(b.bloqueios)}</td><td>${b.bloqueadoAte > Date.now() ? `<span class="pill bad">Bloqueado até ${esc(fdh(b.bloqueadoAte))}</span>` : '<span class="pill warn">Sem bloqueio ativo</span>'}</td><td>${b.ultima ? esc(fdh(b.ultima)) : '—'}</td><td><button class="btn sm" type="button" data-ipunblock="${esc(b.ip)}">Desbloquear</button></td></tr>`).join('')}</tbody></table></div>`
+      : '<span class="muted">Nenhum IP com tentativas erradas.</span>';
+    ipBox.onclick = ev => { const b = ev.target.closest('[data-ipunblock]'); if (!b) return; armButton(b, async () => { try { await desbloquearIp(b.dataset.ipunblock); toast('IP desbloqueado'); segurancaForm('politica'); } catch (e) { msg(sbMensagem(e)); } }, 'Confirmar'); };
   },
   async privacidade(el, msg) {
     el.innerHTML = `<section class="acct-sec" style="border-top:0;padding-top:0"><h3>Aviso de privacidade</h3>
@@ -6746,6 +6945,23 @@ async function bloqueiosLista() {
   }
   return Seg.Freio.lista(st.empresa.id + ':').filter(v => (v.n || 0) > 0 || v.ate > Date.now()).map(v => ({ id: v.conta, nome: v.conta, email: '', falhas: v.n || 0, bloqueadoAte: v.ate > Date.now() ? v.ate : 0, ultima: v.ult || 0 }));
 }
+async function bloqueiosIpLista() {
+  if (!st.sb || !(st.srv >= 9)) return null;
+  const { data, error } = await st.sb.rpc('seguranca_ips_bloqueados', { e: st.empresa.id });
+  if (error) throw error;
+  return data.map(b => ({
+    ip: b.ip,
+    falhas: b.falhas || 0,
+    bloqueios: b.bloqueios || 0,
+    bloqueadoAte: b.bloqueado_ate ? Date.parse(b.bloqueado_ate) : 0,
+    ultima: b.ultima_falha ? Date.parse(b.ultima_falha) : 0
+  }));
+}
+async function desbloquearIp(ip) {
+  if (!st.sb || !(st.srv >= 9)) throw new Error('O bloqueio por IP não está disponível.');
+  const { error } = await st.sb.rpc('seguranca_ip_desbloquear', { e: st.empresa.id, alvo: ip });
+  if (error) throw error;
+}
 async function desbloquear(id) {
   if (st.sb) { const { error } = await st.sb.rpc('seguranca_desbloquear', { e: st.empresa.id, alvo: id }); if (error) throw error; return; }
   Seg.Freio.liberar(st.empresa.id + ':' + id); audita('conta_desbloqueada', id);
@@ -6893,22 +7109,45 @@ function mostraSegredo(titulo, texto, valor) {
   openModal(`<div class="dh"><h2>${esc(titulo)}</h2></div><div class="db"><p class="muted" style="margin:0">${esc(texto)}</p><div class="lg-code">${esc(valor)}</div></div>
     <div class="df"><button class="btn" type="button" id="sgCopia">Copiar</button><button class="btn primary" type="button" id="sgFim">Continuar</button></div>`, 'sm');
   $('#sgCopia').onclick = e => copiarTexto(valor, e.target);
-  $('#sgFim').onclick = contaForm;
+  $('#sgFim').onclick = () => { closeModal(); if (st.view !== 'conta') contaForm(); };
 }
 /* ----- Minha conta com Supabase: as contas ficam no Supabase Auth, o sistema só vincula ao ambiente ----- */
-function contaFormSb() {
+function renderContaPage() {
+  if (st.sb) renderContaPageSb(); else renderContaPageLocal();
+}
+function voltarConta() {
+  const origem = st.accountReturn;
+  st.accountReturn = null;
+  if (origem && origem.screen === 'home') { setScreen('home', origem.homeSec); return; }
+  setView(origem && origem.view && origem.view !== 'conta' ? origem.view : 'mapa');
+}
+function contaForm() {
+  if (st.view === 'conta' && st.screen === 'planner') return;
+  st.accountReturn = { screen: st.screen, view: st.view, homeSec: st.homeSec };
+  setView('conta');
+}
+function renderContaPageSb() {
   const e = st.empresa, u = st.usuario, admin = u.papel === 'admin', mfa = !!st.mfaAtivo;
-  openModal(`<div class="dh"><h2>Minha conta</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
-  <div class="db">
-    <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(u.nome)}</b> <span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span><div class="muted">${esc(u.login)} · Ambiente ${esc(e.nome)}</div></div></div>
-    <section class="acct-sec"><h3>Alterar senha</h3><form id="ctSenha"><div class="fgrid">${mfa ? `<label class="field"><span class="lbl">Código do aplicativo (2 etapas)</span><input type="text" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label>` : senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div>${mfa ? '' : captchaHtml('ctCaptcha')}<div class="row"><button class="btn sm primary" type="submit">Salvar senha</button></div></form></section>
-    ${admin ? `<section class="acct-sec"><h3>Usuários do ambiente</h3><div id="ctUsuarios" class="muted">Carregando…</div>
-      <form id="ctNovo"><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off" maxlength="120"></label><label class="field"><span class="lbl">E-mail</span><input type="email" name="email" required autocomplete="off" maxlength="320"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"><span class="hint">Usada só se a pessoa ainda não tiver conta</span></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div>${captchaHtml('ctNovoCaptcha')}<div class="row"><button class="btn sm primary" type="submit">Incluir usuário</button></div></form></section>` : ''}
+  const nome = esc(u.nome), iniciais = (u.nome.trim().split(/\s+/).slice(0, 2).map(x => x.charAt(0)).join('') || 'U').toUpperCase();
+  $('#pageView').innerHTML = `<div class="page account-page">
+    <div class="ph account-heading"><div><h1>Minha conta</h1><p>Informações pessoais e segurança do seu perfil.</p></div><button class="btn" type="button" data-act="contaVoltar">Voltar</button></div>
+    <section class="account-profile card"><div class="account-avatar" aria-hidden="true">${esc(iniciais)}</div><div class="account-profile-info"><div class="row"><h2>${nome}</h2><span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span></div><p>${esc(u.login)}</p><div class="account-meta"><span>Ambiente: <b>${esc(e.nome)}</b></span><span>Verificação em duas etapas: <b>${mfa ? 'Ativada' : 'Desativada'}</b></span></div></div></section>
     <div id="ctMsg" role="alert"></div>
-  </div>
-  <div class="df"><button class="btn" type="button" data-act="seguranca">Segurança e privacidade</button><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
+    <div class="account-grid">
+      <section class="card account-card"><div class="ch"><div><h2>Alterar senha</h2><p>Atualize sua senha de acesso.</p></div></div><div class="cb">
+        <form id="ctSenha"><div class="fgrid">${mfa ? `<label class="field"><span class="lbl">Código do aplicativo (2 etapas)</span><input type="text" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></label>` : senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div>${senhaMedidorHtml()}${mfa ? '' : captchaHtml('ctCaptcha')}<div class="row"><button class="btn primary" type="submit">Salvar senha</button></div></form>
+      </div></section>
+      <section class="card account-card"><div class="ch"><div><h2>Segurança e privacidade</h2><p>Gerencie a proteção da conta e seus dados.</p></div></div><div class="cb account-security"><p>Verificação em duas etapas: <span class="pill ${mfa ? 'ok' : 'warn'}">${mfa ? 'Ativada' : 'Desativada'}</span></p><button class="btn" type="button" data-act="seguranca">Abrir segurança e privacidade</button></div></section>
+      ${admin ? `<section class="card account-card account-admin"><div class="ch"><div><h2>Usuários do ambiente</h2><p>Gerencie os acessos vinculados a este ambiente.</p></div></div><div class="cb">
+        <div id="ctUsuarios" class="muted">Carregando…</div>
+        <form id="ctNovo"><h3>Incluir usuário</h3><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off" maxlength="120"></label><label class="field"><span class="lbl">E-mail</span><input type="email" name="email" required autocomplete="off" maxlength="320"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"><span class="hint">Usada só se a pessoa ainda não tiver conta</span></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div>${senhaMedidorHtml()}${captchaHtml('ctNovoCaptcha')}<div class="row"><button class="btn primary" type="submit">Incluir usuário</button></div></form>
+      </div></section>` : ''}
+    </div>
+    <div class="account-actions"><button class="btn danger" type="button" id="ctSair">Sair e trocar de ambiente</button></div>
+  </div>`;
   const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
-  $$('#modal [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  $$('#pageView [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  bindSenhaMedidor($('#ctSenha')); bindSenhaMedidor($('#ctNovo'));
   $('#ctSair').onclick = sair;
   montaCaptcha($('#ctCaptcha'), t => msg(t)); montaCaptcha($('#ctNovoCaptcha'), t => msg(t));
   $('#ctSenha').onsubmit = async ev => {
@@ -6937,7 +7176,7 @@ function contaFormSb() {
       b.disabled = true;
       try {
         const vincula = async () => { const { data, error } = await st.sb.rpc('adicionar_membro', { e: e.id, mail: email, nome_membro: Seg.texto(String(f.get('nome')).trim(), 120), papel_membro: f.get('papel') === 'admin' ? 'admin' : 'usuario' }); if (error) throw error; return data; };
-        if ((await vincula()) === 'ok') { contaFormSb(); toast('Essa pessoa já tinha conta: foi incluída neste ambiente com a senha atual dela.', 6000); return; }
+        if ((await vincula()) === 'ok') { renderPage(); toast('Essa pessoa já tinha conta: foi incluída neste ambiente com a senha atual dela.', 6000); return; }
         // Cliente separado: criar a conta não pode trocar a sessão de quem está logado
         const temp = supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'rt1-temp' } });
         const capN = $('#ctNovoCaptcha'), tokN = Seg.captcha.token(capN); if (tokN === '') throw new Error('Conclua a verificação de segurança para criar a conta.');
@@ -6945,7 +7184,7 @@ function contaFormSb() {
         Seg.captcha.reiniciar(capN);
         if (error) throw error;
         if ((await vincula()) !== 'ok') throw new Error('A conta foi criada, mas não pôde ser incluída no ambiente. Tente de novo.');
-        contaFormSb(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 6000); audita('usuario_incluido', email);
+        renderPage(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 6000); audita('usuario_incluido', email);
       } catch (err) { msg(sbMensagem(err)); }
       finally { b.disabled = false; }
     };
@@ -6970,29 +7209,35 @@ async function listaMembros(msg) {
     else armButton(b, async () => {
       if (!(await confirmarIdentidade(`Tirar ${u.nome} do ambiente`))) { contaForm(); return; }
       const { error: er } = await st.sb.from('membros_empresa').delete().eq('empresa_id', e.id).eq('user_id', u.user_id);
-      contaForm();
+      renderPage();
       if (er) { toast(sbMensagem(er), 7000); return; }
       toast(`${u.nome} saiu do ambiente. A conta continua existindo no Supabase.`, 6000); audita('usuario_removido', u.email || u.nome);
     }, 'Confirmar');
   };
 }
-function contaForm() {
-  if (st.sb) { contaFormSb(); return; }
+function renderContaPageLocal() {
   const e = st.empresa, u = st.usuario, admin = u.papel === 'admin';
-  openModal(`<div class="dh"><h2>Minha conta</h2><button class="iconbtn" data-close aria-label="Fechar">${ICON.close}</button></div>
-  <div class="db">
-    <div class="oh"><span class="oi sg">${esc(e.sigla)}</span><div><b>${esc(u.nome)}</b> <span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span><div class="muted">${esc(u.login)} · Ambiente ${esc(e.nome)}</div></div></div>
-    <section class="acct-sec"><h3>Alterar senha</h3><form id="ctSenha"><div class="fgrid">${senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div><div class="row"><button class="btn sm primary" type="submit">Salvar senha</button></div></form></section>
-    <section class="acct-sec"><h3>Código de recuperação</h3><p class="muted" style="margin:0">Permite redefinir a senha em “Esqueci minha senha”. Gerar um novo invalida o anterior.</p><div class="row"><button class="btn sm" type="button" id="ctCodigo">Gerar novo código</button></div></section>
-    ${admin ? `<section class="acct-sec"><h3>Usuários do ambiente</h3><div id="ctUsuarios" class="muted">Carregando…</div>
-      <form id="ctNovo"><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off" maxlength="120"></label><label class="field"><span class="lbl">Usuário ou e-mail</span><input type="text" name="login" required autocomplete="off" maxlength="320"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div><div class="row"><button class="btn sm primary" type="submit">Criar usuário</button><span class="muted" style="font-size:12px">A pessoa troca a senha no primeiro login.</span></div></form></section>` : ''}
+  const iniciais = (u.nome.trim().split(/\s+/).slice(0, 2).map(x => x.charAt(0)).join('') || 'U').toUpperCase();
+  $('#pageView').innerHTML = `<div class="page account-page">
+    <div class="ph account-heading"><div><h1>Minha conta</h1><p>Informações pessoais e segurança do seu perfil.</p></div><button class="btn" type="button" data-act="contaVoltar">Voltar</button></div>
+    <section class="account-profile card"><div class="account-avatar" aria-hidden="true">${esc(iniciais)}</div><div class="account-profile-info"><div class="row"><h2>${esc(u.nome)}</h2><span class="pill ${admin ? 'ok' : 'idle'}">${admin ? 'Administrador' : 'Usuário'}</span></div><p>${esc(u.login)}</p><div class="account-meta"><span>Ambiente: <b>${esc(e.nome)}</b></span><span>Verificação em duas etapas: <b>Disponível nas configurações de segurança</b></span></div></div></section>
     <div id="ctMsg" role="alert"></div>
-  </div>
-  <div class="df"><button class="btn" type="button" data-act="seguranca">Segurança e privacidade</button><button class="btn" type="button" id="ctSair">Sair e trocar de ambiente</button></div>`);
+    <div class="account-grid">
+      <section class="card account-card"><div class="ch"><div><h2>Alterar senha</h2><p>Atualize sua senha de acesso.</p></div></div><div class="cb">
+        <form id="ctSenha"><div class="fgrid">${senhaCampo('atual', 'Senha atual', 'current-password')}${senhaCampo('senha', 'Nova senha', 'new-password')}${senhaCampo('senha2', 'Repita a nova senha', 'new-password')}</div>${senhaMedidorHtml()}<div class="row"><button class="btn primary" type="submit">Salvar senha</button></div></form>
+      </div></section>
+      <section class="card account-card"><div class="ch"><div><h2>Código de recuperação</h2><p>Redefina sua senha caso não consiga entrar.</p></div></div><div class="cb account-security"><p>Gerar um novo código invalida o anterior. O código completo será exibido apenas uma vez.</p><button class="btn" type="button" id="ctCodigo">Gerar novo código</button><hr><h3>Segurança e privacidade</h3><button class="btn" type="button" data-act="seguranca">Abrir segurança e privacidade</button></div></section>
+      ${admin ? `<section class="card account-card account-admin"><div class="ch"><div><h2>Usuários do ambiente</h2><p>Gerencie os acessos vinculados a este ambiente.</p></div></div><div class="cb">
+        <div id="ctUsuarios" class="muted">Carregando…</div>
+        <form id="ctNovo"><h3>Incluir usuário</h3><div class="fgrid"><label class="field"><span class="lbl">Nome</span><input type="text" name="nome" required autocomplete="off" maxlength="120"></label><label class="field"><span class="lbl">Usuário ou e-mail</span><input type="text" name="login" required autocomplete="off" maxlength="320"></label><label class="field"><span class="lbl">Senha provisória</span><input type="text" name="senha" required autocomplete="off" value="${novoCodigo()}"></label><label class="field"><span class="lbl">Perfil</span><select name="papel"><option value="usuario">Usuário</option><option value="admin">Administrador</option></select></label></div>${senhaMedidorHtml()}<div class="row"><button class="btn primary" type="submit">Criar usuário</button><span class="muted" style="font-size:12px">A pessoa troca a senha no primeiro login.</span></div></form>
+      </div></section>` : ''}
+    </div>
+    <div class="account-actions"><button class="btn danger" type="button" id="ctSair">Sair e trocar de ambiente</button></div>
+  </div>`;
   const msg = (t, c = 'bad') => { $('#ctMsg').innerHTML = t ? `<div class="banner ${c}">${esc(t)}</div>` : ''; };
-  $$('#modal [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  $$('#pageView [data-ver]').forEach(b => { b.onclick = () => { const i = b.parentElement.querySelector('input'), ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; b.textContent = ver ? 'Ocultar' : 'Mostrar'; }; });
+  bindSenhaMedidor($('#ctSenha')); bindSenhaMedidor($('#ctNovo'));
   $('#ctSair').onclick = sair;
-  montaCaptcha($('#ctCaptcha'), t => msg(t)); montaCaptcha($('#ctNovoCaptcha'), t => msg(t));
   $('#ctSenha').onsubmit = async ev => {
     ev.preventDefault(); const f = new FormData(ev.target);
     const erro = await validaSenhaCompleta(f.get('senha'), f.get('senha2'), quemSenha()); if (erro) { msg(erro); return; }
@@ -7014,7 +7259,7 @@ function contaForm() {
       if (String(f.get('senha')).length < SENHA_MIN) { msg(`A senha provisória precisa ter ao menos ${SENHA_MIN} caracteres.`); return; }
       if ((await usuariosDe(e)).some(x => x.login === login)) { msg('Já existe um usuário com esse login neste ambiente.'); return; }
       await salvarUsuario(e, { id: uid('u'), nome: Seg.texto(f.get('nome').trim(), 120), login, papel: f.get('papel'), senha: await segredo(f.get('senha'), ITER_SENHA), trocarSenha: true, criado: Date.now() });
-      contaForm(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 5000); audita('usuario_incluido', login);
+      renderPage(); toast('Usuário criado. Passe a senha provisória para a pessoa.', 5000); audita('usuario_incluido', login);
     };
   }
 }
@@ -7034,7 +7279,7 @@ async function listaUsuarios(msg) {
     }, 'Confirmar');
     else armButton(b, async () => {
       if (!(await confirmarIdentidade(`Excluir o usuário ${u.nome}`))) { contaForm(); return; }
-      await st.base.del(colUsuarios(e), u.id); contaForm(); toast(`Usuário ${u.nome} excluído.`, 5000); audita('usuario_removido', u.login);
+      await st.base.del(colUsuarios(e), u.id); renderPage(); toast(`Usuário ${u.nome} excluído.`, 5000); audita('usuario_removido', u.login);
     }, 'Confirmar exclusão');
   };
 }
@@ -7064,6 +7309,7 @@ async function init() {
   if (sbConfigurado()) {
     if (st.sb) {
       const { data: { session } } = await st.sb.auth.getSession();
+      st.srv = await sbVersaoSeguranca();
       if (location.hash) history.replaceState(null, '', location.pathname + location.search);
       if (recuperacao && session) { lg.step = 'novaSenha'; renderLogin(); return; }
       const ses = lerSessao(), emp = ses && EMPRESAS.find(x => x.id === ses.emp);
@@ -7104,7 +7350,7 @@ async function boot() {
   probeRoads();
   applyPanels();
   if (st.sb) await carregaChaveDados(); // antes de carregar os dados: colaboradores e verba podem estar cifrados
-  st.cli = new BucketStore('clientes'); st.col = new BucketStore('colaboradores'); st.amb = new BucketStore('ambientes'); st.imp = new BucketStore('importacoes');
+  st.cli = new ClienteStore('clientes'); st.col = new BucketStore('colaboradores'); st.amb = new BucketStore('ambientes'); st.imp = new BucketStore('importacoes');
   try { await Promise.all([st.cli.load(), st.col.load(), st.amb.load()]); }
   catch (e2) { toast('Não foi possível carregar os dados salvos: ' + (e2.message || e2.code || e2)); }
   try { await st.imp.load(); } catch (e2) { /* o histórico de importações não impede o uso do sistema */ }
@@ -7129,7 +7375,7 @@ async function boot() {
 /* Funções internas usadas pelos módulos em arquivos separados (js/rotas.js) */
 window.RRM = {
   st, $, $$, esc, toast, openModal, closeModal, armButton, ICON, ICON_MOD, nf0, nf1, fkm, fhm, fpct, ocPill, E, P, DEF_P, BucketStore, buildRoutes, sumRoutes,
-  DIA_C, DIA_L, COR_DIA, COR_SEM, isNum, uid, clone, norm, numBR, parseDias, parseSemanas, hasXY, hbars, vcols, kcard, saveFile, xlsxBlob, slug, dstamp, fdate, fdh,
+  DIA_C, DIA_L, COR_DIA, COR_SEM, isNum, uid, clone, norm, numBR, parseDias, parseSemanas, soldDe, hasXY, hbars, vcols, kcard, saveFile, xlsxBlob, slug, dstamp, fdate, fdh,
   tokens, isDark, BASES, PinMarker, setScreen, renderHome, enterStudy, openImport, downloadModelo, audita, migalha, roadRoute, realFromLegs, decodePoly, sleep,
   get map() { return map; }
 };
@@ -7157,7 +7403,7 @@ const nf2 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFr
 const brl = v => 'R$ ' + nf2.format(v || 0);
 const novoFiltro = () => ({ cid: new Set(), rg: new Set(), vend: new Set(), eq: new Set(), sg: new Set(), d: new Set(), w: new Set(), tempo: '', q: '' });
 const RS = {
-  bases: null, carregando: null, linhas: new Map(), memo: new Map(), poly: new Map(), estudos: new Map(),
+  bases: null, carregando: null, erro: null, linhas: new Map(), memo: new Map(), poly: new Map(), estudos: new Map(),
   aba: 'geral', base: '', tab: 'vend', abertos: new Set(), aberto: '', f: novoFiltro(),
   cor: 'vend', verLinhas: true, verRegioes: false, verBases: true, hist: { de: '', ate: '', met: 'km' },
   cmp: { a: null, b: null }, nomes: new Map(), ultimo: null, maps: [], job: null, ligado: false
@@ -7190,9 +7436,18 @@ function parsePeriodo(v) {
 }
 
 /* ---------- Dados ---------- */
-async function iniciar() {
+async function iniciar(tentarNovamente = false) {
   if (RS.bases) return;
-  if (!RS.carregando) RS.carregando = (async () => { const b = new R.BucketStore('rotasbase'); try { await b.load(); } catch (e) { /* segue vazio */ } RS.bases = b; })();
+  if (RS.erro && !tentarNovamente) throw RS.erro;
+  if (!RS.carregando) {
+    const b = new R.BucketStore('rotasbase');
+    st.rotasSemTabela = false;
+    RS.carregando = (async () => {
+      try { await b.load(); RS.bases = b; RS.erro = null; }
+      catch (e) { RS.erro = e; throw e; }
+      finally { RS.carregando = null; }
+    })();
+  }
   await RS.carregando;
 }
 const params = () => ({ ...DEF, ...((RS.bases && RS.bases.get(PARAM_ID)) || {}).p });
@@ -7673,7 +7928,7 @@ function rotasDeEstudo(d) {
     const set = (a.setores || {})[r.s] || {}, v = set.colab || 's:' + r.s;
     if (!set.colab) RS.nomes.set(v, set.nome || 'Setor');
     const col = set.colab && st.col.get(set.colab), base = col && hasXY(col) ? { lat: col.lat, lng: col.lng } : null;
-    const ls = r.stops.map(s => ({ s, v, d: [r.d], w: [r.w] }));
+    const ls = r.stops.map(s => ({ s: R.soldDe(s), v, d: [r.d], w: [r.w] })); // visita extra "SOLD~2" conta como o cliente SOLD
     out.set(r.k, { k: r.k, v, w: r.w, d: r.d, ls, ord: ls.map(l => ({ l, ...info(l) })).filter(x => x.ok), base, m: r.m, sig: r.sig });
   }
   d.rotasRt = out; return out;
@@ -7783,7 +8038,16 @@ async function render(el = $('#homeView')) {
   if (!el || st.screen !== 'home' || st.homeSec !== 'rotas') return;
   const seq = ++renderSeq, keep = el.scrollTop;
   limpar(); liga(el);
-  if (!RS.bases) { el.innerHTML = `<div class="page home">${R.migalha('Rotas')}<p class="muted">Carregando as bases de rotas…</p></div>`; await iniciar(); if (seq !== renderSeq) return; }
+  if (!RS.bases) {
+    el.innerHTML = `<div class="page home">${R.migalha('Rotas')}<p class="muted">Carregando as bases de rotas…</p></div>`;
+    try { await iniciar(); }
+    catch (e) {
+      if (seq !== renderSeq) return;
+      el.innerHTML = `<div class="page home">${R.migalha('Rotas')}<div class="banner bad">Não foi possível consultar as bases de Rotas. Verifique a conexão e tente novamente. <button class="btn sm" type="button" data-ra="retry">Tentar novamente</button></div></div>`;
+      return;
+    }
+    if (seq !== renderSeq) return;
+  }
   const lista = basesList(), fl = fontesLista(), p = params();
   if (!fl.some(f => f.id === RS.base)) RS.base = (lista[0] && lista[0].id) || (fl[0] && fl[0].id) || '';
   const topo = `${R.migalha('Rotas')}<div class="ph"><div><h1>Rotas</h1><p>As rotas em uso mês a mês e os estudos do Planejamento: KM, tempo e custo por vendedor, mapa com pinos e regiões, histórico e comparação.</p></div>
@@ -7850,6 +8114,7 @@ function liga(el) {
     if (ds.rhm) { RS.hist.met = ds.rhm; render(); return; }
     const a = ds.ra, F = RS.ultimo && RS.ultimo.b.id === RS.base ? RS.ultimo : null, b = F && F.b;
     if (a === 'cmptroca') { const x = RS.cmp.a; RS.cmp.a = RS.cmp.b; RS.cmp.b = x; render(); return; }
+    if (a === 'retry') { iniciar(true).then(render).catch(e => { toast('Não foi possível consultar as bases: ' + (e.message || e.code || e)); render(); }); return; }
     if (a === 'importa') R.openImport('rotas');
     else if (a === 'modelo') R.downloadModelo('rotas');
     else if (a === 'param') paramForm();
@@ -7890,11 +8155,13 @@ function liga(el) {
 }
 
 function resumoHub() {
+  if (RS.erro) return { bases: 0, estudos: st.amb ? st.amb.size : 0, ultimo: '', km: '—', erro: true };
   if (!RS.bases) return null;
   const l = basesList(), b = l[0];
-  if (!b) return { bases: 0, ultimo: '', km: '—' };
+  if (st.rotasSemTabela) return { bases: 0, estudos: st.amb ? st.amb.size : 0, ultimo: '', km: '—', semTabela: true };
+  if (!b) return { bases: 0, estudos: st.amb ? st.amb.size : 0, ultimo: '', km: '—' };
   const a = agrega(recsResumo(b, novoFiltro()), fatorMes(b), semanasCiclo(b), b.res && b.res.cliV);
-  return { bases: l.length, ultimo: fmtPer(b.periodo), km: fkm(a.kmMes) };
+  return { bases: l.length, estudos: st.amb ? st.amb.size : 0, ultimo: fmtPer(b.periodo), km: fkm(a.kmMes) };
 }
 
 // Usado pela Verba Indenizatória: as mesmas fontes, rotas e nomes

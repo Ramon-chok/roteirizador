@@ -365,6 +365,10 @@ class BucketStore {
   async destroy() { this.map.clear(); this.dirty.clear(); for (let i = 0; i < NB; i++) { try { await withRetry(() => st.backend.del(this.coll, 'b' + String(i).padStart(2, '0'))); } catch (e) { /* ignora */ } } Save.stores.delete(this); }
   detach() { Save.stores.delete(this); }
 }
+/* Cadastro de clientes: a chave de uma visita extra ("SOLD~2") devolve o cliente "SOLD" */
+class ClienteStore extends BucketStore {
+  get(k) { const c = this.map.get(k); return c !== undefined || !ehVisExtra(k) ? c : this.map.get(soldDe(k)); }
+}
 
 /* ================= Estado ================= */
 const st = {
@@ -390,6 +394,16 @@ const P = (a = amb()) => ({ ...DEF_P, ...((a && a.params) || {}) });
 const setorOf = (id, a = amb()) => (a && a.setores ? a.setores[id] : null);
 function colabOfSetor(id, a = amb()) { const s = setorOf(id, a); return s && s.colab ? st.col.get(s.colab) : null; }
 function baseOf(id, a = amb()) { const c = colabOfSetor(id, a); return c && isNum(c.lat) && isNum(c.lng) ? { lat: c.lat, lng: c.lng } : null; }
+/* Um cliente pode ser visitado por mais de um setor no mesmo estudo (ex.: vendedor A nas semanas 1,3 e vendedor B nas 2,4).
+   A 1ª atribuição usa o SOLD como chave do item; as seguintes usam "SOLD~2", "SOLD~3"… e apontam para o mesmo cadastro
+   (st.cli.get resolve essas chaves). Quem grava ou exclui no cadastro usa soldDe(chave). */
+const VIS_RE = /~\d+$/;
+const soldDe = k => String(k ?? '').replace(VIS_RE, '');
+const ehVisExtra = k => VIS_RE.test(String(k ?? ''));
+const VIS_MAX = 30; // limite de setores por cliente no mesmo estudo
+function chavesDoCliente(sold, items = st.itens && st.itens.map) { if (!items) return []; const out = items.has(sold) ? [sold] : []; for (let i = 2; i <= VIS_MAX; i++) { const k = `${sold}~${i}`; if (items.has(k)) out.push(k); } return out; }
+function excluiItensDoCliente(sold, touched) { if (!st.itens) return; for (const k of chavesDoCliente(sold)) { if (touched) sdKeys(st.itens.get(k)).forEach(x => touched.add(x)); st.itens.del(k); } }
+function contaClientes(items) { let n = 0; for (const k of items.keys()) if (!ehVisExtra(k)) n++; return n; }
 function cliPt(sold) { const c = st.cli.get(sold); if (!c || !isNum(c.lat) || !isNum(c.lng)) return null; return { sold, lat: c.lat, lng: c.lng, t: isNum(c.t) ? c.t : P().tPadrao, f: c.f || 4 }; }
 function sortedSetores(a = amb()) { if (!a) return []; return Object.entries(a.setores || {}).sort((x, y) => String(x[1].nome).localeCompare(String(y[1].nome), 'pt-BR', { numeric: true })); }
 function itemKeys(it, a = amb()) { if (!it || !it.s || !setorOf(it.s, a)) return []; const W = P(a).semanas, out = []; for (const w of it.w || []) if (w <= W) for (const d of it.d || []) out.push(`${it.s}|${w}|${d}`); return out; }
@@ -1129,7 +1143,7 @@ function endPlace() { st.placing = null; document.body.classList.remove('tool-pl
 function placeClient(sold, ll, how, nivel) {
   const c = st.cli.get(sold); if (!c) return;
   const n = { ...c, lat: +(+ll.lat).toFixed(6), lng: +(+ll.lng).toFixed(6), geo: how || 'manual', geoNivel: nivel || 'exato' }; delete n.geoPend;
-  st.cli.put(sold, n); rebuild(); renderAll();
+  st.cli.put(c.sold, n); rebuild(); renderAll();
 }
 function afterPlace(sold) {
   const c = st.cli.get(sold), next = seaList()[0];
@@ -1863,9 +1877,10 @@ function selOp(op) {
   if (op === 'editar') { cliForm(st.cli.get(sel[0]), false); return; }
   if (op === 'delbase') {
     const touched = new Set();
-    for (const x of sel) { if (st.itens && st.itens.has(x)) { sdKeys(st.itens.get(x)).forEach(k => touched.add(k)); st.itens.del(x); } st.cli.del(x); }
+    const solds = new Set(sel.map(soldDe));
+    for (const x of solds) { excluiItensDoCliente(x, touched); st.cli.del(x); }
     if (st.itens) resequence(touched);
-    st.sel.clear(); rebuild(); renderAll(); renderToolbar(); toast(`${sel.length} cliente(s) excluídos da base`); return;
+    st.sel.clear(); rebuild(); renderAll(); renderToolbar(); toast(`${solds.size} cliente(s) excluídos da base`); return;
   }
   if (op === 'include') { pushUndo('Incluir no estudo'); let n = 0; for (const s of sel) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); return; }
   if (!inS.length) return;
@@ -2001,7 +2016,7 @@ function ambStats(a, items, routes) {
   const t = sumRoutes([...routes.values()]);
   let nSet = 0; for (const it of items.values()) if (it.s && a.setores && a.setores[it.s]) nSet++;
   const max = Math.max(0, ...[...routes.values()].map(r => r.m.ocup));
-  return { clientes: items.size, setorizados: nSet, setores: Object.keys(a.setores || {}).length, rotas: routes.size, km: t.km, horas: t.total, oc: t.ocMed, ocMax: max };
+  return { clientes: contaClientes(items), setorizados: nSet, setores: Object.keys(a.setores || {}).length, rotas: routes.size, km: t.km, horas: t.total, oc: t.ocMed, ocMax: max };
 }
 function pageEstudos() {
   const list = [...st.amb.values()].sort((x, y) => (y.alterado || 0) - (x.alterado || 0));
@@ -2529,6 +2544,13 @@ async function runImport() {
     const byName = new Map(Object.entries(a.setores).map(([id, s]) => [norm(s.nome), id]));
     const pendCli = new Map(a.pend.cli.map(p => [p.sold, p])), pendCol = new Map(a.pend.col.map(p => [p.codigo, p]));
     let n = 0, nCriados = 0, semDia = 0, nFreq = 0, nCoord = 0; const novos = new Set(), geoSet = new Set(), vistos = new Set();
+    // Um cliente pode vir em linhas de setores/vendedores diferentes (ex.: um nas semanas 1,3 e outro nas 2,4):
+    // cada setor ganha a sua visita (chave SOLD, SOLD~2, SOLD~3…). Linhas do mesmo cliente no mesmo setor somam dias e semanas.
+    const chavesExist = new Map(); // SOLD → chaves que o cliente já tinha no estudo
+    for (const k of st.itens.map.keys()) { const s = soldDe(k); if (!chavesExist.has(s)) chavesExist.set(s, []); chavesExist.get(s).push(k); }
+    const chaveImp = new Map(), usadas = new Map(); // "SOLD|setor" → chave usada nesta planilha; SOLD → chaves usadas
+    const novaChave = (sold, usa) => { if (!st.itens.has(sold) && !usa.has(sold)) return sold; for (let i = 2; i <= VIS_MAX; i++) { const k = `${sold}~${i}`; if (!st.itens.has(k) && !usa.has(k)) return k; } return null; };
+    let nMulti = 0;
     for (const r of wz.rows) {
       const sold = String(cell(r, 'sold')).trim(); if (!sold) continue;
       const ad = {}; for (const k of ['endereco', 'bairro', 'cidade', 'uf', 'cep']) if (wz.map[k] >= 0) { const v = String(cell(r, k)).trim(); if (v) ad[k] = k === 'uf' ? v.toUpperCase() : v; }
@@ -2550,10 +2572,19 @@ async function runImport() {
       let sid = byName.get(norm(setorNome));
       if (!sid) { sid = uid('s'); const i = Object.keys(a.setores).length; a.setores[sid] = { nome: setorNome, cor: E.PALETA[i % E.PALETA.length], colab: colab || '' }; byName.set(norm(setorNome), sid); }
       else if (colab && !a.setores[sid].colab) a.setores[sid].colab = colab;
-      const ex = st.itens.get(sold) || { s: '', d: [], w: [], q: {} };
+      // na 1ª linha do cliente neste setor, dias e semanas são substituídos; nas seguintes do mesmo setor, somados
+      let key = chaveImp.get(sold + '|' + sid); const soma = !!key;
+      if (!key) {
+        const usa = usadas.get(sold) || new Set(); usadas.set(sold, usa);
+        const livres = (chavesExist.get(sold) || []).filter(k => !usa.has(k) && st.itens.has(k));
+        key = livres.find(k => st.itens.get(k).s === sid) || livres.sort((x, y) => ehVisExtra(x) - ehVisExtra(y))[0] || novaChave(sold, usa);
+        if (!key) continue;
+        if (usa.size === 1) nMulti++;
+        usa.add(key); chaveImp.set(sold + '|' + sid, key);
+      }
+      vistos.add(sold);
+      const ex = st.itens.get(key) || { s: '', d: [], w: [], q: {} };
       const it = clone(ex); it.s = sid;
-      // na 1ª linha do cliente nesta planilha, dias e semanas são substituídos; nas seguintes, somados
-      const soma = ex.s === sid && vistos.has(sold); vistos.add(sold);
       // Dia: 2 segunda … 6 sexta; 7 ou vazio = sábado. Semana: cada algarismo é uma semana (1, 1,3, 2,4, 1234…)
       const diaTxt = String(cell(r, 'dia') ?? '').trim();
       const ds = wz.map.dia >= 0 && !diaTxt ? [6] : parseDias(diaTxt); const ws = parseSemanas(cell(r, 'semana'), W);
@@ -2562,12 +2593,18 @@ async function runImport() {
       else if (!(it.w || []).length) { const c = st.cli.get(sold); it.w = weeksByFreq((c && c.f) || 4, W, {}); }
       const sq = numBR(cell(r, 'seq')); if (isNum(sq)) ds.forEach(d => { it.q = { ...(it.q || {}), [d]: sq }; });
       if (!it.d.length) semDia++;
-      st.itens.put(sold, it); n++;
+      st.itens.put(key, it); n++;
     }
-    // frequência do cliente = semanas × dias do roteiro, em visitas por mês (1 semana = mensal, 2 = quinzenal, 4 = semanal)
+    // Visitas que o cliente tinha em setores que não vieram na planilha saem; a 1ª visita restante fica na chave SOLD
+    for (const [sold, usa] of usadas) {
+      for (const k of chavesExist.get(sold) || []) if (!usa.has(k)) st.itens.del(k);
+      if (!st.itens.has(sold)) { const k = [...usa].find(x => st.itens.has(x)); if (k) { st.itens.put(sold, st.itens.get(k)); st.itens.del(k); } }
+    }
+    // frequência do cliente = semanas × dias do roteiro, somadas as visitas de todos os setores, em visitas por mês
     for (const sold of vistos) {
-      const it = st.itens.get(sold), c = st.cli.get(sold); if (!it || !c || !(it.w || []).length) continue;
-      const f = Math.round(it.w.length * (4 / W) * (it.d || []).length);
+      const c = st.cli.get(sold); if (!c) continue;
+      let f = 0; for (const k of new Set([sold, ...(usadas.get(sold) || [])])) { const it = k === sold || ehVisExtra(k) ? st.itens.get(k) : null; if (!it) continue; if ((it.w || []).length) f += it.w.length * (4 / W) * (it.d || []).length; }
+      f = Math.round(f);
       if (f > 0 && f !== c.f) { st.cli.put(sold, { ...c, f }); if (!novos.has(sold)) nFreq++; }
     }
     geoSet.forEach(s => toGeo.push(['cli', s]));
@@ -2577,6 +2614,7 @@ async function runImport() {
     // sequência para dias sem coluna de sequência
     if (wz.map.seq === undefined || wz.map.seq < 0) { const sd = new Set(); for (const it of st.itens.values()) sdKeys(it).forEach(k => sd.add(k)); resequence(sd); }
     lines.push(['info', `${n} linha(s) aplicadas ao estudo “${esc(a.nome)}” em ${Object.keys(a.setores).length} setor(es).`]);
+    if (nMulti) lines.push(['info', `${nMulti} cliente(s) são visitados por mais de um setor/vendedor (ex.: um nas semanas 1,3 e outro nas 2,4) e aparecem no mapa de cada um.`]);
     if (nCriados) lines.push(['info', `${nCriados} cliente(s) que não estavam na base foram cadastrados com o endereço ou a coordenada da planilha.`]);
     if (nCoord) lines.push(['info', `${nCoord} cliente(s) da base que estavam sem coordenada receberam a latitude/longitude da planilha.`]);
     if (nFreq) lines.push(['info', `Frequência atualizada na base em ${nFreq} cliente(s), conforme as semanas e os dias do roteiro.`]);
@@ -2693,11 +2731,11 @@ async function doExport(kind) {
     const visitas = [], rotas = [], setores = [];
     for (const r of sortedRoutes([...st.routes.values()])) {
       const s = setorOf(r.s), c = colabOfSetor(r.s);
-      r.stops.forEach((sold, i) => { const cl = st.cli.get(sold) || {}; visitas.push({ 'SOLD cliente': sold, 'SOLD vendedor': s.colab || '', Dia: r.d === 7 ? 1 : r.d + 1, Semana: r.w, 'Endereço': cl.endereco || '', Bairro: cl.bairro || '', Cidade: cl.cidade || '', UF: cl.uf || '', CEP: cl.cep || '', 'Nome do cliente': cl.nome || '', 'Sequência': i + 1, Setor: s.nome, 'Nome do vendedor': c ? c.nome : '', Latitude: cl.lat ?? '', Longitude: cl.lng ?? '', 'Visitas por mês': cl.f || '', 'Atendimento (min)': cl.t || P().tPadrao, 'Dia da semana': DIA_L[r.d] }); });
+      r.stops.forEach((sold, i) => { const cl = st.cli.get(sold) || {}; visitas.push({ 'SOLD cliente': soldDe(sold), 'SOLD vendedor': s.colab || '', Dia: r.d === 7 ? 1 : r.d + 1, Semana: r.w, 'Endereço': cl.endereco || '', Bairro: cl.bairro || '', Cidade: cl.cidade || '', UF: cl.uf || '', CEP: cl.cep || '', 'Nome do cliente': cl.nome || '', 'Sequência': i + 1, Setor: s.nome, 'Nome do vendedor': c ? c.nome : '', Latitude: cl.lat ?? '', Longitude: cl.lng ?? '', 'Visitas por mês': cl.f || '', 'Atendimento (min)': cl.t || P().tPadrao, 'Dia da semana': DIA_L[r.d] }); });
       rotas.push({ Setor: s.nome, Colaborador: c ? c.nome : '', Semana: r.w, Dia: DIA_L[r.d], Visitas: r.m.n, 'KM ida': +r.m.kmIda.toFixed(2), 'KM entre visitas': +r.m.kmEntre.toFixed(2), 'KM volta': +r.m.kmVolta.toFixed(2), 'KM total': +r.m.km.toFixed(2), 'Deslocamento (min)': Math.round(r.m.tDesl), 'Atendimento (min)': Math.round(r.m.tAtend), 'Total (min)': Math.round(r.m.total), 'Ocupação da jornada': +r.m.ocup.toFixed(3), 'Fonte do KM': r.m.real ? (r.m.src === 'google' ? 'Google (ruas)' : r.m.src === 'valhalla' ? 'Ruas (Valhalla / OpenStreetMap)' : 'Ruas (OSRM / OpenStreetMap)') : 'Estimado (linha reta × fator)', 'Formato da rota': r.m.real ? rotaTxt(r.m.o) : '', 'Sem alternativa': r.m.real ? rotaAviso(r.m) : '' });
     }
     for (const [id, s] of sortedSetores()) { const rs = [...st.routes.values()].filter(r => r.s === id); const sm = sumRoutes(rs); const c = colabOfSetor(id); let n = 0; for (const it of st.itens.values()) if (it.s === id) n++; setores.push({ Setor: s.nome, Colaborador: s.colab || '', 'Nome do colaborador': c ? c.nome : '', Clientes: n, Rotas: rs.length, 'Visitas no ciclo': sm.n, 'KM no ciclo': +sm.km.toFixed(1), 'Horas no ciclo': +(sm.total / 60).toFixed(2), 'Ocupação média': +sm.ocMed.toFixed(3) }); }
-    const sem = []; for (const [sold, it] of st.itens.map) if (!itemKeys(it).length) { const cl = st.cli.get(sold) || {}; sem.push({ SOLD: sold, Cliente: cl.nome || '', Setor: (setorOf(it.s) || {}).nome || '', 'Situação': it.s ? 'Sem dia/semana' : 'Sem setor' }); }
+    const sem = []; for (const [sold, it] of st.itens.map) if (!itemKeys(it).length) { const cl = st.cli.get(sold) || {}; sem.push({ SOLD: soldDe(sold), Cliente: cl.nome || '', Setor: (setorOf(it.s) || {}).nome || '', 'Situação': it.s ? 'Sem dia/semana' : 'Sem setor' }); }
     const sh = [['Roteiro', visitas], ['Resumo das rotas', rotas], ['Setores', setores]]; if (sem.length) sh.push(['Não roteirizados', sem]);
     saveFile(`roteiro_${slug(a.nome)}_${dstamp()}.xlsx`, xlsxBlob(sh));
   }
@@ -2791,11 +2829,12 @@ function runAutoSet() {
   const colabs = cods.map(c => st.col.get(c)).filter(Boolean);
   pushUndo('Setorização automática');
   if (esc_ === 'encaixe') return encaixar();
-  const cls = [...st.itens.map.keys()].map(cliPt).filter(Boolean);
+  // a setorização automática refaz tudo com um setor por cliente: as visitas extras (SOLD~2…) saem
+  const cls = [...st.itens.map.keys()].filter(k => !ehVisExtra(k)).map(cliPt).filter(Boolean);
   if (!cls.length) { toast('O estudo não tem clientes com coordenadas'); st.undo.pop(); return; }
   const res = E.buildStudy(cls, colabs, k, P(), { by, seed: (Date.now() % 997) + 1 });
   // mantém clientes sem coordenada como "sem setor"
-  const m = new Map(); for (const sold of st.itens.map.keys()) m.set(sold, res.itens.get(sold) || { s: '', d: [], w: [], q: {} });
+  const m = new Map(); for (const sold of st.itens.map.keys()) if (!ehVisExtra(sold)) m.set(sold, res.itens.get(sold) || { s: '', d: [], w: [], q: {} });
   touchAmb(x => { x.setores = res.setores; }); if (st.geo) st.geo.replaceAll(new Map()); st.pathCache.clear();
   st.itens.replaceAll(m); st.hidden.clear(); st.hiddenSet.clear();
   rebuild(); renderAll(); toastU(`${Object.keys(res.setores).length} setores criados e roteirizados`);
@@ -3422,7 +3461,7 @@ function bindEvents() {
     else if (ds.cpage) { st.pg.clientes.page += +ds.cpage; renderPage(); $('#pageView').scrollTop = 0; }
     else if (ds.d && t.closest('#pDias')) { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); const ds2 = $$('#pDias button[aria-pressed="true"]').map(x => +x.dataset.d); if (!ds2.length) { t.setAttribute('aria-pressed', 'true'); toast('Mantenha ao menos um dia'); return; } touchAmb(a => { a.params = { ...P(), dias: ds2 }; }); rebuild(); renderPage(); }
     else if (ds.sdel) armButton(t, () => excluirSetor(ds.sdel), 'Confirmar');
-    else if (ds.delcli) armButton(t, () => { audita('exclusao', 'Cliente ' + ds.delcli); st.cli.del(ds.delcli); if (st.itens) st.itens.del(ds.delcli); closeModal(); rebuild(); renderAll(); toast('Cliente excluído da base'); }, 'Confirmar exclusão');
+    else if (ds.delcli) armButton(t, () => { audita('exclusao', 'Cliente ' + ds.delcli); st.cli.del(ds.delcli); excluiItensDoCliente(ds.delcli); closeModal(); rebuild(); renderAll(); toast('Cliente excluído da base'); }, 'Confirmar exclusão');
     else if (ds.delcol) armButton(t, () => { audita('exclusao', 'Colaborador ' + ds.delcol); st.col.del(ds.delcol); closeModal(); rebuild(); renderAll(); toast('Colaborador excluído'); }, 'Confirmar exclusão');
     else if (ds.act) pageAct(ds.act, t);
   });
@@ -3550,7 +3589,7 @@ function pageAct(act, btn) {
     case 'chkall': { const pc = pg.clientes; const q = pc.q.trim().toLowerCase(); for (const c of st.cli.values()) { if (q && !(c.sold + ' ' + (c.nome || '') + ' ' + (c.endereco || '') + ' ' + (c.bairro || '')).toLowerCase().includes(q)) continue; if (pc.cidade && c.cidade !== pc.cidade) continue; if (pc.semCoord && isNum(c.lat) && isNum(c.lng)) continue; if (pc.noEstudo === 'sim' && !(st.itens && st.itens.has(c.sold))) continue; if (pc.noEstudo === 'nao' && st.itens && st.itens.has(c.sold)) continue; pc.chk.add(c.sold); } renderPage(); break; }
     case 'chknone': pg.clientes.chk.clear(); renderPage(); break;
     case 'cliIncl': { pushUndo('Incluir clientes'); let n = 0; for (const s of pg.clientes.chk) if (!st.itens.has(s)) { st.itens.put(s, { s: '', d: [], w: [], q: {} }); n++; } pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) incluídos no estudo`); break; }
-    case 'cliDel': armButton(btn, () => { audita('exclusao', `${pg.clientes.chk.size} cliente(s) da base`); for (const s of pg.clientes.chk) { st.cli.del(s); if (st.itens) st.itens.del(s); } const n = pg.clientes.chk.size; pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) excluídos da base`); }, 'Confirmar exclusão'); break;
+    case 'cliDel': armButton(btn, () => { audita('exclusao', `${pg.clientes.chk.size} cliente(s) da base`); for (const s of pg.clientes.chk) { st.cli.del(s); excluiItensDoCliente(s); } const n = pg.clientes.chk.size; pg.clientes.chk.clear(); rebuild(); renderAll(); toast(`${n} cliente(s) excluídos da base`); }, 'Confirmar exclusão'); break;
     case 'geo': geoAgain(); break;
     case 'adj': adjustForm(); break;
     case 'gosea': goSea(); break;
@@ -5196,7 +5235,7 @@ async function boot() {
   probeRoads();
   applyPanels();
   if (st.sb) await carregaChaveDados(); // antes de carregar os dados: colaboradores e verba podem estar cifrados
-  st.cli = new BucketStore('clientes'); st.col = new BucketStore('colaboradores'); st.amb = new BucketStore('ambientes'); st.imp = new BucketStore('importacoes');
+  st.cli = new ClienteStore('clientes'); st.col = new BucketStore('colaboradores'); st.amb = new BucketStore('ambientes'); st.imp = new BucketStore('importacoes');
   try { await Promise.all([st.cli.load(), st.col.load(), st.amb.load()]); }
   catch (e2) { toast('Não foi possível carregar os dados salvos: ' + (e2.message || e2.code || e2)); }
   try { await st.imp.load(); } catch (e2) { /* o histórico de importações não impede o uso do sistema */ }
@@ -5221,7 +5260,7 @@ async function boot() {
 /* Funções internas usadas pelos módulos em arquivos separados (js/rotas.js) */
 window.RRM = {
   st, $, $$, esc, toast, openModal, closeModal, armButton, ICON, ICON_MOD, nf0, nf1, fkm, fhm, fpct, ocPill, E, P, DEF_P, BucketStore, buildRoutes, sumRoutes,
-  DIA_C, DIA_L, COR_DIA, COR_SEM, isNum, uid, clone, norm, numBR, parseDias, parseSemanas, hasXY, hbars, vcols, kcard, saveFile, xlsxBlob, slug, dstamp, fdate, fdh,
+  DIA_C, DIA_L, COR_DIA, COR_SEM, isNum, uid, clone, norm, numBR, parseDias, parseSemanas, soldDe, hasXY, hbars, vcols, kcard, saveFile, xlsxBlob, slug, dstamp, fdate, fdh,
   tokens, isDark, BASES, PinMarker, setScreen, renderHome, enterStudy, openImport, downloadModelo, audita, migalha, roadRoute, realFromLegs, decodePoly, sleep,
   get map() { return map; }
 };

@@ -1,0 +1,804 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Identidade Visual Grupo Arantes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: guia de referência com índice lateral fixo; a própria página segue os tokens do grupo. */
+  :root {
+    --bg: #F8F8F7;
+    --surface: #FFFFFF;
+    --soft: #EFEFED;
+    --ink: #150F0F;
+    --muted: #4F484D;
+    --line: #DCDCD8;
+    --azul: #2A4C7F;
+    --turq: #44ABAA;
+    --turq-aa: #2A6F6E;
+    --link: #2A4C7F;
+    --ok: #238551;
+    --warn: #A3660A;
+    --bad: #C52E2B;
+    --gradient: linear-gradient(135deg, #2A4C7F 0%, #2A4C7F 30%, #44ABAA 120%);
+    --shadow: 0 1px 2px rgba(20, 30, 50, 0.05), 0 8px 24px rgba(20, 30, 50, 0.06);
+    --display: "Montserrat", "Segoe UI", system-ui, sans-serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0A0E14;
+      --surface: #11161D;
+      --soft: #171D26;
+      --ink: #ECECEA;
+      --muted: #9AA1AC;
+      --line: #242A33;
+      --link: #7295CA;
+      --turq-aa: #49B6B4;
+      --ok: #4EBC81;
+      --warn: #E0AC52;
+      --bad: #E75F5A;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    :root:not([data-theme="light"]) .so-claro { display: none !important; }
+    :root:not([data-theme="light"]) .so-escuro { display: block !important; }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0A0E14;
+    --surface: #11161D;
+    --soft: #171D26;
+    --ink: #ECECEA;
+    --muted: #9AA1AC;
+    --line: #242A33;
+    --link: #7295CA;
+    --turq-aa: #49B6B4;
+    --ok: #4EBC81;
+    --warn: #E0AC52;
+    --bad: #E75F5A;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="dark"] .so-claro { display: none !important; }
+  :root[data-theme="dark"] .so-escuro { display: block !important; }
+  .so-escuro { display: none; }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.6 var(--sans);
+    padding-inline: 16px;
+  }
+  a { color: var(--link); text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--turq); outline-offset: 2px; border-radius: 4px; }
+  h1, h2, h3 { font-family: var(--display); letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
+  h2 { font-size: 1.625rem; font-weight: 700; line-height: 1.2; }
+  h3 { font-size: 1.0625rem; font-weight: 600; line-height: 1.3; }
+  p { margin: 0; max-width: 68ch; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  .eyebrow { font-family: var(--display); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .topo {
+    max-width: 1180px; margin-inline: auto; padding-block: 28px 8px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  .topo img { width: 150px; height: auto; }
+  .versao { font-size: 0.8rem; color: var(--muted); }
+
+  .grade { max-width: 1180px; margin-inline: auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 48px; padding-block: 8px 64px; }
+  .indice { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; display: flex; flex-direction: column; gap: 2px; font-size: 0.875rem; }
+  .indice a { color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 8px; }
+  .indice a:hover { color: var(--ink); background: var(--soft); }
+  main { display: flex; flex-direction: column; gap: 72px; min-width: 0; }
+  section { display: flex; flex-direction: column; gap: 20px; scroll-margin-top: 24px; min-width: 0; }
+  .cabeca { display: flex; flex-direction: column; gap: 8px; }
+  .cabeca p { color: var(--muted); }
+
+  .hero {
+    position: relative; overflow: hidden; border-radius: 18px; padding: 40px;
+    background: var(--gradient); color: #fff; display: flex; flex-direction: column; gap: 14px;
+  }
+  .hero img.graf { position: absolute; right: -120px; bottom: -150px; width: 620px; max-width: none; opacity: 0.12; pointer-events: none; }
+  .hero > * { position: relative; }
+  .hero h1 { font-size: clamp(1.9rem, 4vw, 2.75rem); font-weight: 800; line-height: 1.08; max-width: 18ch; }
+  .hero p { color: rgba(255, 255, 255, 0.88); max-width: 60ch; }
+  .hero .eyebrow { color: rgba(255, 255, 255, 0.8); }
+  .fatos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
+  .fato { background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 12px; padding: 14px 16px; }
+  .fato strong { display: block; font-family: var(--display); font-size: 1.75rem; font-weight: 700; line-height: 1.1; }
+  .fato span { font-size: 0.82rem; color: rgba(255, 255, 255, 0.85); }
+
+  .parede { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .app { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: 34px 1fr; gap: 4px 10px; align-items: center; }
+  .app i { grid-row: span 2; width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(128, 128, 128, 0.25); }
+  .app i.sem { background: repeating-linear-gradient(45deg, var(--soft) 0 5px, var(--surface) 5px 10px); }
+  .app b { font-size: 0.9rem; font-weight: 600; }
+  .app small { color: var(--muted); font-size: 0.78rem; line-height: 1.3; }
+  .app .ader { grid-column: 1 / -1; display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--muted); margin-top: 4px; line-height: 1.35; flex-wrap: wrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+  .dot.on { background: var(--ink); }
+  .app.pleno { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
+  .faixa-titulo { font-family: var(--display); font-weight: 600; font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+  .legenda { font-size: 0.82rem; color: var(--muted); }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .card ol, .card ul { margin: 0; padding-left: 20px; font-size: 0.9rem; display: flex; flex-direction: column; gap: 6px; }
+  .duas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+
+  .confronto { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .par { display: flex; gap: 10px; align-items: center; }
+  .par i { width: 44px; height: 44px; border-radius: 10px; flex: none; }
+  .par div { font-size: 0.82rem; line-height: 1.35; }
+  .tag { display: inline-block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; background: var(--soft); color: var(--muted); }
+  .tag.sim { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .tag.nao { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+
+  .camadas { display: flex; flex-direction: column; gap: 8px; }
+  .camada { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: center; padding: 16px 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+  .camada .rot { font-family: var(--display); font-weight: 700; font-size: 0.95rem; }
+  .camada .rot small { display: block; font-family: var(--sans); font-weight: 400; font-size: 0.78rem; color: var(--muted); }
+  .camada.c1 { background: linear-gradient(90deg, color-mix(in srgb, var(--azul) 14%, var(--surface)) 0%, var(--surface) 55%); }
+  .camada.c2 { margin-inline-start: 28px; background: linear-gradient(90deg, color-mix(in srgb, var(--turq) 16%, var(--surface)) 0%, var(--surface) 55%); }
+  .camada.c3 { margin-inline-start: 56px; }
+
+  .swatches { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+  .sw { border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+  .sw .cor { height: 92px; }
+  .sw .info { padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; font-size: 0.78rem; color: var(--muted); }
+  .sw .info b { font-size: 0.88rem; color: var(--ink); font-weight: 600; }
+  .degrade { height: 56px; border-radius: 12px; background: var(--gradient); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-inline: 16px; color: #fff; font-size: 0.8rem; font-family: var(--mono); }
+
+  .tabela-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-family: var(--display); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; }
+  .chip i { width: 18px; height: 18px; border-radius: 5px; border: 1px solid rgba(128, 128, 128, 0.3); flex: none; }
+  .novo { font-family: var(--display); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--turq-aa); margin-left: 6px; }
+
+  .especime { display: flex; flex-direction: column; gap: 14px; }
+  .fonte { display: grid; grid-template-columns: 170px 1fr; gap: 20px; align-items: baseline; padding-block: 16px; border-bottom: 1px solid var(--line); }
+  .fonte:last-child { border-bottom: 0; }
+  .fonte .papel { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+  .fonte .papel b { display: block; color: var(--ink); font-size: 0.92rem; }
+  .amostra-display { font-family: var(--display); font-weight: 700; font-size: 2rem; letter-spacing: -0.025em; line-height: 1.15; }
+  .amostra-sans { font-family: var(--sans); font-size: 1.05rem; }
+  .amostra-sans .kpi { font-size: 2rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; display: block; line-height: 1.1; }
+  .amostra-mono { font-family: var(--mono); font-size: 0.95rem; }
+
+  .logos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .logo-caixa { border-radius: 14px; min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; border: 1px solid var(--line); }
+  .logo-caixa img { width: 170px; height: auto; }
+  .logo-caixa small { font-size: 0.75rem; }
+  .lc-claro { background: #E8E8E6; color: #4F484D; }
+  .lc-azul { background: #2A4C7F; color: rgba(255, 255, 255, 0.85); }
+  .lc-noite { background: #0A0E14; color: rgba(255, 255, 255, 0.75); }
+  .regras { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; padding: 0; margin: 0; list-style: none; font-size: 0.88rem; }
+  .regras li { display: flex; gap: 8px; }
+  .regras li::before { content: "×"; color: var(--bad); font-weight: 700; }
+  .medidas { display: flex; flex-wrap: wrap; gap: 12px; }
+  .medida { flex: 1 1 180px; background: var(--soft); border-radius: 12px; padding: 14px 16px; }
+  .medida strong { font-family: var(--display); font-size: 1.4rem; display: block; line-height: 1.1; }
+  .medida span { font-size: 0.8rem; color: var(--muted); }
+  .icone-app { display: flex; align-items: center; gap: 14px; }
+  .icone-app img { border-radius: 22%; }
+
+  .antes-depois { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  figure img { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line); box-shadow: var(--shadow); }
+  figcaption { font-size: 0.8rem; color: var(--muted); }
+  figcaption b { color: var(--ink); }
+
+  ol.passos { margin: 0; padding: 0; list-style: none; counter-reset: p; display: flex; flex-direction: column; gap: 10px; }
+  ol.passos li { counter-increment: p; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  ol.passos li::before { content: counter(p); font-family: var(--display); font-weight: 700; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--soft); color: var(--turq-aa); }
+  ol.passos b { display: block; margin-bottom: 2px; }
+  ol.passos p { font-size: 0.88rem; color: var(--muted); }
+
+  .regras-codigo { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .regras-codigo li { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; font-size: 0.9rem; }
+  .regras-codigo li b { font-family: var(--display); font-weight: 600; font-size: 0.85rem; }
+
+  .codigo { position: relative; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); min-width: 0; }
+  .codigo pre { margin: 0; padding: 16px; overflow: auto; max-height: 420px; font-family: var(--mono); font-size: 0.78rem; line-height: 1.55; }
+  .codigo .barra { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px 8px 16px; border-bottom: 1px solid var(--line); font-size: 0.8rem; color: var(--muted); flex-wrap: wrap; }
+  .copiar { font: 600 0.8rem var(--sans); color: var(--surface); background: var(--azul); border: 0; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  .copiar:hover { background: color-mix(in srgb, var(--azul) 85%, black); }
+  :root[data-theme="dark"] .copiar { color: #0A0E14; background: var(--link); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .copiar { color: #0A0E14; background: var(--link); } }
+
+  .checklist { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; font-size: 0.9rem; }
+  .checklist li { display: flex; gap: 10px; align-items: baseline; }
+  .checklist li::before { content: ""; width: 12px; height: 12px; border: 2px solid var(--muted); border-radius: 3px; flex: none; transform: translateY(1px); }
+
+  .ondas { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .onda { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .onda ul { margin: 0; padding-left: 18px; font-size: 0.86rem; color: var(--muted); }
+
+  .refs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ref { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; font-size: 0.86rem; }
+  .ref a { font-weight: 600; }
+  .ref span { color: var(--muted); }
+  .ref em { font-style: normal; color: var(--ink); }
+
+  .pend { counter-reset: q; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .pend li { counter-increment: q; display: grid; grid-template-columns: 26px 1fr; gap: 10px; font-size: 0.9rem; }
+  .pend li::before { content: counter(q); font-family: var(--display); font-weight: 700; color: var(--warn); }
+  .onde { font-size: 0.86rem; color: var(--muted); }
+
+  @media (max-width: 960px) {
+    .grade { grid-template-columns: 1fr; gap: 24px; }
+    .indice { position: static; flex-direction: row; flex-wrap: wrap; gap: 4px; }
+    .swatches { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .fatos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .hero { padding: 26px 22px; }
+    .duas, .confronto, .antes-depois, .logos, .refs, .regras, .checklist { grid-template-columns: 1fr; }
+    .swatches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .camada { grid-template-columns: 1fr; gap: 6px; }
+    .camada.c2 { margin-inline-start: 14px; } .camada.c3 { margin-inline-start: 28px; }
+    .fonte { grid-template-columns: 1fr; gap: 8px; }
+    .regras-codigo li { grid-template-columns: 1fr; gap: 4px; }
+    .amostra-display { font-size: 1.55rem; }
+    .degrade span:nth-child(2) { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  html { scroll-behavior: smooth; }
+</style>
+
+<header class="topo">
+  <img class="so-claro" src="img/logo-horizontal-cor.svg" alt="Grupo Arantes">
+  <img class="so-escuro" src="img/logo-horizontal-branco.svg" alt="Grupo Arantes">
+  <span class="versao">Padrão dos apps · v1.2 · 05/10/2026 · placar de 28/10/2026 · TI Grupo Arantes</span>
+</header>
+
+<div class="grade">
+  <nav class="indice" aria-label="Seções">
+    <a href="#placar">Placar dos apps</a>
+    <a href="#manual">A fonte: o manual</a>
+    <a href="#camadas">As 3 camadas</a>
+    <a href="#cores">Cores</a>
+    <a href="#tipografia">Tipografia</a>
+    <a href="#logo">Logo e ícone</a>
+    <a href="#forma">Forma e faixa do topo</a>
+    <a href="#codigo">Regras de código</a>
+    <a href="#adocao">Como adotar</a>
+    <a href="#tokens">Tokens para copiar</a>
+    <a href="#conferencia">Conferência</a>
+    <a href="#galog">GALOG, o piloto</a>
+    <a href="#rollout">Ordem dos apps</a>
+    <a href="#referencias">Referências</a>
+    <a href="#pendencias">Pendências</a>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <img class="graf" src="img/simbolo-branco.svg" alt="">
+      <span class="eyebrow">Identidade visual nos apps do grupo</span>
+      <h1>Um grupo, uma marca em todas as telas</h1>
+      <p>O padrão sai do Manual de Identidade Visual do Grupo Arantes. Todo app usa as mesmas cores, fontes, logo e tokens, e muda só o nome e uma cor de destaque. Aqui estão as regras, o placar de cada app e o caminho para alinhar o próximo.</p>
+      <div class="fatos">
+        <div class="fato"><strong class="num">12</strong><span>apps medidos em 28/10</span></div>
+        <div class="fato"><strong class="num">2</strong><span>com 5 de 5</span></div>
+        <div class="fato"><strong class="num">3</strong><span>a caminho (3 ou 4 de 5)</span></div>
+        <div class="fato"><strong class="num">7</strong><span>ainda fora (0 ou 1 de 5)</span></div>
+      </div>
+    </div>
+
+    <section id="placar">
+      <div class="cabeca">
+        <span class="eyebrow">Placar dos apps</span>
+        <h2>Onde cada app está hoje</h2>
+        <p>Nota de 0 a 5 pelo auditor do pacote, que mede cor do app, fontes, logo e favicon, cor só por token e contraste. O quadrado é a cor principal que o app usa hoje.</p>
+      </div>
+      <div class="faixa-titulo">No padrão</div>
+      <div class="parede">
+        <div class="app pleno"><i style="background:#2A4C7F"></i><b>Gestão de Ativos</b><small>só claro, por decisão</small><div class="ader"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span>&nbsp;5/5 · implementação de referência</div></div>
+        <div class="app pleno"><i style="background:#2A4C7F"></i><b>Central NiM</b><small>força de vendas J. Arantes</small><div class="ader"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span>&nbsp;5/5 · já nasceu no padrão</div></div>
+        <div class="app"><i style="background:#2A4C7F"></i><b>GALOG</b><small>app-piloto</small><div class="ader"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot"></span>&nbsp;4/5 · 98% dos componentes limpos; falta marcar as cores de mapa e impressão</div></div>
+      </div>
+      <div class="faixa-titulo">A caminho</div>
+      <div class="parede">
+        <div class="app"><i style="background:#2A4C7F"></i><b>GA360</b><small>azul, Montserrat e logo no ar</small><div class="ader"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span>&nbsp;3/5 · 74% limpos; 1.231 classes de cor crua e o azul de informação antigo</div></div>
+        <div class="app"><i style="background:#2A4C7F"></i><b>GA-Workflow</b><small>cor e fontes já no padrão</small><div class="ader"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span>&nbsp;3/5 · faltam hex e contraste</div></div>
+      </div>
+      <div class="faixa-titulo">Ainda fora</div>
+      <div class="parede">
+        <div class="app"><i style="background:#006369"></i><b>Central DP</b><small>teal em OKLCH</small><div class="ader"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;1/5 · fontes, logo e hex</div></div>
+        <div class="app"><i style="background:#09778F"></i><b>Intranet</b><small>cores de mockup de IA</small><div class="ader"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;0/5</div></div>
+        <div class="app"><i style="background:#1147BB"></i><b>cockpit-ga</b><small>azul fora da paleta</small><div class="ader"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;0/5</div></div>
+        <div class="app"><i style="background:#3C83F6"></i><b>pagamentos</b><small>azul fora da paleta</small><div class="ader"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;0/5</div></div>
+        <div class="app"><i style="background:#171717"></i><b>RouteGA</b><small>preto do template</small><div class="ader"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;0/5</div></div>
+        <div class="app"><i class="sem"></i><b>CRM</b><small>marca DEX</small><div class="ader"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;1/5 · decidir a marca antes</div></div>
+        <div class="app"><i style="background:#0A0A0A"></i><b>Smartzap</b><small>marca SZ</small><div class="ader"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;1/5 · decidir a marca antes</div></div>
+      </div>
+      <p class="legenda">Medido com <code>auditar-identidade.mjs</code> nas cópias locais dos repositórios em 28/10/2026; o que só subiu para o GitHub pode estar à frente. Ficaram fora da medição o cockpit-dab e o Workflow CSC. Catálogos Chok e Jarantes, LP Chokdoce e INTEGRA-MAGALU falam com o cliente final e seguem a marca da própria empresa, não a do grupo.</p>
+    </section>
+
+    <section id="manual">
+      <div class="cabeca">
+        <span class="eyebrow">A fonte</span>
+        <h2>O manual manda, e ele desenha uma cor diferente da que escreve</h2>
+        <p>A fonte é o Manual de Identidade Visual feito pela dote.com.br. A intranet não serve de fonte: as cores dela foram amostradas de uma imagem gerada por IA e o logo dela foi redesenhado. No manual, o hex escrito no texto não bate com a cor desenhada nas amostras, no degradê e no próprio logo.</p>
+      </div>
+      <div class="confronto">
+        <div class="card">
+          <h3>Azul · Pantone 307C</h3>
+          <div class="par"><i style="background:#31729B"></i><div><span class="mono">#31729B</span> escrito no manual<br><span class="tag nao">não usar</span></div></div>
+          <div class="par"><i style="background:#2A4C7F"></i><div><span class="mono">#2A4C7F</span> desenhado e no logo<br><span class="tag sim">adotado</span></div></div>
+        </div>
+        <div class="card">
+          <h3>Turquesa · Pantone 638C</h3>
+          <div class="par"><i style="background:#00B9CF"></i><div><span class="mono">#00B9CF</span> escrito no manual<br><span class="tag nao">não usar</span></div></div>
+          <div class="par"><i style="background:#44ABAA"></i><div><span class="mono">#44ABAA</span> desenhado e no logo<br><span class="tag sim">adotado</span></div></div>
+        </div>
+      </div>
+      <p class="legenda">Adotamos o desenhado porque é o que aparece no logo ao lado da interface. Ordem de precedência quando duas fontes discordam: o manual, depois este padrão, depois o design system do app, depois o gosto de cada tela.</p>
+    </section>
+
+    <section id="camadas">
+      <div class="cabeca">
+        <span class="eyebrow">Arquitetura</span>
+        <h2>Três camadas, do grupo até o cliente</h2>
+        <p>O grupo endossa cada produto: a base é a mesma em todo app, e o que distingue um app do outro é o nome e uma única cor de destaque.</p>
+      </div>
+      <div class="camadas">
+        <div class="camada c1"><div class="rot">Núcleo do grupo<small>igual em todo app</small></div><p>Cores institucionais, neutros, tipografia, logo e regras do manual, cores de status, raio, sombra, ícones Lucide e textos em português. Não se muda no app.</p></div>
+        <div class="camada c2"><div class="rot">Cor do app<small>uma por produto</small></div><p>O app troca só quatro tokens (<code>--primary</code>, <code>--primary-hover</code>, <code>--ring</code>, <code>--primary-foreground</code>) com uma cor da paleta fechada. O padrão do grupo é o azul; a turquesa entra como acento.</p></div>
+        <div class="camada c3"><div class="rot">Cliente externo<small>white-label</small></div><p>Um cliente de fora pode trocar a primária em tempo real, por um <code>&lt;style&gt;</code> injetado, nunca inline no <code>&lt;html&gt;</code>. As empresas do grupo (Chok, G4, Jarantes) usam o padrão, sem cor gravada no banco.</p></div>
+      </div>
+      <div class="card">
+        <h3>Exceção documentada: app só claro <span class="novo">v1.1</span></h3>
+        <p class="onde">Um app pode ficar só no tema claro quando isso é decisão registrada no <code>CLAUDE.md</code> dele (a primeira foi a Gestão de Ativos, em 02/10). A exceção vale para o tema, não para a cor: tokens, status e contraste continuam os mesmos.</p>
+        <ul>
+          <li>Só o <code>:root</code> dos tokens, sem bloco <code>.dark</code>, sem <code>next-themes</code> nem botão de tema.</li>
+          <li>Trava de verdade: <code>darkMode: ["class"]</code> no Tailwind e nenhuma variante <code>dark:</code> no código. Sem o <code>darkMode</code>, o Tailwind 3 usa o tema do sistema e os <code>dark:</code> voltam a valer.</li>
+          <li><code>color-scheme: light</code> no <code>:root</code> e na meta, para campos e barras de rolagem não ficarem escuros.</li>
+          <li>Bibliotecas com tema próprio fixas no claro (ex.: <code>&lt;Sonner theme="light" /&gt;</code>) e o componente <code>Marca.so-claro.tsx</code>.</li>
+          <li>Conferir com <code>auditar-identidade.mjs . --light-only</code> e <code>contraste.mjs src/index.css --light-only</code>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="cores">
+      <div class="cabeca">
+        <span class="eyebrow">Cores</span>
+        <h2>Paleta institucional e cor de cada app</h2>
+        <p>Cada par de texto e fundo passa de 4,5:1 nos dois temas; o verificador está no pacote. A turquesa pura é só decorativa no tema claro, porque sobre o branco ela dá 2,7:1.</p>
+      </div>
+      <div class="degrade"><span>#2A4C7F</span><span>degradê oficial · o azul domina · só marca, login, ícone e faixa do topo</span><span>#3E96A0</span></div>
+      <div class="swatches">
+        <div class="sw"><div class="cor" style="background:#2A4C7F"></div><div class="info"><b>Azul Arantes</b><span class="mono">#2A4C7F</span><span>8,6:1 no branco</span></div></div>
+        <div class="sw"><div class="cor" style="background:#44ABAA"></div><div class="info"><b>Turquesa Arantes</b><span class="mono">#44ABAA</span><span>decorativa no claro</span></div></div>
+        <div class="sw"><div class="cor" style="background:#4F484D"></div><div class="info"><b>Grafite</b><span class="mono">#4F484D</span><span>texto secundário</span></div></div>
+        <div class="sw"><div class="cor" style="background:#150F0F"></div><div class="info"><b>Preto</b><span class="mono">#150F0F</span><span>texto principal</span></div></div>
+        <div class="sw"><div class="cor" style="background:#E8E8E6"></div><div class="info"><b>Fundo de marca</b><span class="mono">#E8E8E6</span><span>fundo do logo</span></div></div>
+      </div>
+      <h3>Cor do app (camada 2)</h3>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Cor</th><th>Tema claro</th><th>Tema escuro</th><th>Para</th></tr></thead>
+          <tbody>
+            <tr><td>Azul</td><td><span class="chip"><i style="background:#2A4C7F"></i><code>216 50% 33%</code></span></td><td><span class="chip"><i style="background:#809CC6"></i><code>216 38% 64%</code></span></td><td>padrão do grupo: GALOG, GA360, Ativos, Intranet, portais</td></tr>
+            <tr><td>Turquesa</td><td><span class="chip"><i style="background:#2A6F6E"></i><code>179 45% 30%</code></span></td><td><span class="chip"><i style="background:#49B6B4"></i><code>179 43% 50%</code></span></td><td>segunda voz (<code>--accent</code>) em todo app</td></tr>
+            <tr><td>Aço</td><td><span class="chip"><i style="background:#2B6078"></i><code>198 48% 32%</code></span></td><td><span class="chip"><i style="background:#61A6C2"></i><code>198 45% 58%</code></span></td><td>meio do degradê: serviços</td></tr>
+            <tr><td>Grafite</td><td><span class="chip"><i style="background:#50494E"></i><code>317 5% 30%</code></span></td><td><span class="chip"><i style="background:#CDCDC9"></i><code>60 4% 80%</code></span></td><td>utilitários e admin</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="legenda">No escuro, o texto sobre a cor do app é escuro (<code>216 40% 8%</code>), não branco. Cor fora desta paleta só em campanha ou data comemorativa, nunca como primária de app.</p>
+      <h3>Neutros</h3>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Token</th><th>Claro</th><th>Escuro (Noite Arantes)</th></tr></thead>
+          <tbody>
+            <tr><td><code>--background</code></td><td><span class="chip"><i style="background:#F8F8F7"></i><code>60 5% 97%</code></span></td><td><span class="chip"><i style="background:#0A0E14"></i><code>216 32% 6%</code></span></td></tr>
+            <tr><td><code>--card</code></td><td><span class="chip"><i style="background:#FFFFFF"></i><code>0 0% 100%</code></span></td><td><span class="chip"><i style="background:#11161D"></i><code>216 26% 9%</code></span></td></tr>
+            <tr><td><code>--foreground</code></td><td><span class="chip"><i style="background:#150F0F"></i><code>0 17% 7%</code></span></td><td><span class="chip"><i style="background:#ECECEA"></i><code>60 5% 92%</code></span></td></tr>
+            <tr><td><code>--muted-foreground</code></td><td><span class="chip"><i style="background:#4F484D"></i><code>317 5% 30%</code></span></td><td><span class="chip"><i style="background:#9AA1AC"></i><code>216 10% 64%</code></span></td></tr>
+            <tr><td><code>--border</code></td><td><span class="chip"><i style="background:#DAD9D5"></i><code>60 4% 85%</code></span></td><td><span class="chip"><i style="background:#232A33"></i><code>216 18% 17%</code></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Status: cores vivas, separadas da marca</h3>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Status</th><th>Claro</th><th>Escuro</th><th>Regra</th></tr></thead>
+          <tbody>
+            <tr><td>Sucesso · entregue</td><td><span class="chip"><i style="background:#238551"></i><code>148 58% 30%</code></span></td><td><span class="chip"><i style="background:#4EBC81"></i><code>148 45% 52%</code></span></td><td rowspan="4">Cor, ícone e texto juntos, nunca só a cor. O azul e a turquesa da marca nunca significam status: o azul de status é céu e vivo, o da marca é marinho e sóbrio. Selo padrão: <code>bg-success/10 text-success</code>.</td></tr>
+            <tr><td>Informação · a fazer <span class="novo">v1.2</span></td><td><span class="chip"><i style="background:#096AAE"></i><code>205 90% 36%</code></span></td><td><span class="chip"><i style="background:#36C0F2"></i><code>196 88% 58%</code></span></td></tr>
+            <tr><td>Atenção</td><td><span class="chip"><i style="background:#98620A"></i><code>36 88% 31%</code></span></td><td><span class="chip"><i style="background:#E0AC52"></i><code>38 70% 60%</code></span></td></tr>
+            <tr><td>Problema</td><td><span class="chip"><i style="background:#C52E2B"></i><code>1 64% 47%</code></span></td><td><span class="chip"><i style="background:#E75F5A"></i><code>2 75% 63%</code></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="legenda">Na v1.2 (05/10) o azul de informação no claro passou de 40% para 36% de luminosidade: o selo <code>bg-info/10 text-info</code> dava 4,22:1 e agora dá 4,96:1. Quem copiou a v1 precisa trocar esse token. Cor de série de gráfico ou de categoria no mapa é paleta de dado, documentada no app, e não usa as cores de status.</p>
+    </section>
+
+    <section id="tipografia">
+      <div class="cabeca">
+        <span class="eyebrow">Tipografia</span>
+        <h2>Gotham no manual, Montserrat e Segoe UI nas telas</h2>
+        <p>O manual pede Gotham para títulos e Segoe UI para uso digital. A Gotham é paga, e a Segoe UI não pode ser embutida em site, só existe no Windows. Nos apps fica assim:</p>
+      </div>
+      <div class="card especime">
+        <div class="fonte"><div class="papel"><b>Montserrat</b>títulos e destaques · 600 e 700 · no lugar da Gotham</div><div class="amostra-display">Roteiro 229857 saiu de Brodowski</div></div>
+        <div class="fonte"><div class="papel"><b>Segoe UI</b>texto e números de negócio · a do Windows; nativa no Android e no Mac</div><div class="amostra-sans"><span class="kpi">R$ 26.535,81</span>16 pedidos no romaneio · 4 dias úteis desde a saída</div></div>
+        <div class="fonte"><div class="papel"><b>JetBrains Mono</b>só carimbo de máquina: NF, chave, placa, hora, código</div><div class="amostra-mono">NF 000.412.887 · FXP-4B21 · 14:32</div></div>
+      </div>
+      <p class="legenda">Fontes embutidas no app (<code>@fontsource-variable/montserrat</code> e <code>@fontsource-variable/jetbrains-mono</code>), nunca por link do Google: funcionam sem internet externa. Números de indicador ficam na Segoe UI com algarismos tabulares. Proibidas como fonte principal: Inter, Geist, Space Grotesk, Instrument, Poppins, Plus Jakarta, Fraunces, Arial e serifas de display. Nada abaixo de 11 px; corpo de 14 px (operacional) ou 16 px (celular).</p>
+    </section>
+
+    <section id="logo">
+      <div class="cabeca">
+        <span class="eyebrow">Logo e ícone</span>
+        <h2>Arquivos oficiais, sem redesenho</h2>
+        <p>A versão horizontal é a preferencial, em vetor (SVG). Em fundo claro vai a colorida; em azul, foto ou tema escuro, a branca. Use o arquivo como imagem, não colado dentro do HTML: o SVG do Illustrator tem classes que colidem quando dois logos entram inline na mesma página.</p>
+      </div>
+      <div class="logos">
+        <div class="logo-caixa lc-claro"><img src="img/logo-horizontal-cor.svg" alt="Logo colorido do Grupo Arantes"><small>fundo claro</small></div>
+        <div class="logo-caixa lc-azul"><img src="img/logo-horizontal-branco.svg" alt="Logo branco do Grupo Arantes"><small>fundo azul ou foto</small></div>
+        <div class="logo-caixa lc-noite"><img src="img/logo-horizontal-branco.svg" alt="Logo branco do Grupo Arantes no tema escuro"><small>tema escuro dos apps</small></div>
+      </div>
+      <div class="medidas">
+        <div class="medida"><strong class="num">120 px</strong><span>largura mínima da horizontal</span></div>
+        <div class="medida"><strong class="num">60 px</strong><span>largura mínima da vertical</span></div>
+        <div class="medida"><strong>2x</strong><span>área livre em volta; x é a altura do "A"</span></div>
+        <div class="medida icone-app"><img src="img/favicon.svg" width="56" height="56" alt="Ícone de app: símbolo branco sobre o degradê"><span>Ícone de app e favicon: símbolo branco sobre o degradê</span></div>
+      </div>
+      <div class="card">
+        <h3>Os 12 usos proibidos do manual</h3>
+        <ul class="regras">
+          <li>distorcer</li><li>rotacionar ou inclinar</li><li>usar na posição vertical</li><li>rotacionar um dos elementos</li>
+          <li>trocar a tipografia</li><li>inverter as cores</li><li>trocar as cores</li><li>mudar a proporção entre símbolo e texto</li>
+          <li>mudar a disposição dos elementos</li><li>usar em baixa resolução</li><li>aplicar efeitos</li><li>colocar contorno</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Marca de produto e cabeçalho do HTML</h3>
+        <p class="onde">O produto tem nome próprio em Montserrat 700 mais o endosso "Grupo Arantes" (logo oficial ou texto), no menu lateral e no login. As palavras do logotipo nunca são trocadas pelo nome do produto. Todo app tem <code>lang="pt-BR"</code>, título da aba com o nome do produto, o favicon do grupo e <code>theme-color</code> <code>#f8f8f7</code> no claro e <code>#0a0e14</code> no escuro. Nada de "Lovable App", "Vite + React" ou ícone de template.</p>
+      </div>
+    </section>
+
+    <section id="forma">
+      <div class="cabeca">
+        <span class="eyebrow">Forma</span>
+        <h2>Raio, sombra, ícones e a faixa do topo</h2>
+      </div>
+      <div class="tabela-wrap">
+        <table>
+          <tbody>
+            <tr><td><b>Raio</b></td><td><code>0.75rem</code> em app operacional, <code>0.875rem</code> em institucional e celular. Botão com o raio do tema; pílula só em app institucional ou de celular.</td></tr>
+            <tr><td><b>Sombra</b></td><td>Tingida de azul no claro (<code>hsl(216 40% 12% / …)</code>), preta no escuro. Painéis separados por borda a 60%.</td></tr>
+            <tr><td><b>Ícones</b></td><td><code>lucide-react</code>, traço 2, na cor do texto. Sem emoji na interface.</td></tr>
+            <tr><td><b>Movimento</b></td><td>Até 300 ms, só posição e opacidade, respeitando "reduzir movimento" do sistema.</td></tr>
+            <tr><td><b>Degradê</b></td><td>Só em marca, login, ícone de app e faixa do topo. Nunca em fundo de card, de seção ou em texto.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>A faixa do topo, assinatura da marca</h3>
+        <p class="onde">O cabeçalho do app é uma faixa em degradê azul sereno (do azul Arantes a um azul-aço, com a turquesa só no fim), um brilho suave à esquerda, o símbolo em contorno bem apagado entrando pela direita e um fio turquesa embaixo. Dentro dela os tokens viram "claro sobre azul", então seletores e botões se ajustam sozinhos. Popover, diálogo e painel lateral abertos dali vão para fora da faixa e seguem o tema normal, e é assim que deve ser. CSS pronto: <code>componentes/faixa-marca.css</code> (classes <code>.faixa-marca</code> e <code>.faixa-marca-lateral</code>).</p>
+      </div>
+    </section>
+
+    <section id="codigo">
+      <div class="cabeca">
+        <span class="eyebrow">Regras de código</span>
+        <h2>O que vale em todo app</h2>
+      </div>
+      <ul class="regras-codigo">
+        <li><b>Cor só por token</b><span><code>hsl(var(--x))</code> ou classe semântica (<code>bg-primary</code>, <code>text-muted-foreground</code>, <code>bg-success/10</code>). Nenhum hex e nenhum <code>bg-blue-500</code> no componente: quebram o tema escuro e o white-label.</span></li>
+        <li><b>Nomes fixos</b><span>Os nomes de token do shadcn não mudam, só os valores. Token novo só com prefixo <code>--brand-*</code>.</span></li>
+        <li><b>Contraste provado</b><span>Depois de mexer em token, <code>node scripts/contraste.mjs src/index.css</code>. Todo par texto e fundo com 4,5:1 ou mais, nos dois temas.</span></li>
+        <li><b>Status pelo significado</b><span><code>text-success</code>, não <code>text-green-600</code>. Traduza pela intenção, não pelo matiz.</span></li>
+        <li><b>Exceção explicada</b><span>Onde a cor literal é inevitável (camada de mapa, PDF, e-mail, marca de terceiro como Teams), a linha leva <code>// identidade-ok: motivo</code>. Sem motivo conta como violação. Mapa e canvas leem o token com <code>lerCorToken("--primary")</code>.</span></li>
+      </ul>
+      <h3>Tradução das cores cruas</h3>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Era</th><th>Passa a ser</th></tr></thead>
+          <tbody>
+            <tr><td><code>green-*</code>, <code>emerald-*</code> (ok, entregue, aprovado)</td><td><code>success</code></td></tr>
+            <tr><td><code>amber-*</code>, <code>yellow-*</code>, <code>orange-*</code> (atenção, pendente)</td><td><code>warning</code></td></tr>
+            <tr><td><code>red-*</code>, <code>rose-*</code> (erro, atrasado)</td><td><code>destructive</code></td></tr>
+            <tr><td><code>blue-*</code>, <code>sky-*</code>, <code>cyan-*</code> quando é "a fazer" ou "em andamento"</td><td><code>info</code></td></tr>
+            <tr><td><code>blue-*</code>, <code>indigo-*</code>, <code>purple-*</code>, <code>violet-*</code> quando era a cor do app</td><td><code>primary</code></td></tr>
+            <tr><td><code>slate-*</code>, <code>gray-*</code>, <code>zinc-*</code>, <code>neutral-*</code></td><td><code>muted</code>, <code>muted-foreground</code>, <code>border</code>, <code>foreground</code></td></tr>
+            <tr><td><code>bg-green-100 text-green-800</code> (selo)</td><td><code>bg-success/10 text-success</code></td></tr>
+            <tr><td><code>dark:bg-…</code> / <code>dark:text-…</code> do mesmo elemento</td><td>remover: o token já muda sozinho no escuro</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="legenda">Onde o matiz é ambíguo (um laranja que significava "atrasado"), decida pelo significado de negócio e anote no PR. Comece pelos arquivos que o auditor aponta como mais sujos; não faça troca cega em massa.</p>
+    </section>
+
+    <section id="adocao">
+      <div class="cabeca">
+        <span class="eyebrow">Como adotar</span>
+        <h2>Alinhar um app leva de meio dia a um dia</h2>
+        <p>Tudo está num pacote pronto: <code>C:\GIT GA\GALOG\docs\identidade-visual\</code>, com o guia completo (README v1.2), tokens em CSS e em JSON, componentes React, a faixa do topo, os logos e ícones, e os dois scripts de conferência. A mesma base está na skill <code>grupo-arantes-design</code> do Claude Code, que qualquer sessão de app do grupo enxerga.</p>
+      </div>
+      <ol class="passos">
+        <li><div><b>Fotografe o antes e meça</b><p><code>node scripts/auditar-identidade.mjs .</code> na raiz do app. Ache quem injeta cor em tempo de execução (hook de tenant) e quem pinta mapa, gráfico ou PDF. Se o app tem tabela de empresas com cor, veja quais empresas do grupo têm cor gravada.</p></div></li>
+        <li><div><b>Troque as fontes</b><p>Instale Montserrat e JetBrains Mono embutidas, aponte o texto para a pilha Segoe UI no Tailwind e deixe a mono só para dado de máquina. Remova as fontes antigas e os ajustes de fonte órfãos.</p></div></li>
+        <li><div><b>Cole os tokens e escolha a cor do app</b><p>Os tokens abaixo vão no lugar do <code>:root</code> e do <code>.dark</code>, mantendo os tokens próprios do app. Troque só os quatro da cor do app, se ele não for azul. Rode o <code>contraste.mjs</code>.</p></div></li>
+        <li><div><b>Coloque a marca</b><p>SVGs em <code>src/assets/brand/</code>, ícones em <code>public/</code>, componente <code>Marca.tsx</code> (ou <code>Marca.so-claro.tsx</code>), cabeçalho do HTML, login com degradê e grafismo, e a faixa do topo.</p></div></li>
+        <li><div><b>Troque a cor fora do token</b><p>É o grosso do trabalho em app antigo. Use a tabela de tradução, comece pelos arquivos mais sujos e marque as exceções com <code>identidade-ok</code>.</p></div></li>
+        <li><div><b>Confira e avise antes de publicar</b><p>Checklist abaixo. Zere a cor gravada das empresas do grupo no mesmo deploy. A troca visual só vai ao ar depois do aviso aos usuários.</p></div></li>
+      </ol>
+    </section>
+
+    <section id="tokens">
+      <div class="cabeca">
+        <span class="eyebrow">Tokens para copiar</span>
+        <h2>O núcleo do grupo, pronto para colar</h2>
+        <p>Formato shadcn/ui: tripleto HSL usado como <code>hsl(var(--token))</code>. Vai dentro de <code>@layer base</code> no CSS global do app. Num app só claro, cole apenas o <code>:root</code>.</p>
+      </div>
+      <div class="codigo">
+        <div class="barra"><span><code>tokens/grupo-arantes.css</code> · v1.2</span><button type="button" class="copiar" id="copiar-tokens" data-alvo="tokens-css">Copiar tokens</button></div>
+<pre id="tokens-css">:root {
+  /* Primitivos de marca: só logo, degradê, gráfico e fundo de marca */
+  --brand-azul: 216 50% 33%;       /* #2A4C7F, Pantone 307C */
+  --brand-turquesa: 179 43% 47%;   /* #44ABAA, Pantone 638C; nunca texto no claro */
+  --brand-grafite: 317 5% 30%;     /* #4F484D */
+  --brand-preto: 0 17% 7%;         /* #150F0F */
+  --brand-fundo: 60 4% 91%;        /* #E8E8E6 */
+  --brand-gradient: linear-gradient(135deg, hsl(216 50% 33%) 0%, hsl(216 50% 33%) 30%, hsl(179 43% 47%) 120%);
+
+  /* Neutros */
+  --background: 60 5% 97%;
+  --foreground: 0 17% 7%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 17% 7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 17% 7%;
+  --muted: 60 4% 91%;
+  --muted-foreground: 317 5% 30%;
+  --border: 60 4% 85%;
+  --input: 60 4% 82%;
+
+  /* Cor do app (camada 2): padrão azul */
+  --primary: 216 50% 33%;
+  --primary-foreground: 0 0% 100%;
+  --primary-hover: 216 50% 27%;
+  --ring: 216 50% 33%;
+
+  --secondary: 216 30% 93%;
+  --secondary-foreground: 216 50% 24%;
+  --secondary-hover: 216 28% 89%;
+
+  /* Segunda voz: turquesa em tom legível */
+  --accent: 179 45% 30%;
+  --accent-foreground: 0 0% 100%;
+  --accent-hover: 179 45% 25%;
+
+  /* Status: vivos, nunca no matiz da marca */
+  --success: 148 58% 30%;
+  --success-foreground: 0 0% 100%;
+  --warning: 36 88% 31%;
+  --warning-foreground: 0 0% 100%;
+  --destructive: 1 64% 47%;
+  --destructive-foreground: 0 0% 100%;
+  --info: 205 90% 36%;             /* v1.2: era 40% */
+  --info-foreground: 0 0% 100%;
+
+  --radius: 0.75rem;               /* institucional e celular: 0.875rem */
+
+  --shadow-sm: 0 1px 3px hsl(216 40% 12% / 0.05);
+  --shadow-md: 0 4px 12px hsl(216 40% 12% / 0.08);
+  --shadow-lg: 0 12px 40px hsl(216 40% 12% / 0.12);
+  --shadow-xl: 0 24px 60px hsl(216 40% 12% / 0.16);
+}
+
+.dark {
+  /* Noite Arantes */
+  --background: 216 32% 6%;
+  --foreground: 60 5% 92%;
+  --card: 216 26% 9%;
+  --card-foreground: 60 5% 92%;
+  --popover: 216 24% 11%;
+  --popover-foreground: 60 5% 92%;
+  --muted: 216 18% 13%;
+  --muted-foreground: 216 10% 64%;
+  --border: 216 18% 17%;
+  --input: 216 18% 20%;
+
+  --primary: 216 38% 64%;
+  --primary-foreground: 216 40% 8%;
+  --primary-hover: 216 42% 70%;
+  --ring: 216 38% 64%;
+
+  --secondary: 216 30% 16%;
+  --secondary-foreground: 216 40% 80%;
+  --secondary-hover: 216 30% 20%;
+
+  --accent: 179 43% 50%;
+  --accent-foreground: 216 40% 8%;
+  --accent-hover: 179 45% 57%;
+
+  --success: 148 45% 52%;
+  --success-foreground: 150 60% 6%;
+  --warning: 38 70% 60%;
+  --warning-foreground: 36 70% 8%;
+  --destructive: 2 75% 63%;
+  --destructive-foreground: 0 60% 8%;
+  --info: 196 88% 58%;
+  --info-foreground: 205 80% 8%;
+
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 12px 40px rgb(0 0 0 / 0.5);
+  --shadow-xl: 0 24px 60px rgb(0 0 0 / 0.6);
+}</pre>
+      </div>
+      <div class="codigo">
+        <div class="barra"><span><code>tailwind.config</code> · fontes e cores de marca</span><button type="button" class="copiar" id="copiar-tailwind" data-alvo="tailwind-cfg">Copiar</button></div>
+<pre id="tailwind-cfg">// theme.extend
+fontFamily: {
+  sans: ['"Segoe UI"', "system-ui", "-apple-system", "BlinkMacSystemFont", "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
+  display: ['"Montserrat Variable"', "Montserrat", '"Segoe UI"', "system-ui", "sans-serif"],
+  mono: ['"JetBrains Mono Variable"', "ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "monospace"],
+},
+colors: {
+  brand: {
+    azul: "hsl(var(--brand-azul))",
+    turquesa: "hsl(var(--brand-turquesa))",
+    grafite: "hsl(var(--brand-grafite))",
+    preto: "hsl(var(--brand-preto))",
+    fundo: "hsl(var(--brand-fundo))",
+  },
+},
+backgroundImage: { "brand-gradient": "var(--brand-gradient)" },</pre>
+      </div>
+      <p class="legenda" id="copiar-aviso" aria-live="polite"></p>
+    </section>
+
+    <section id="conferencia">
+      <div class="cabeca">
+        <span class="eyebrow">Conferência</span>
+        <h2>Antes de publicar</h2>
+      </div>
+      <div class="card">
+        <ul class="checklist">
+          <li><span><code>contraste.mjs</code> sem nenhum par abaixo de 4,5:1, claro e escuro</span></li>
+          <li><span><code>auditar-identidade.mjs</code> com 5 de 5, exceções marcadas com motivo</span></li>
+          <li><span>Typecheck, lint, testes e build verdes</span></li>
+          <li><span>Claro e escuro, computador e celular: login, tela principal, diálogo, tabela, gráfico e mapa</span></li>
+          <li><span>Nenhuma sobra das fontes e cores antigas na busca do código</span></li>
+          <li><span>Favicon, título da aba, <code>lang="pt-BR"</code> e <code>theme-color</code> corretos</span></li>
+          <li><span>Nenhuma empresa do grupo com cor gravada no banco</span></li>
+          <li><span>Antes e depois fotografados</span></li>
+        </ul>
+      </div>
+      <p class="legenda">Depois que o app chega a 5 de 5, o auditor pode entrar no CI com <code>--strict</code>, que falha a build se algum eixo regredir.</p>
+    </section>
+
+    <section id="galog">
+      <div class="cabeca">
+        <span class="eyebrow">App-piloto</span>
+        <h2>O GALOG antes e depois</h2>
+        <p>No ar desde 29/09/2026 em galog.grupoarantes.emp.br.</p>
+      </div>
+      <div class="antes-depois">
+        <figure><img src="img/antes-login-light.webp" alt="Tela de login do GALOG antes, em teal-petróleo com título em serifa" loading="lazy"><figcaption><b>Antes</b> · teal-petróleo herdado da Central DP, título em serifa, ícone de rádio</figcaption></figure>
+        <figure><img src="img/depois-login-light.webp" alt="Tela de login do GALOG depois, no degradê azul para turquesa com o logo oficial" loading="lazy"><figcaption><b>Depois</b> · degradê oficial, logo horizontal branco, Montserrat e Segoe UI</figcaption></figure>
+        <figure><img src="img/antes-login-dark.webp" alt="Login do GALOG antes, tema escuro" loading="lazy"><figcaption><b>Antes</b> · tema escuro petróleo</figcaption></figure>
+        <figure><img src="img/depois-login-dark.webp" alt="Login do GALOG depois, tema escuro Noite Arantes" loading="lazy"><figcaption><b>Depois</b> · tema escuro "Noite Arantes", botão em azul sóbrio</figcaption></figure>
+        <figure><img src="img/antes-baixar_app-light.webp" alt="Página de download do app do motorista antes" loading="lazy"><figcaption><b>Antes</b> · página do app do motorista</figcaption></figure>
+        <figure><img src="img/depois-baixar_app-light.webp" alt="Página de download do app do motorista depois, com selo e logo do grupo" loading="lazy"><figcaption><b>Depois</b> · selo do app e endosso do grupo no rodapé</figcaption></figure>
+      </div>
+      <div class="card">
+        <h3>Armadilhas que o piloto já pagou</h3>
+        <ul>
+          <li>Cor gravada na tabela de empresas sobrepõe o padrão: a Chok tinha verde, e todos os botões dela saíram verdes em cima do azul novo.</li>
+          <li>Cor injetada inline no <code>&lt;html&gt;</code> vence o tema escuro e fica ilegível. Use <code>&lt;style&gt;</code> com <code>:root</code> e <code>:root.dark</code>.</li>
+          <li>Mapbox e canvas não leem <code>var(--x)</code>: a camada some sem erro no console.</li>
+          <li>Montserrat em número desalinha a tabela; números ficam na Segoe UI.</li>
+          <li>Fonte antiga de um peso só deixava o negrito "mudo"; com a Montserrat os títulos passam a pesar. Revise as telas.</li>
+          <li>Azul de informação igual ao azul da marca mistura "marca" com "a fazer".</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="rollout">
+      <div class="cabeca">
+        <span class="eyebrow">Ordem dos apps</span>
+        <h2>Quem vem a seguir</h2>
+      </div>
+      <div class="ondas">
+        <div class="onda"><h3>Concluir</h3><ul><li>GALOG: marcar as cores de mapa e impressão com <code>identidade-ok</code></li><li>GA360: trocar o <code>--info</code> e as classes de cor crua, começando pelos arquivos mais sujos</li><li>GA-Workflow: hex e contraste</li></ul></div>
+        <div class="onda"><h3>Próximos</h3><ul><li>Intranet (fecha a pendência de marca dela)</li><li>Central DP</li><li>cockpit-ga e pagamentos</li><li>RouteGA</li></ul></div>
+        <div class="onda"><h3>Decidir antes</h3><ul><li>CRM (marca DEX) e Smartzap (marca SZ): produto do grupo ou marca própria?</li><li>Chokdoce e catálogos seguem a marca da empresa</li></ul></div>
+      </div>
+    </section>
+
+    <section id="referencias">
+      <div class="cabeca">
+        <span class="eyebrow">Referências</span>
+        <h2>Como outras empresas resolveram o mesmo problema</h2>
+      </div>
+      <div class="refs">
+        <div class="ref"><a href="https://designsystem.maersk.com/foundations/colour-roles/">Maersk Design System</a><span>Uma cor de marca desde 1973, com tokens de texto já aprovados em contraste. <em>Aplicamos: cor estável e texto só por token conferido.</em></span></div>
+        <div class="ref"><a href="https://carbondesignsystem.com/elements/themes/overview/">IBM Carbon</a><span>Quatro temas saídos dos mesmos tokens. <em>Aplicamos: claro e escuro com os mesmos nomes de token.</em></span></div>
+        <div class="ref"><a href="https://www.figma.com/customers/mercado-libre-scales-design-across-latin-america/">Andes, do Mercado Livre</a><span>Uma biblioteca central e bibliotecas por grupo de produto. <em>Aplicamos: núcleo do grupo mais a camada do app.</em></span></div>
+        <div class="ref"><a href="https://medium.com/gbtech/cultivando-design-systems-no-grupo-botic%C3%A1rio-6a6c57dfe137">Flora, do Grupo Boticário</a><span>Um padrão para um conglomerado de marcas. <em>Aplicamos: um padrão do grupo; marcas voltadas ao consumidor seguem a própria.</em></span></div>
+        <div class="ref"><a href="https://www.figma.com/customers/nubank-design-system-accessible-experiences-with-figma/">NuDS, do Nubank</a><span>Duas camadas de tokens e adoção medida (80% das telas conformes). <em>Aplicamos: nota de aderência por app.</em></span></div>
+        <div class="ref"><a href="https://medium.com/@DavidAaker/branding-a-new-offering-the-brand-relationship-spectrum-649d6b33eddf">Aaker, espectro de marcas</a><span>De marca única a casa de marcas. <em>Aplicamos: o modelo endossado.</em></span></div>
+        <div class="ref"><a href="https://www.w3.org/community/design-tokens/2025/10/28/design-tokens-specification-reaches-first-stable-version/">W3C Design Tokens 2025.10</a><span>Formato estável de arquivo de tokens. <em>Aplicamos: o JSON de tokens do grupo segue esse formato.</em></span></div>
+        <div class="ref"><a href="https://github.com/google/fonts/issues/2553">Montserrat e os algarismos tabulares</a><span>A versão do Google Fonts perde números alinhados em alguns pesos. <em>Aplicamos: números na Segoe UI.</em></span></div>
+      </div>
+      <p class="legenda">Um sinal a mais de desposicionamento: <span class="mono">grupoarantes.com</span> é de outro Grupo Arantes, de construção civil em Itamogi (MG). A marca precisa aparecer com o logo, não só com o nome.</p>
+    </section>
+
+    <section id="pendencias">
+      <div class="cabeca">
+        <span class="eyebrow">Pendências</span>
+        <h2>O que precisamos do marketing</h2>
+      </div>
+      <ol class="pend">
+        <li>Logo vertical em vetor e os vetores da Chok Agro e da G4 sozinha (hoje só em PNG). Os links de download do manual (drive.dote.com.br) estão fora do ar.</li>
+        <li>O degradê dentro do logo vetorial vai de #609C9C a #24226E, mais escuro que a amostra do manual (#2A4C7F). Confirmar qual é o oficial.</li>
+        <li>Confirmar os hex digitais: o texto do manual diz #31729B e #00B9CF, a arte usa #2A4C7F e #44ABAA.</li>
+        <li>Corrigir o hex do cinza, que repete o da turquesa.</li>
+        <li>Fontes: o texto diz Gotham e Segoe UI, a miniatura do pacote de fontes mostra Filson Soft e Calibri.</li>
+        <li>Aval para usar o símbolo sozinho em favicon e ícone de app; o manual não mostra esse uso.</li>
+        <li>Tamanho mínimo da horizontal: o texto diz 120 px e o diagrama diz 100 px (seguimos 120 px).</li>
+        <li>Licença da Gotham, se quiserem a fonte original nas telas.</li>
+      </ol>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr></thead>
+          <tbody>
+            <tr><td>1.0</td><td>02/10/2026</td><td>Núcleo, faixa do topo, white-label, auditor. Base: piloto GALOG de 28 e 29/09.</td></tr>
+            <tr><td>1.1</td><td>02/10/2026</td><td>Exceção "app só claro" (primeira: Gestão de Ativos) e conferência própria para ela.</td></tr>
+            <tr><td>1.2</td><td>05/10/2026</td><td><code>--info</code> claro de 40% para 36%; conferência do selo de status; <code>Marca.so-claro.tsx</code>; nota para app com tokens em hex no Tailwind.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="onde">O padrão só muda por decisão registrada, nunca por cópia local de token. Pedidos de mudança vão ao William Cintra (TI), com o caso concreto. Onde está tudo: pacote <code>C:\GIT GA\GALOG\docs\identidade-visual\</code> e skill <code>~/.claude/skills/grupo-arantes-design</code>.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+  (function () {
+    var aviso = document.getElementById('copiar-aviso');
+    function selecionar(el) {
+      var r = document.createRange();
+      r.selectNodeContents(el);
+      var s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    }
+    document.querySelectorAll('.copiar').forEach(function (botao) {
+      botao.addEventListener('click', function () {
+        var alvo = document.getElementById(botao.getAttribute('data-alvo'));
+        if (!alvo) return;
+        var texto = alvo.textContent;
+        var original = botao.textContent;
+        function ok() {
+          botao.textContent = 'Copiado';
+          if (aviso) aviso.textContent = '';
+          setTimeout(function () { botao.textContent = original; }, 1800);
+        }
+        function falhou() {
+          selecionar(alvo);
+          if (aviso) aviso.textContent = 'Não deu para copiar automaticamente. O texto ficou selecionado: use Ctrl+C.';
+        }
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(texto).then(ok, falhou);
+          } else { falhou(); }
+        } catch (e) { falhou(); }
+      });
+    });
+  })();
+</script>
+
+</body></html>

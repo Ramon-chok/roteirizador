@@ -215,13 +215,14 @@ create index if not exists importacoes_data_idx on public.importacoes (empresa_i
 create view public.v_visitas with (security_invoker = true) as
 select ec.empresa_id, ec.estudo_id, ec.setor_id, s.nome as setor, s.colaborador_codigo,
        sem.semana, d.dia, (ec.sequencia ->> d.dia::text)::int as ordem,
-       ec.sold, c.nome as cliente, c.cidade, c.lat, c.lng, c.atendimento_min,
+       regexp_replace(ec.sold, '~[0-9]+$', '') as sold, c.nome as cliente, c.cidade, c.lat, c.lng, c.atendimento_min,
        c.sold is not null as cliente_cadastrado
 from public.estudo_clientes ec
 join public.setores s on s.empresa_id = ec.empresa_id and s.estudo_id = ec.estudo_id and s.id = ec.setor_id
 cross join lateral unnest(ec.semanas) as sem (semana)
 cross join lateral unnest(ec.dias) as d (dia)
-left join public.clientes c on c.empresa_id = ec.empresa_id and c.sold = ec.sold;
+-- "SOLD~2", "SOLD~3"…: o mesmo cliente visitado por outro setor do estudo
+left join public.clientes c on c.empresa_id = ec.empresa_id and c.sold = regexp_replace(ec.sold, '~[0-9]+$', '');
 
 create view public.v_rotas with (security_invoker = true) as
 select v.empresa_id, v.estudo_id, v.setor_id, v.setor, v.colaborador_codigo, col.nome as colaborador,
